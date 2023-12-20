@@ -4,7 +4,8 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 
 
-def train_net(net, features, labels, criterion=nn.MSELoss(), num_epochs=75, batch_size=256, test_size=0.2):
+def train_neural_network(net, features, labels, criterion=nn.MSELoss(), num_epochs=100, batch_size=256, test_size=0.2):
+    """Create train/test and train a neural network."""
     # Split dataset into train and test sets
     x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=test_size, random_state=42)
 

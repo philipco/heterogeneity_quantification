@@ -74,9 +74,23 @@ def compute_LSR_distance(net, test_loss, features, labels):
     remote_loss = criterion(outputs, torch.from_numpy(labels).float())
     return abs(remote_loss - test_loss) / test_loss
 
+def compute_net_distance(net, criterion, test_loss, features, labels):
+    outputs = net(torch.from_numpy(features).float())
+    remote_loss = criterion(outputs, torch.from_numpy(labels).float())
+    return remote_loss - test_loss
+
+def function_to_compute_net_error(data: DataDecentralized, i: int, j: int):
+    d_iid = compute_net_distance(data.all_models.models_iid[i], data.all_models.criterion,
+                                 data.all_models.test_loss_iid[i], data.features_iid[j], data.labels_iid[j])
+    d_heter = compute_net_distance(data.all_models.models_heter[i], data.all_models.criterion,
+                                   data.all_models.test_loss_heter[i], data.features_heter[j], data.labels_heter[j])
+    return d_iid, d_heter
+
 def function_to_compute_LSR_error(data: DataDecentralized, i: int, j: int):
-    d_iid = compute_LSR_distance(data.models_iid[i], data.test_loss_iid[i], data.features_iid[j], data.labels_iid[j])
-    d_heter = compute_LSR_distance(data.models_heter[i], data.test_loss_heter[i], data.features_heter[j], data.labels_heter[j])
+    d_iid = compute_LSR_distance(data.all_models.models_iid[i], data.all_models.test_loss_iid[i],
+                                 data.features_iid[j], data.labels_iid[j])
+    d_heter = compute_LSR_distance(data.all_models.models_heter[i], data.all_models.test_loss_heter[i],
+                                   data.features_heter[j], data.labels_heter[j])
     return d_iid, d_heter
 
 
@@ -102,11 +116,11 @@ def function_to_compute_EM(data: DataCentralized, i: int, j: int):
 def compute_matrix_of_distances(fonction_to_compute_distance, data: Data, metrics: Metrics,
                                 symetric_distance: bool = True) -> Metrics:
 
-    distances_iid = np.zeros((data.nb_of_clients, data.nb_of_clients))
-    distances_heter = np.zeros((data.nb_of_clients, data.nb_of_clients))
-    for i in tqdm(range(data.nb_of_clients)):
+    distances_iid = np.zeros((data.nb_clients, data.nb_clients))
+    distances_heter = np.zeros((data.nb_clients, data.nb_clients))
+    for i in tqdm(range(data.nb_clients)):
         start = i if symetric_distance else 0
-        for j in range(start, data.nb_of_clients):
+        for j in range(start, data.nb_clients):
             d_iid, d_heter = fonction_to_compute_distance(data, i, j)
             distances_iid[i,j] = d_iid
             distances_heter[i, j] = d_heter

@@ -20,7 +20,7 @@ def get_element_from_dataloader(loader):
             x = torch.flatten(x, start_dim=1)
         X.append(x)
         Y.append(y)
-    return np.concatenate(X), np.concatenate(Y)
+    return np.concatenate(X), np.concatenate(Y).flatten()
 
 
 def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,

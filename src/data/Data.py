@@ -5,9 +5,9 @@ import numpy as np
 from sklearn.decomposition import IncrementalPCA
 from tqdm import tqdm
 
-from src.data.DatasetConstants import PCA_NB_COMPONENTS, MODELS
+from src.data.DatasetConstants import PCA_NB_COMPONENTS, MODELS, CRITERION, NB_LABELS
 from src.data.Split import iid_split
-from src.optim.Train import train_net
+from src.optim.Nets import ModelsOfAllClients
 from src.utils.UtilitiesNumpy import fit_PCA
 
 
@@ -19,7 +19,7 @@ class Data:
 
         self.dataset_name = dataset_name
         self.nb_points_by_clients = nb_points_by_clients
-        self.nb_of_clients = len(features_heter)
+        self.nb_clients = len(features_heter)
 
         self.features_iid = features_iid
         self.features_heter = features_heter
@@ -32,7 +32,7 @@ class Data:
     def resplit_iid(self) -> None:
         nb_points_by_clients = [len(l) for l in self.labels_heter]
         features_iid, labels_iid = iid_split(np.concatenate(self.features_heter), np.concatenate(self.labels_heter),
-                                             self.nb_of_clients, nb_points_by_clients)
+                                             self.nb_clients, nb_points_by_clients)
 
         self.features_iid = features_iid
         self.labels_iid = labels_iid
@@ -67,17 +67,11 @@ class DataDecentralized(Data):
         # self.PCA_fit_heter = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
         #                       for X in self.features_heter]
 
-        print("Training networks for each client.")
-        self.models_iid, self.test_loss_iid = [], []
-        self.models_heter, self.test_loss_heter = [], []
-        for i in tqdm(range(self.nb_of_clients)):
-            net, loss = train_net(MODELS[self.dataset_name](dim), features_iid[i], labels_iid[i])
-            self.models_iid.append(net)
-            self.test_loss_iid.append(loss)
-            net, loss = train_net(MODELS[self.dataset_name](dim), features_heter[i], labels_heter[i])
-            self.models_heter.append(net)
-            self.test_loss_heter.append(loss)
+        self.all_models = ModelsOfAllClients(MODELS["linear"], CRITERION["linear"], NB_LABELS[dataset_name], self.nb_clients)
+        self.all_models.train_all_clients(features_iid, features_heter, labels_iid, labels_heter)
 
+    def retrain_all_clients(self):
+        self.all_models.train_all_clients(self.features_iid, self.features_heter, self.labels_iid, self.labels_heter)
 
     def resplit_iid(self) -> None:
         super().resplit_iid()

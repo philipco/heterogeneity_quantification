@@ -1,7 +1,8 @@
 """Created by Constantin Philippenko, 12th May 2022."""
 import torchvision
+import torch.nn as nn
 
-from src.optim.Nets import LinearRegression
+from src.optim.Nets import LinearRegression, CNNClassifier
 from src.utils.UtilitiesPytorch import ReshapeTransform
 
 NB_LABELS = {"mnist": 10, "fashion_mnist": 10,
@@ -29,4 +30,5 @@ TRANSFORM_MIST = torchvision.transforms.Compose([
 
     ])
 
-MODELS = {"mnist": LinearRegression}
+MODELS = {"cnn": CNNClassifier, "linear": LinearRegression}
+CRITERION = {"crossentropy": nn.CrossEntropyLoss(), "linear": nn.MSELoss(), "binary": nn.BCELoss()}
