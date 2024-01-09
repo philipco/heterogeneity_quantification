@@ -2,6 +2,7 @@
 import warnings
 from typing import List
 
+import torch
 import numpy as np
 from sklearn.manifold import TSNE
 
@@ -24,9 +25,7 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
                          natural_split: bool) -> [List[np.ndarray], List[np.ndarray]]:
-    if natural_split:
-        return features, labels
-    return dirichlet_split(np.concatenate(features), np.concatenate(labels), nb_clients)
+    return dirichlet_split(features, labels, nb_clients)
 
 
 def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: int) \
@@ -54,8 +53,8 @@ def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: i
             counter_client += 1
 
     for idx_client in range(nb_clients):
-        X[idx_client] = np.concatenate((X[idx_client]))
-        Y[idx_client] = np.concatenate(Y[idx_client])
+        X[idx_client] = torch.concat((X[idx_client]))
+        Y[idx_client] = torch.concat(Y[idx_client])
 
     return X, Y
 
@@ -79,8 +78,8 @@ def dirichlet_split(data: np.ndarray, labels: np.ndarray, nb_clients: int, diric
             Y[j].append(labels_split[j])
 
     for idx_client in range(nb_clients):
-        X[idx_client] = np.concatenate((X[idx_client]))
-        Y[idx_client] = np.concatenate(Y[idx_client])
+        X[idx_client] = torch.concat((X[idx_client]))
+        Y[idx_client] = torch.concat(Y[idx_client])
     return X, Y
 
 

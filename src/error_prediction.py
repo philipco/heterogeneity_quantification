@@ -1,7 +1,9 @@
 """Created by Constantin Philippenko, 29th September 2022."""
 import sys
 
-from src.data.DatasetConstants import TRANSFORM_MIST, NB_CLIENTS
+import torchvision
+
+from src.data.DatasetConstants import NB_CLIENTS, TRANSFORM
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
 from src.data.DataProcessing import decentralized_processing_of_data, centralized_processing_of_data
 from src.plot.PlotDistance import plot_distance
@@ -21,6 +23,11 @@ sys.path.insert(0, FLAMBY_PATH + '/flamby')
 import datasets
 
 from datasets.fed_heart_disease.dataset import FedHeartDisease
+from flamby.datasets.fed_ixi import FedIXITiny
+
+DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.CIFAR10,
+           "heart_disease": FedHeartDisease, "ixi": FedIXITiny}
+
 # from datasets.fed_isic2019.dataset import FedIsic2019
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
@@ -32,17 +39,19 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import datasets, transforms, utils
+# from torchvision import datasets, transforms, utils
 from torch.utils.data import Dataset, DataLoader
 
 if __name__ == '__main__':
 
     ### We the dataset naturally splitted or not.
-    # X, Y, natural_split = get_data_from_pytorch(datasets.MNIST, nb_of_clients,
-    #                                             kwargs_dataset = dict(root=get_path_to_datasets(), download=False, transform=TRANSFORM_MIST),
-    #                                             kwargs_dataloader = dict(batch_size=batch_size, shuffle=False))
+    if dataset_name in ["mnist", "cifar10"]:
+        X, Y, natural_split = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
+                                                kwargs_dataset = dict(root=get_path_to_datasets(), download=False, transform=TRANSFORM[dataset_name]),
+                                                kwargs_dataloader = dict(batch_size=batch_size, shuffle=False))
 
-    X, Y, natural_split = get_data_from_flamby(FedHeartDisease, nb_of_clients,
+    else:
+        X, Y, natural_split = get_data_from_flamby(DATASET[dataset_name], nb_of_clients,
                                                kwargs_dataloader=dict(batch_size=batch_size, shuffle=False))
 
     ### We process the data in a centralized or decentralized way.
@@ -52,11 +61,14 @@ if __name__ == '__main__':
     ### We define three measures : PCA and EM on features, and TV on labels.
     metrics_PCA = Metrics(dataset_name, "PCA", data_decentralized.nb_clients, data_decentralized.nb_points_by_clients)
     metrics_LSR = Metrics(dataset_name, "LSR", data_decentralized.nb_clients, data_decentralized.nb_points_by_clients)
+    metrics_NET = Metrics(dataset_name, "NET", data_decentralized.nb_clients, data_decentralized.nb_points_by_clients)
 
-    for i in range(5):
+    for i in range(2):
         ### We compute the distance between clients.
         # compute_matrix_of_distances(function_to_compute_PCA_error, data_decentralized, metrics_PCA)
-        compute_matrix_of_distances(function_to_compute_net_error, data_decentralized, metrics_LSR, symetric_distance=False)
+        # compute_matrix_of_distances(function_to_compute_LSR_error, data_decentralized, metrics_LSR,
+        #                             symetric_distance=False)
+        compute_matrix_of_distances(function_to_compute_net_error, data_decentralized, metrics_NET, symetric_distance=False)
 
         ### We need to resplit the iid dataset.
         # TODO : il faut aussi ré-entrainer.
@@ -65,8 +77,8 @@ if __name__ == '__main__':
 
         # data_centralized.resplit_iid()
 
-    print(metrics_LSR.distance_heter[0])
+    print(metrics_NET.distance_heter[0])
 
     ### We print the distances.
     # plot_distance(metrics_PCA)
-    plot_distance(metrics_LSR)
+    plot_distance(metrics_NET)

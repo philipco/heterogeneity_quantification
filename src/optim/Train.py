@@ -3,23 +3,27 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 
+NB_EPOCH = 50
 
-def train_neural_network(net, features, labels, criterion=nn.MSELoss(), num_epochs=100, batch_size=256, test_size=0.2):
+
+def train_neural_network(net, features, labels, criterion, lr=0.01, nb_epoch=NB_EPOCH, batch_size=256, test_size=0.2):
     """Create train/test and train a neural network."""
     # Split dataset into train and test sets
     x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=test_size, random_state=42)
 
-    optimizer = optim.Adam(net.parameters(), lr=0.01)
+    optimizer = optim.Adam(net.parameters(), lr=lr)
 
     # Training
-    for epoch in range(num_epochs):
+    for epoch in range(nb_epoch):
         # Convert numpy arrays to PyTorch tensors
         for i in range(0, len(x_train), batch_size):
-            x_batch = torch.from_numpy(x_train[i:i + batch_size]).float()
-            y_batch = torch.from_numpy(y_train[i:i + batch_size]).float()
+            x_batch = x_train[i:i + batch_size]
+            y_batch = y_train[i:i + batch_size].float()
+
+            net.zero_grad()
 
             # Forward pass
-            outputs = net(x_batch)
+            outputs = net(x_batch).float()
             loss = criterion(outputs, y_batch)
 
             # Backward pass and optimization
@@ -27,12 +31,10 @@ def train_neural_network(net, features, labels, criterion=nn.MSELoss(), num_epoc
             loss.backward()
             optimizer.step()
 
-    # Convert test set to tensors
-    x_test_tensor = torch.from_numpy(x_test).float()
-    y_test_tensor = torch.from_numpy(y_test).float()
-
     # Compute loss on the test set
-    test_outputs = net(x_test_tensor)
-    test_loss = criterion(test_outputs, y_test_tensor)
+    test_outputs = net(x_test)
+    c = nn.MSELoss(reduction='none')
+    test_loss = criterion(test_outputs, y_test)
+    atomic_test_losses = c(test_outputs, y_test) # TODO : keep and save them.
 
-    return net, test_loss.item()
+    return net, test_loss.item()#, atomic_test_losses

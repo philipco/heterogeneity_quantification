@@ -1,7 +1,6 @@
 """Created by Constantin Philippenko, 29th September 2022."""
 from typing import List
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
@@ -16,15 +15,13 @@ def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
 def get_element_from_dataloader(loader):
     X, Y = [], []
     for x, y in loader:
-        if len(x.shape) > 2:
-            x = torch.flatten(x, start_dim=1)
         X.append(x)
         Y.append(y)
-    return np.concatenate(X), np.concatenate(Y).flatten()
+    return torch.concat(X), torch.concat(Y).flatten()
 
 
 def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
-                          kwargs_dataloader) -> [List[np.array], List[np.array], bool]:
+                          kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     # Get dataloader for train/test.
     loader_train = get_dataloader(fed_dataset, train=True, kwargs_dataset=kwargs_dataset,
@@ -35,14 +32,13 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
     # Get all element from the dataloader.
     data_train, labels_train = get_element_from_dataloader(loader_train)
     data_test, labels_test = get_element_from_dataloader(loader_test)
-    X = [np.concatenate([data_train, data_test])]
-    Y = [np.concatenate([labels_train, labels_test])]
+    X = torch.concat([data_train, data_test])
+    Y = torch.concat([labels_train, labels_test])
 
     print("Train data shape:", X[0].shape)
     print("Test data shape:", Y[0].shape)
 
     natural_split = False
-    X, Y = [np.concatenate(X)], [np.concatenate(Y)],
 
     ### We generate a non-iid datasplit if it's not already done.
     X, Y = create_non_iid_split(X, Y, nb_of_clients, natural_split)
@@ -50,7 +46,7 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
 
 
 def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: bool = False) \
-        -> [List[np.array], List[np.array], bool]:
+        -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     X, Y = [], []
     for i in range(nb_of_clients):
@@ -67,11 +63,8 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: b
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
-        X.append(np.concatenate([data_train, data_test]))
-        Y.append(np.concatenate([labels_train, labels_test]))
+        X.append(torch.concat([data_train, data_test]))
+        Y.append(torch.concat([labels_train, labels_test]))
 
     natural_split = True
-
-    ### We generate a non-iid datasplit if it's not already done.
-    X, Y = create_non_iid_split(X, Y, nb_of_clients, natural_split)
     return X, Y, natural_split

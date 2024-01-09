@@ -68,16 +68,20 @@ def reconstruction_error(estimator, X, y=None):
 def compute_PCA_error(PCA_fitted, distrib: np.ndarray):
     return reconstruction_error(PCA_fitted, distrib)
 
+
 def compute_LSR_distance(net, test_loss, features, labels):
     criterion = nn.MSELoss()
-    outputs = net(torch.from_numpy(features).float())
-    remote_loss = criterion(outputs, torch.from_numpy(labels).float())
+    with torch.no_grad():
+        outputs = net(features)
+        remote_loss = criterion(outputs, labels)
     return abs(remote_loss - test_loss) / test_loss
 
+
 def compute_net_distance(net, criterion, test_loss, features, labels):
-    outputs = net(torch.from_numpy(features).float())
-    remote_loss = criterion(outputs, torch.from_numpy(labels).float())
-    return remote_loss - test_loss
+    outputs = net(features)
+    remote_loss = criterion(outputs, labels)
+    return remote_loss - test_loss # TODO : Flexibilité !
+
 
 def function_to_compute_net_error(data: DataDecentralized, i: int, j: int):
     d_iid = compute_net_distance(data.all_models.models_iid[i], data.all_models.criterion,
@@ -85,6 +89,7 @@ def function_to_compute_net_error(data: DataDecentralized, i: int, j: int):
     d_heter = compute_net_distance(data.all_models.models_heter[i], data.all_models.criterion,
                                    data.all_models.test_loss_heter[i], data.features_heter[j], data.labels_heter[j])
     return d_iid, d_heter
+
 
 def function_to_compute_LSR_error(data: DataDecentralized, i: int, j: int):
     d_iid = compute_LSR_distance(data.all_models.models_iid[i], data.all_models.test_loss_iid[i],

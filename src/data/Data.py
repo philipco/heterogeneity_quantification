@@ -1,13 +1,13 @@
 """Created by Constantin Philippenko, 29th September 2022."""
-from typing import List, Union, Any
+from typing import List
 
 import numpy as np
+import torch
 from sklearn.decomposition import IncrementalPCA
-from tqdm import tqdm
 
-from src.data.DatasetConstants import PCA_NB_COMPONENTS, MODELS, CRITERION, NB_LABELS
+from src.data.DatasetConstants import PCA_NB_COMPONENTS, MODELS, CRITERION, NB_LABELS, STEP_SIZE
 from src.data.Split import iid_split
-from src.optim.Nets import ModelsOfAllClients
+from src.optim.nn.Nets import ModelsOfAllClients
 from src.utils.UtilitiesNumpy import fit_PCA
 
 
@@ -31,7 +31,7 @@ class Data:
 
     def resplit_iid(self) -> None:
         nb_points_by_clients = [len(l) for l in self.labels_heter]
-        features_iid, labels_iid = iid_split(np.concatenate(self.features_heter), np.concatenate(self.labels_heter),
+        features_iid, labels_iid = iid_split(torch.concat(self.features_heter), torch.concat(self.labels_heter),
                                              self.nb_clients, nb_points_by_clients)
 
         self.features_iid = features_iid
@@ -67,7 +67,8 @@ class DataDecentralized(Data):
         # self.PCA_fit_heter = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
         #                       for X in self.features_heter]
 
-        self.all_models = ModelsOfAllClients(MODELS["linear"], CRITERION["linear"], NB_LABELS[dataset_name], self.nb_clients)
+        self.all_models = ModelsOfAllClients(MODELS[dataset_name], CRITERION[dataset_name], NB_LABELS[dataset_name],
+                                             self.nb_clients, STEP_SIZE[dataset_name])
         self.all_models.train_all_clients(features_iid, features_heter, labels_iid, labels_heter)
 
     def retrain_all_clients(self):

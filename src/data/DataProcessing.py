@@ -2,6 +2,7 @@
 from typing import List
 
 import numpy as np
+import torch
 from sklearn.decomposition import IncrementalPCA
 from sklearn.preprocessing import StandardScaler
 
@@ -16,7 +17,7 @@ from src.utils.UtilitiesNumpy import fit_PCA, compute_PCA
 def decentralized_processing_of_data(dataset_name: str, features: List[np.array], labels: List[np.array],
                                      batch_size: int, nb_of_clients: int, ) -> DataDecentralized:
     nb_points_by_clients = [len(l) for l in labels]
-    features_iid, labels_iid = iid_split(np.concatenate(features), np.concatenate(labels), nb_of_clients,
+    features_iid, labels_iid = iid_split(torch.concat(features), torch.concat(labels), nb_of_clients,
                                          nb_points_by_clients)
     # We do not scale client by client (we want to measure heterogeeity which might include concept-shift).
     data = DataDecentralized(dataset_name, nb_points_by_clients, features_iid, features,
