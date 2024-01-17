@@ -3,7 +3,7 @@
 import torchvision
 import torch.nn as nn
 
-from src.optim.CustomLoss import DiceLoss
+from src.optim.CustomLoss import DiceLoss, CoxLoss
 from src.optim.nn.Nets import LinearRegression, LogisticRegression
 from src.optim.nn.Unet import UNet
 from src.utils.UtilitiesPytorch import ReshapeTransform
@@ -39,8 +39,10 @@ NB_CLIENTS = {"mnist": 7, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "h
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}
 # CRITERION = {"mnist": nn.CrossEntropyLoss(), "cifar10": nn.CrossEntropyLoss()}
 
-MODELS = {"mnist": LinearRegression, "cifar10": LinearRegression, "heart_disease": LogisticRegression, "ixi": UNet}
-CRITERION = {"mnist": nn.MSELoss, "cifar10": nn.MSELoss, "heart_disease": nn.BCELoss, "ixi": DiceLoss}
+MODELS = {"mnist": LinearRegression, "cifar10": LinearRegression, "heart_disease": LogisticRegression,
+          "tcga_brca": LinearRegression, "ixi": UNet}
+CRITERION = {"mnist": nn.MSELoss, "cifar10": nn.MSELoss, "heart_disease": nn.BCELoss, "tcga_brca": CoxLoss,
+             "ixi": DiceLoss}
 
 
 TRANSFORM = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_CIFAR10}

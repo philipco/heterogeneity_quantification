@@ -5,11 +5,12 @@ from typing import List
 import numpy as np
 from numpy import linalg as LA
 import ot
+from scipy.stats import ranksums
 from tqdm import tqdm
 import torch
 import torch.nn as nn
 
-from src.data.Data import Data, DataDecentralized, DataCentralized
+from src.data.Data import Data,  DataCentralized, Network
 from src.quantif.Metrics import Metrics
 
 
@@ -77,21 +78,38 @@ def compute_LSR_distance(net, test_loss, features, labels):
     return abs(remote_loss - test_loss) / test_loss
 
 
-def compute_net_distance(net, criterion, test_loss, features, labels):
+def compute_distance_based_on_ranksums(net, criterion, remote_atomic_test_loss, features, labels):
+    outputs = net(features)
+    atomic_test_losses = criterion(outputs, labels)
+    #  The  distribution of remote atomic losses is stochastically greater than the distribution of losses
+    #  computed on current client using remote model.
+    return ranksums(remote_atomic_test_loss.detach().numpy(), atomic_test_losses.detach().numpy(), alternative='two-sided').pvalue
+
+def compute_distance_based_on_nn(net, criterion, test_loss, features, labels):
     outputs = net(features)
     remote_loss = criterion(outputs, labels)
     return remote_loss - test_loss # TODO : Flexibilité !
 
 
-def function_to_compute_net_error(data: DataDecentralized, i: int, j: int):
-    d_iid = compute_net_distance(data.all_models.models_iid[i], data.all_models.criterion,
-                                 data.all_models.test_loss_iid[i], data.features_iid[j], data.labels_iid[j])
-    d_heter = compute_net_distance(data.all_models.models_heter[i], data.all_models.criterion,
-                                   data.all_models.test_loss_heter[i], data.features_heter[j], data.labels_heter[j])
+def function_to_compute_ranksums_pvalue(network: Network, i: int, j: int):
+    d_iid = compute_distance_based_on_ranksums(network.clients[i].trained_model, network.criterion(reduction='none'),
+                                               network.clients[i].atomic_test_losses, network.clients[j].test_features,
+                                               network.clients[j].test_labels)
+    d_heter = compute_distance_based_on_ranksums(network.clients[i].trained_model, network.criterion(reduction='none'),
+                                                 network.clients[i].atomic_test_losses, network.clients[j].test_features,
+                                                 network.clients[j].test_labels)
     return d_iid, d_heter
 
 
-def function_to_compute_LSR_error(data: DataDecentralized, i: int, j: int):
+def function_to_compute_nn_distance(network: Network, i: int, j: int):
+    d_iid = compute_distance_based_on_nn(network.clients[i].trained_model, network.criterion(), network.clients[i].test_loss,
+                                         network.clients[j].test_features, network.clients[j].test_labels)
+    d_heter = compute_distance_based_on_nn(network.clients[i].trained_model, network.criterion(), network.clients[i].test_loss,
+                                         network.clients[j].test_features, network.clients[j].test_labels)
+    return d_iid, d_heter
+
+
+def function_to_compute_LSR_error(network: Network, i: int, j: int):
     d_iid = compute_LSR_distance(data.all_models.models_iid[i], data.all_models.test_loss_iid[i],
                                  data.features_iid[j], data.labels_iid[j])
     d_heter = compute_LSR_distance(data.all_models.models_heter[i], data.all_models.test_loss_heter[i],
@@ -99,13 +117,13 @@ def function_to_compute_LSR_error(data: DataDecentralized, i: int, j: int):
     return d_iid, d_heter
 
 
-def function_to_compute_TV_error(data: DataDecentralized, i: int, j: int):
+def function_to_compute_TV_error(network: Network, i: int, j: int):
     d_iid = compute_TV_distance(data.labels_iid_distrib[i], data.labels_iid_distrib[j])
     d_heter = compute_TV_distance(data.labels_heter_distrib[i], data.labels_heter_distrib[j])
     return d_iid, d_heter
 
 
-def function_to_compute_PCA_error(data: DataDecentralized, i: int, j: int):
+def function_to_compute_PCA_error(network: Network, i: int, j: int):
     d_iid = compute_PCA_error(data.PCA_fit_iid[i], data.features_iid[j])
     d_heter = compute_PCA_error(data.PCA_fit_heter[i], data.features_heter[j])
     return d_iid, d_heter
@@ -123,9 +141,11 @@ def compute_matrix_of_distances(fonction_to_compute_distance, data: Data, metric
 
     distances_iid = np.zeros((data.nb_clients, data.nb_clients))
     distances_heter = np.zeros((data.nb_clients, data.nb_clients))
-    for i in tqdm(range(data.nb_clients)):
+    for i in range(data.nb_clients):
         start = i if symetric_distance else 0
         for j in range(start, data.nb_clients):
+            # Model trained on client i
+            # Evaluated on test set from client j
             d_iid, d_heter = fonction_to_compute_distance(data, i, j)
             distances_iid[i,j] = d_iid
             distances_heter[i, j] = d_heter

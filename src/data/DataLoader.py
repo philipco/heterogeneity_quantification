@@ -32,8 +32,8 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
     # Get all element from the dataloader.
     data_train, labels_train = get_element_from_dataloader(loader_train)
     data_test, labels_test = get_element_from_dataloader(loader_test)
-    X = torch.concat([data_train, data_test])
-    Y = torch.concat([labels_train, labels_test])
+    X = torch.concat([data_train, data_test])[:1000]
+    Y = torch.concat([labels_train, labels_test])[:1000]
 
     print("Train data shape:", X[0].shape)
     print("Test data shape:", Y[0].shape)

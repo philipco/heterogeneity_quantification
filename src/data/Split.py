@@ -25,6 +25,7 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
                          natural_split: bool) -> [List[np.ndarray], List[np.ndarray]]:
+    np.random.seed(45)
     return dirichlet_split(features, labels, nb_clients)
 
 

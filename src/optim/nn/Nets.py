@@ -1,35 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
-from src.optim.Train import train_neural_network
-
-class ModelsOfAllClients:
-
-    def __init__(self, net: nn.Module, criterion, output_dim: int, nb_clients: int, step_size: int):
-        self.net = net
-        self.criterion = criterion()
-        self.atomic_criterion = criterion(reduction=True)
-        self.nb_clients = nb_clients
-        self.step_size = step_size
-        self.output_dim = output_dim
-
-    def train_all_clients(self, features_iid, features_heter, labels_iid, labels_heter):
-        print("Training networks for each client.")
-        self.models_iid, self.test_loss_iid = [], []
-        self.models_heter, self.test_loss_heter = [], []
-        input_dim = features_iid[0].shape[1]
-        for i in tqdm(range(self.nb_clients)):
-            net, loss = train_neural_network(self.net(input_dim, self.output_dim), features_iid[i], labels_iid[i],
-                                             criterion=self.criterion, lr=self.step_size)
-
-            self.models_iid.append(net)
-            self.test_loss_iid.append(loss)
-            net, loss = train_neural_network(self.net(input_dim, self.output_dim), features_heter[i],
-                                             labels_heter[i], criterion=self.criterion)
-            self.models_heter.append(net)
-
-            self.test_loss_heter.append(loss)
 
 class LinearRegression(nn.Module):
     def __init__(self, input_size: int, output_size: int):

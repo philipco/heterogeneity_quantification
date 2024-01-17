@@ -3,12 +3,12 @@ from typing import List
 
 import numpy as np
 import torch
-from sklearn.decomposition import IncrementalPCA
 
-from src.data.DatasetConstants import PCA_NB_COMPONENTS, MODELS, CRITERION, NB_LABELS, STEP_SIZE
+from src.data.Client import Client
+from src.data.DatasetConstants import MODELS, CRITERION, NB_LABELS, STEP_SIZE
 from src.data.Split import iid_split
-from src.optim.nn.Nets import ModelsOfAllClients
-from src.utils.UtilitiesNumpy import fit_PCA
+from src.utils.PickleHandler import pickle_saver
+from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 
 class Data:
@@ -51,33 +51,42 @@ class DataCentralized(Data):
         super().resplit_iid()
 
 
-class DataDecentralized(Data):
+class Network:
 
-    def __init__(self, dataset_name: str, nb_points_by_clients: List[int], features_iid: List[np.array],
-                 features_heter: List[np.array], labels_iid: List[np.array], labels_heter: List[np.array],
-                 batch_size: int) -> None:
-        super().__init__(dataset_name, nb_points_by_clients, features_iid, features_heter, labels_iid, labels_heter)
+    def __init__(self, X, Y, nb_epochs, batch_size, dataset_name):
+        super().__init__()
+        self.dataset_name = dataset_name
+        self.nb_clients = len(Y)
+        self.nb_epochs = nb_epochs
         self.batch_size = batch_size
-        dim = self.features_heter[0].shape[1]
-        self.pca_nb_components = PCA_NB_COMPONENTS if dim > PCA_NB_COMPONENTS else dim // 2
-        # print("Fitting decentralized PCA on iid split.")
-        # self.PCA_fit_iid = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
-        #                     for X in self.features_iid]
-        # print("Fitting decentralized PCA on heterogeneous split.")
-        # self.PCA_fit_heter = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
-        #                       for X in self.features_heter]
+        self.nb_points_by_clients = [len(y) for y in Y]
+        self.criterion = CRITERION[dataset_name]
 
-        self.all_models = ModelsOfAllClients(MODELS[dataset_name], CRITERION[dataset_name], NB_LABELS[dataset_name],
-                                             self.nb_clients, STEP_SIZE[dataset_name])
-        self.all_models.train_all_clients(features_iid, features_heter, labels_iid, labels_heter)
+        # Creating clients.
+        self.clients = []
+        for i in range(self.nb_clients):
+            self.clients.append(Client(X[i], Y[i], NB_LABELS[dataset_name], MODELS[dataset_name],
+                                       CRITERION[dataset_name], STEP_SIZE[dataset_name]))
+
+        # Training all clients
+        for client in self.clients:
+            client.train(self.nb_epochs, self.batch_size)
+
+    def save(self):
+        root = get_project_root()
+        create_folder_if_not_existing("{0}/pickle/{0}/processed_data".format(root, self.dataset_name))
+        pickle_saver(self, "{0}/pickle/{0}/processed_data/decentralized".format(root, self.dataset_name))
 
     def retrain_all_clients(self):
-        self.all_models.train_all_clients(self.features_iid, self.features_heter, self.labels_iid, self.labels_heter)
+        for client in self.clients:
+            client.resplit_train_test()
+            client.train(self.nb_epochs, self.batch_size)
+        # self.all_models.train_all_clients(self.features_iid, self.features_heter, self.labels_iid, self.labels_heter)
 
-    def resplit_iid(self) -> None:
-        super().resplit_iid()
-        self.PCA_fit_iid = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
-                            for X in self.features_iid]
+    # def resplit_iid(self) -> None:
+    #     super().resplit_iid()
+    #     self.PCA_fit_iid = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
+    #                         for X in self.features_iid]
 
 
 def compute_Y_distribution(labels: List[np.array]) -> np.array:
