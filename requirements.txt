@@ -20,7 +20,12 @@ tabulate
 # Required by Flamby
 albumentations
 lifelines
+
+# For TCGA_BRCA
 formulaic
 
-# But not in conda library
+# For Tiny_IXI
+monai
+nibabel
+
 
