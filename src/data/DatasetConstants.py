@@ -21,6 +21,8 @@ TRANSFORM_CIFAR10 = torchvision.transforms.Compose(
     [torchvision.transforms.ToTensor(),
      torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
+MAX_NB_POINTS = 20000
+
 NB_LABELS = {"mnist": 10, "fashion_mnist": 10, "cifar10": 10,
              "camelyon16": 2,  "heart_disease": 2, "isic2019": 8,
              "ixi": None, "kits19": None, "lidc_idri": None,  "tcga_brca": 2}
@@ -33,7 +35,7 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-NB_CLIENTS = {"mnist": 7, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+NB_CLIENTS = {"mnist": 4, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6}
 
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}

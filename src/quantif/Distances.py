@@ -3,6 +3,7 @@ import math
 from typing import List
 
 import numpy as np
+import scipy
 from numpy import linalg as LA
 import ot
 from scipy.stats import ranksums
@@ -79,16 +80,62 @@ def compute_LSR_distance(net, test_loss, features, labels):
 
 
 def compute_distance_based_on_ranksums(net, criterion, remote_atomic_test_loss, features, labels):
+    """Return the pvalue of the ranksums test between the errors' distribution on current client and remote."""
     outputs = net(features)
     atomic_test_losses = criterion(outputs, labels)
     #  The  distribution of remote atomic losses is stochastically greater than the distribution of losses
     #  computed on current client using remote model.
-    return ranksums(remote_atomic_test_loss.detach().numpy(), atomic_test_losses.detach().numpy(), alternative='two-sided').pvalue
+    return (
+        ranksums(remote_atomic_test_loss.detach().numpy(), atomic_test_losses.detach().numpy(), alternative='two-sided').pvalue)
 
 def compute_distance_based_on_nn(net, criterion, test_loss, features, labels):
+    """Returns the difference between local loss and loss computed using remote models. """
     outputs = net(features)
     remote_loss = criterion(outputs, labels)
     return remote_loss - test_loss # TODO : Flexibilité !
+
+
+def compute_distance_based_on_cond_var_pvalue(local_loss, remote_loss, total_params, local_nb_points, remote_nb_points):
+    def g_inverse(x):
+        return  (x + 2 - np.sqrt(x * (x + 4))) / 2
+    ratio = local_loss / remote_loss
+    local_fisher_df, remote_fisher_df = local_nb_points - total_params, remote_nb_points - total_params
+    coef = local_nb_points * remote_fisher_df / (remote_nb_points * local_fisher_df)
+    statistics = -2 + ratio.item() + 1/ ratio.item()
+    return (scipy.stats.f.cdf(g_inverse(statistics) * coef, local_fisher_df, remote_fisher_df)
+            + scipy.stats.f.cdf(g_inverse(statistics) / coef, remote_fisher_df, local_fisher_df))
+
+
+def majoration_proba(spectre, N, u):
+    if u < torch.sum(spectre):
+        return 0 # After we compute the exponential
+    else:
+        norme_infini = torch.max(spectre)
+        norme_1 = torch.linalg.norm(spectre, ord=1)
+        norme_2 = torch.linalg.norm(spectre, ord=2)
+
+        if torch.sum(spectre / norme_infini) == torch.sum((spectre / norme_infini) ** 2):
+            lambda_val = (u - norme_1) / (2 * u * (norme_infini + norme_1 / N))
+        else:
+            b = norme_1 * u / (norme_infini * N) + u + norme_2 / norme_infini - norme_1
+            delta = b ** 2 - 4 * u * (u - norme_1) * (norme_1 - norme_2 / norme_infini) / (N * norme_infini)
+            lambda_val = (b - np.sqrt(delta)) / (4 * u * (norme_1 - norme_2 / norme_infini) / N)
+
+        proba = torch.sum(np.log(1 - 2 * lambda_val * spectre)) / 2 + N / 2 * np.log(1 + 2 * lambda_val * u / N)
+        return proba
+
+
+def compute_distance_based_on_model_discrepency_pvalue(projecteur, features, remote_features, local_net, remote_net, remote_loss, total_params,
+                                                       local_nb_points, remote_nb_points):
+
+    local_outputs, remote_outputs = local_net(features), remote_net(features)
+    model_discrepency_loss = torch.norm(local_outputs - remote_outputs, p=2).item() ** 2 / (local_nb_points * remote_loss)
+    coef = remote_nb_points / (local_nb_points * (remote_nb_points - total_params))
+    projecteur = features @ (torch.linalg.pinv(features.T @ features) + torch.linalg.pinv(remote_features.T @ remote_features)) @ features.T
+    spectre = torch.svd(coef * projecteur, compute_uv=False).S
+
+    statistics = model_discrepency_loss / (remote_loss)
+    return np.exp(-majoration_proba(spectre, remote_nb_points - total_params, statistics))
 
 
 def function_to_compute_ranksums_pvalue(network: Network, i: int, j: int):
@@ -107,6 +154,44 @@ def function_to_compute_nn_distance(network: Network, i: int, j: int):
     d_heter = compute_distance_based_on_nn(network.clients[i].trained_model, network.criterion(), network.clients[i].test_loss,
                                          network.clients[j].test_features, network.clients[j].test_labels)
     return d_iid, d_heter
+
+
+def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
+
+    # All clients have the same number of models.
+
+    total_params = sum(p.numel() for p in network.clients[0].trained_model.parameters() if p.requires_grad)
+    # d_iid = compute_distance_based_on_cond_var_pvalue(network.clients[i].train_loss, network.clients[j].train_loss,
+    #                                                   total_params,
+    #                                                   len(network.clients[i].train_labels),
+    #                                                   len(network.clients[j].train_labels))
+    d_heter = compute_distance_based_on_cond_var_pvalue(network.clients[i].train_loss, network.clients[j].train_loss,
+                                                        total_params,
+                                                        len(network.clients[i].train_labels),
+                                                        len(network.clients[j].train_labels))
+    return 0, d_heter
+
+
+def function_to_compute_model_discrepency_pvalue(network: Network, i: int, j: int):
+
+    # All clients have the same number of models.
+
+    total_params = sum(p.numel() for p in network.clients[0].trained_model.parameters() if p.requires_grad)
+    # d_iid = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].train_features,
+    #                                                            network.clients[i].models_iid,
+    #                                                            network.clients[j].models_iid,
+    #                                                            network.clients[i].train_loss, total_params,
+    #                                                            len(network.clients[i].train_labels),
+    #                                                            len(network.clients[j].train_labels))
+    d_heter = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].projecteur,
+                                                                 network.clients[i].train_features,
+                                                                 network.clients[j].train_features,
+                                                                 network.clients[i].trained_model,
+                                                                 network.clients[j].trained_model,
+                                                                 network.clients[i].train_loss, total_params,
+                                                                 len(network.clients[i].train_labels),
+                                                                 len(network.clients[j].train_labels))
+    return 0, d_heter
 
 
 def function_to_compute_LSR_error(network: Network, i: int, j: int):

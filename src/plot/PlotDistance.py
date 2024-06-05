@@ -34,7 +34,7 @@ def scaling(caliber, matrix_to_plot: List[np.array], scaler):
 def plot_distance(metrics: Metrics) -> None:
     fig, axes = plt.subplots(1, 1)
 
-    matrix_to_plot = np.mean(metrics.distance_heter, axis=0)
+    matrix_to_plot = np.mean(metrics.distances_heter, axis=0)
 
     if not (np.diag(matrix_to_plot[0]) < 10e-3).all():
         print("WARNING: The diagonal of the iid distance's matrix is not null")
@@ -94,7 +94,7 @@ def plot_distance(metrics: Metrics) -> None:
     plt.savefig('{0}/pictures/{1}/{2}.pdf'.format(root, metrics.dataset_name, metrics.distance_name),
                 bbox_inches='tight', dpi=600)
     np.savetxt('{0}/pictures/{1}/{2}-heter.txt'.format(root, metrics.dataset_name, metrics.distance_name),
-               matrix_to_plot[1], delimiter=',')
+               matrix_to_plot, delimiter=',')
 
 def plot_distance_scaled_with_iid(metrics: Metrics) -> None:
 
