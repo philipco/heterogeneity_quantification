@@ -1,0 +1,31 @@
+scipy>=1.9.0
+numpy
+matplotlib>=3.4
+tqdm
+pytorch  # >=1.10.2
+torchvision # Otherwise issue with Pillow
+Pillow
+tensorflow
+numba
+sympy
+pot>0.8
+scikit-learn
+seaborn
+psutil
+pandas
+batchup
+
+tabulate
+
+# Required by Flamby
+albumentations
+lifelines
+
+# For TCGA_BRCA
+formulaic
+
+# For Tiny_IXI
+monai
+nibabel
+
+
