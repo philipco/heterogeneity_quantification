@@ -43,6 +43,29 @@ def f(scenario: str, n=100):
         Y2 = [2 * x ** 2 - 0.65 for x in X2] + noise2
     return X1, X2, Y1, Y2
 
+def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, beta1, beta2):
+    # Plot the fit function on the graph.
+    abs = np.linspace(-1, 1, 100)
+    poly = PolynomialFeatures(2)
+    plt.plot(abs, poly_reg1.predict(poly.fit_transform(abs.reshape(-1, 1))))
+    plt.plot(abs, poly_reg2.predict(poly.fit_transform(abs.reshape(-1, 1))))
+
+    if p1 >= 0.01:
+        beta1_sci, p1_sci = f'{beta1:.2f}', f'{p1:.2f}'
+    else:
+        beta1_sci, p1_sci = f'{beta1:.2f}', f'{p1:.2e}'
+    if p2 >= 0.01:
+        beta2_sci, p2_sci = f'{beta2:.2f}', f'{p2:.2f}'
+    else:
+        beta2_sci, p2_sci = f'{beta2:.2f}', f'{p2:.2e}'
+    plt.scatter(X1, Y1, label=fr'Client 1 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$')
+    plt.scatter(X2, Y2, label=fr'Client 2 - $\hat{{\beta}} = {beta2_sci}$, $\hat{{p}} = {p2_sci}$')
+    # plt.scatter(X2, Y2, label=r'Client 2 - $\hat{\\beta} = {0}, \hat{p} = {1}$'.format(beta2, p2))
+    plt.legend(fontsize=14)
+    plt.axis('off')  # Hide axes
+    plt.savefig(f"../../pictures/{scenario}.pdf", dpi=600, bbox_inches='tight')
+    plt.close()
+
 
 def compute_atomic_errors(reg, features, Y, train_set_length):
     prediction = reg.predict(features[train_set_length:])
@@ -90,31 +113,22 @@ def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5):
     else:
         print("=> H0 can not be rejected.")
 
-    return pvalue, atomic_errors
+    return beta_estimator, pvalue, atomic_errors
 
 
 def quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0: int, split_percent: int):
     print("Client 1 share its model with client 2.")
     poly_reg1, q0_1, atomic_errors1 = polynomial_regression(X1, Y1, beta0, split_percent)
-    pvalue, atomic_errors2 = compute_pvalue(poly_reg1, q0_1, X2, Y2, beta0, split_percent)
+    beta_estimator1, pvalue1, atomic_errors2 = compute_pvalue(poly_reg1, q0_1, X2, Y2, beta0, split_percent)
     plot_atomic_errors(atomic_errors1, atomic_errors2, q0_1)
 
     print("Client 2 share its model with client 1.")
     poly_reg2, q0_2, atomic_errors1 = polynomial_regression(X2, Y2, beta0, split_percent)
-    pvalue, atomic_errors2 = compute_pvalue(poly_reg2, q0_2, X1, Y1, beta0, split_percent)
+    beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg2, q0_2, X1, Y1, beta0, split_percent)
     plot_atomic_errors(atomic_errors1, atomic_errors2, q0_2)
 
-    # Plot the fit function on the graph.
-    abs = np.linspace(-1, 1, 100)
-    poly = PolynomialFeatures(2)
-    plt.plot(abs, poly_reg1.predict(poly.fit_transform(abs.reshape(-1, 1))))
-    plt.plot(abs, poly_reg2.predict(poly.fit_transform(abs.reshape(-1, 1))))
-
-    plt.scatter(X1, Y1, label="Client 1")
-    plt.scatter(X2, Y2, label="Client 2")
-    plt.legend()
-    plt.savefig(f"../../pictures/{scenario}.pdf", dpi=600, bbox_inches='tight')
-    plt.close()
+    plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, pvalue1, pvalue2,
+                        beta_estimator1, beta_estimator2)
 
 
 def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_percent: int):
@@ -123,12 +137,15 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
     poly_reg2, q0_2, local_atomic_errors2 = polynomial_regression(X2, Y2, beta0, split_percent)
 
     print("Client 1 receives the trained model from client 2 and evaluates it on its dataset.")
-    pvalue, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent)
+    beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent)
     plot_atomic_errors(local_atomic_errors1, atomic_errors1, q0_1)
 
     print("Client 2 share its trained model with client 1 which will evaluate it on its dataset.")
-    pvalue, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent)
+    beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent)
     plot_atomic_errors(local_atomic_errors2, atomic_errors2, q0_2)
+
+    plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, pvalue1, pvalue2,
+                        beta_estimator1, beta_estimator2)
 
 
 def plot_atomic_errors(atomic_errors1, atomic_errors2, q0):
@@ -149,7 +166,7 @@ def algo(scenario: str, beta0: int, split_percent: int):
     X1, X2, Y1, Y2 = f(scenario)
 
     ##### Comparing two datasets with one model. #####
-    quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0, split_percent)
+    # quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0, split_percent)
 
     # ##### Comparing two models with one dataset. #####
     quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0, split_percent)
@@ -158,9 +175,10 @@ if __name__ == "__main__":
     beta0 = 0.95
     split_percent = 0.8
 
+    np.random.seed(100)
 
+    algo("partionned_support", beta0, split_percent)
     algo("same", beta0, split_percent)
     algo("various_noise", beta0, split_percent)
-    algo("partionned_support", beta0, split_percent)
     algo("shift", beta0, split_percent)
     algo("different", beta0, split_percent)
