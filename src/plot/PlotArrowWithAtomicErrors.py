@@ -34,7 +34,7 @@ def plot_arrow_with_atomic_errors(local_loss, loss_with_remote_model, beta, pval
     # Draw the first line
     ax.annotate(
         '', xy=(line_length * 1.25, 0),
-        xytext=(-line_length * 0.2, 0),
+        xytext=(-line_length * 0.1, 0),
         arrowprops=dict(facecolor='tab:grey', edgecolor='tab:grey', arrowstyle='-|>',
                         mutation_scale=20)
     )
@@ -42,7 +42,7 @@ def plot_arrow_with_atomic_errors(local_loss, loss_with_remote_model, beta, pval
     # Draw the second line
     ax.annotate(
         '', xy=(line_length * 1.25, y_sep),
-        xytext=(-line_length * 0.2, y_sep),
+        xytext=(-line_length * 0.1, y_sep),
         arrowprops=dict(facecolor='tab:grey', edgecolor='tab:grey', arrowstyle='-|>',
                         mutation_scale=20)
     )
@@ -102,8 +102,8 @@ def plot_arrow_with_atomic_errors(local_loss, loss_with_remote_model, beta, pval
         ax.text(line_length*1.25, y_sep * 0.25, rf'$\hat{{p}} = {pvalue}$', fontsize=14, ha='left', va='center',
                 color="tab:blue")
 
-    ax.text(-line_length*0.3, 0, '$\hat{w}_1$', fontsize=14, ha='center', va='center', color="tab:blue")
-    ax.text(-line_length*0.3, y_sep, '$\hat{w}_2$', fontsize=14, ha='center', va='center', color="tab:orange")
+    ax.text(-line_length*0.15, 0, '$\hat{w}_1$', fontsize=14, ha='center', va='center', color="tab:blue")
+    ax.text(-line_length*0.15, y_sep, '$\hat{w}_2$', fontsize=14, ha='center', va='center', color="tab:orange")
 
     # plt.show()
 

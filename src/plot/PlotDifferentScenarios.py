@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+import matplotlib.patches as mpatches
 from scipy.stats import norm
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures
@@ -45,7 +46,7 @@ def f(scenario: str, n=100):
         Y2 = [(x-1) for x in X2] + noise2
     elif scenario == "same":
         Y1 = [x ** 2 for x in X1] + noise1
-        Y2 = [x ** 2 for x in X2] + noise2
+        Y2 = [x ** 2 for x in X2] + noise2 # * 10 if heterogeneous noise.
     elif scenario == "same_partionned_support":
         X1 = np.random.uniform(-1, 0., n)
         X2 = np.random.uniform(0., 1, n)
@@ -279,7 +280,7 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
 #     plt.legend()
 #     plt.show()
 
-def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 200):
+def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 25):
 
     print(f"=== {scenario} ===")
     pvalue1, pvalue2 = [], []
@@ -289,6 +290,9 @@ def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 200):
         pvalue1.append(p1)
         pvalue2.append(p2)
 
+    # Replace pvalue equal to 0, by a small value in order to compute the log.
+    pvalue1 = [x if x != 0 else 10**-196 for x in pvalue1]
+    pvalue2 = [x if x != 0 else 10**-196 for x in pvalue2]
     plt.hist(np.log10(pvalue2), density=True, stacked=False, histtype='bar',
              color="tab:blue", alpha=0.5, align="right", label="Client 1")
     plt.hist(np.log10(pvalue1), density=True, stacked=False, histtype='bar',
@@ -301,28 +305,56 @@ def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 200):
     plt.savefig(f"../../pictures/{scenario}_pvalue.pdf", dpi=600, bbox_inches='tight')
     plt.close()
 
+    return pvalue2, pvalue1
 
     ##### Comparing two datasets with one model. #####
     # quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0, split_percent)
 
     # ##### Comparing two models with one dataset. #####
 
+def plot_violin_pvalue(pvalues, all_beta0, scenario):
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(6, 4))
+    pclient1 = [np.log10(p[0]) for p in pvalues[scenario]]
+    pclient2 = [np.log10(p[1]) for p in pvalues[scenario]]
+    ax1.violinplot(pclient1, positions=np.arange(1, len(all_beta0) + 1) - 0.25, widths=0.25)
+    ax1.violinplot(pclient2, positions=np.arange(1, len(all_beta0) + 1) + 0.25, widths=0.25)
+    ax1.plot([0.5, len(all_beta0) + 0.5], [np.log10(0.05), np.log10(0.05)], lw=2, color="tab:red")
+    ax1.set_xticks(np.arange(1, len(all_beta0) + 1), labels=all_beta0)
+    ax1.set_xlabel(r'Quantile level $\hat{\beta}$')
+    ax1.set_ylabel(r'Distribution of $p$-values $\hat{p}$')
+
+    fake_handles = [mpatches.Patch(color='tab:blue', alpha=0.5), mpatches.Patch(color='tab:orange', alpha=0.5)]
+    ax1.legend(fake_handles, ["Client 1", "Client 2"], loc='lower left', fontsize=14)
+    plt.savefig(f"../../pictures/{scenario}_pvalue_violin.pdf", dpi=600, bbox_inches='tight')
+
 
 if __name__ == "__main__":
-    beta0 = 0.8
+    beta0 = 0.95
     split_percent = 0.8
 
     # np.random.seed(100)
 
-    algo("same", beta0, split_percent)
-    algo("different", beta0, split_percent)
-    algo("classification", beta0, split_percent)
-    algo("Y_shift", beta0, split_percent)
-    algo("same_partionned_support", beta0, split_percent)
-    algo("X_shift", beta0, split_percent)
-    algo("same_partionned_support_different_Y", beta0, split_percent)
-    algo("totally_different", beta0, split_percent)
+    all_beta0 = [0.5, 0.75, 0.8, 0.9, 0.95]
+    scenarios = ["same", "different", "Y_shift", "same_partionned_support", "X_shift", "same_partionned_support_different_Y",
+              "totally_different", "various_noise"]
+    pvalues = {l: [] for l in scenarios}
 
-    algo("partionned_support", beta0, split_percent)
-    algo("same_with_variations", beta0, split_percent)
-    algo("various_noise", beta0, split_percent)
+    for scenario in scenarios:
+        for beta0 in all_beta0:
+            pvalues[scenario].append(algo(scenario, beta0, split_percent))
+
+        plot_violin_pvalue(pvalues, all_beta0, scenario)
+
+        # algo("different", beta0, split_percent)
+        # # algo("classification", beta0, split_percent)
+        # algo("Y_shift", beta0, split_percent)
+        # algo("same_partionned_support", beta0, split_percent)
+        # # algo("X_shift", beta0, split_percent)
+        # algo("same_partionned_support_different_Y", beta0, split_percent)
+        # algo("totally_different", beta0, split_percent)
+        #
+        # algo("same_with_variations", beta0, split_percent)
+        # algo("various_noise", beta0, split_percent)
+        #
+        # np.random.seed(100)
+        # algo("partionned_support", beta0, split_percent)
