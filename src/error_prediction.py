@@ -19,24 +19,24 @@ from src.utils.Utilities import get_project_root, get_path_to_datasets
 root = get_project_root()
 FLAMBY_PATH = '{0}/../../FLamby'.format(root)
 
-# sys.path.insert(0, FLAMBY_PATH)
-# import flamby
-# sys.path.insert(0, FLAMBY_PATH + '/flamby')
-# import datasets
+sys.path.insert(0, FLAMBY_PATH)
+import flamby
+sys.path.insert(0, FLAMBY_PATH + '/flamby')
+import datasets
 
-# from datasets.fed_heart_disease.dataset import FedHeartDisease
-# from datasets.fed_tcga_brca.dataset import FedTcgaBrca
-# from flamby.datasets.fed_ixi import FedIXITiny
+from datasets.fed_heart_disease.dataset import FedHeartDisease
+from datasets.fed_tcga_brca.dataset import FedTcgaBrca
+from flamby.datasets.fed_ixi import FedIXITiny
 
-DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.CIFAR10}
-           # "heart_disease": FedHeartDisease, "tcga_brca": FedTcgaBrca, "ixi": FedIXITiny}
+DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.CIFAR10,
+           "heart_disease": FedHeartDisease, "tcga_brca": FedTcgaBrca, "ixi": FedIXITiny}
 
 # from datasets.fed_isic2019.dataset import FedIsic2019
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
 batch_size = 256
 nb_epochs = 250
-dataset_name = "mnist"
+dataset_name = "tcga_brca"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':

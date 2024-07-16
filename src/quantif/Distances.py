@@ -7,7 +7,6 @@ import scipy
 from numpy import linalg as LA
 import ot
 from scipy.stats import ranksums
-from tqdm import tqdm
 import torch
 import torch.nn as nn
 
@@ -96,10 +95,14 @@ def compute_distance_based_on_nn(net, criterion, test_loss, features, labels):
 
 
 def compute_distance_based_on_cond_var_pvalue(local_loss, remote_loss, total_params, local_nb_points, remote_nb_points):
+    """A global homogeneity test for high-dimensional linear regression, Charbonnier, Verzelen, Villers, 2013,
+    Electronic Journal of Statistics."""
     def g_inverse(x):
         return  (x + 2 - np.sqrt(x * (x + 4))) / 2
     ratio = local_loss / remote_loss
     local_fisher_df, remote_fisher_df = local_nb_points - total_params, remote_nb_points - total_params
+    if local_fisher_df == 0:
+        print(local_nb_points)
     coef = local_nb_points * remote_fisher_df / (remote_nb_points * local_fisher_df)
     statistics = -2 + ratio.item() + 1/ ratio.item()
     return (scipy.stats.f.cdf(g_inverse(statistics) * coef, local_fisher_df, remote_fisher_df)
@@ -125,9 +128,10 @@ def majoration_proba(spectre, N, u):
         return proba
 
 
-def compute_distance_based_on_model_discrepency_pvalue(projecteur, features, remote_features, local_net, remote_net, remote_loss, total_params,
+def compute_distance_based_on_model_discrepency_pvalue(features, remote_features, local_net, remote_net, remote_loss, total_params,
                                                        local_nb_points, remote_nb_points):
-
+    """A global homogeneity test for high-dimensional linear regression, Charbonnier, Verzelen, Villers, 2013,
+    Electronic Journal of Statistics."""
     local_outputs, remote_outputs = local_net(features), remote_net(features)
     model_discrepency_loss = torch.norm(local_outputs - remote_outputs, p=2).item() ** 2 / (local_nb_points * remote_loss)
     coef = remote_nb_points / (local_nb_points * (remote_nb_points - total_params))
@@ -183,8 +187,7 @@ def function_to_compute_model_discrepency_pvalue(network: Network, i: int, j: in
     #                                                            network.clients[i].train_loss, total_params,
     #                                                            len(network.clients[i].train_labels),
     #                                                            len(network.clients[j].train_labels))
-    d_heter = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].projecteur,
-                                                                 network.clients[i].train_features,
+    d_heter = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].train_features,
                                                                  network.clients[j].train_features,
                                                                  network.clients[i].trained_model,
                                                                  network.clients[j].trained_model,

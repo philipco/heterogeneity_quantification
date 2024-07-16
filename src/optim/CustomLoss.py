@@ -21,8 +21,9 @@ class CoxLoss(nn.Module):
     torch.Tensor of dimension (1, ) giving mean of Cox loss.
     """
 
-    def __init__(self):
+    def __init__(self, reduction=True):
         super(CoxLoss, self).__init__()
+        self.reduction  = reduction
 
     def forward(self, scores, truth):
         # The Cox loss calc expects events to be reverse sorted in time
@@ -38,6 +39,8 @@ class CoxLoss(nn.Module):
             aux_.exp_()
             loss[i] = m + torch.log(aux_.sum(0))
         loss *= events
+        if self.reduction == 'none':
+            return loss
         return loss.mean()
 
 
