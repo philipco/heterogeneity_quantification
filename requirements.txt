@@ -17,15 +17,18 @@ batchup
 
 tabulate
 
+batchup
+
+
 # Required by Flamby
-albumentations
-lifelines
+#albumentations
+#lifelines
 
 # For TCGA_BRCA
-formulaic
+#formulaic
 
 # For Tiny_IXI
-monai
-nibabel
+#monai
+#nibabel
 
 

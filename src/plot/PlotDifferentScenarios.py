@@ -2,12 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
-from scipy.stats import norm
+
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures
 import matplotlib
 
 from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
+from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -17,12 +18,8 @@ matplotlib.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
-def MSE(y, ypred):
-    return (y - ypred)**2 / 2
-
-
-def sigmoid_loss(y, y_pred):
-    return np.log(1 + np.exp(-y * y_pred))
+DELTA = 0.05
+DEG = 6
 
 
 def f(scenario: str, n=100):
@@ -59,7 +56,7 @@ def f(scenario: str, n=100):
         Y2 = [x ** 2 for x in X2] + noise2
     elif scenario == "same_with_variations":
         Y1 = [x ** 2 for x in X1] + noise1
-        Y2 = [x ** 2 + np.sin(10 * x) / 10 for x in X2] + noise2
+        Y2 = [x ** 2 + np.sin(10 * x) / 10 for x in X2] + noise2 # or div by 2 ?
     elif scenario == "different":
         Y1 = [(x - 1) ** 2 for x in X1] + noise1
         Y2 = [(x + 1) ** 2 for x in X2] + noise2
@@ -78,6 +75,10 @@ def f(scenario: str, n=100):
         X2 = np.random.uniform(0.65, 1, n)
         Y1 = [x ** 2  for x in X1] + 5 * noise1
         Y2 = [2 * x ** 2 - 0.65 for x in X2] + noise2
+    elif scenario == "more_general":
+        X2 = np.random.uniform(-0.4, 0.4, n)
+        Y1 = [20 * x**6 - 40 * x**4 + 20 * x**2 for x in X1] + 2 * noise1
+        Y2 = [20 * x ** 2 for x in X2] + 2 * noise2
     return X1, X2, Y1, Y2
 
 
@@ -108,12 +109,6 @@ def plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, p1, p2, beta1, beta2):
                    Line2D([], [], marker="o", color="tab:orange",
                           label=fr'Client 1 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$')
                    ]
-
-    # plt.scatter(X1, Y1, label=fr'Client 1 - $\hat{{\beta}} = {beta2_sci}$, $\hat{{p}} = {p2_sci}$')
-    # plt.scatter(X2, Y2, label=fr'Client 2 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$')
-    # plt.scatter(X2, Y2, label=r'Client 2 - $\hat{\\beta} = {0}, \hat{p} = {1}$'.format(beta2, p2))
-    # plt.legend(fontsize=14)
-
     l2 = axs.legend(handles=init_legend, loc='upper right', fontsize=14)
     axs.add_artist(l2)
 
@@ -128,10 +123,11 @@ def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, 
     fig, axs = plt.subplots(1, 1, figsize=(4, 4))
 
     # Plot the fit function on the graph.
-    abs = np.linspace(min(min(X1), min(X2)), max(max(X1), max(X2)), 100)
-    poly = PolynomialFeatures(2)
-    plt.plot(abs, poly_reg1.predict(poly.fit_transform(abs.reshape(-1, 1))))
-    plt.plot(abs, poly_reg2.predict(poly.fit_transform(abs.reshape(-1, 1))))
+    abs1 = np.linspace(min(X1), max(X1), 100)
+    abs2 = np.linspace(min(X2), max(X2), 100)
+    poly = PolynomialFeatures(DEG)
+    plt.plot(abs1, poly_reg1.predict(poly.fit_transform(abs1.reshape(-1, 1))))
+    plt.plot(abs2, poly_reg2.predict(poly.fit_transform(abs2.reshape(-1, 1))))
 
     if p1 >= 0.01:
         beta1_sci, p1_sci = f'{beta1:.2f}', f'{p1:.2f}'
@@ -152,20 +148,12 @@ def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, 
     plt.close()
 
 
-def compute_atomic_errors(reg, features, Y, logistic=False):
-    prediction = reg.predict(features)
-    if not logistic:
-        atomic_errors = [MSE(y, ypred) for (y, ypred) in zip(Y, prediction)]
-    else:
-        atomic_errors = [sigmoid_loss(y, ypred) for (y, ypred) in zip(Y, prediction)]
-    return atomic_errors
-
 
 def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
 
     train_set_length = int(len(Y) * split_percent)
 
-    poly = PolynomialFeatures(2)
+    poly = PolynomialFeatures(DEG)
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
     # fit polynomial regression model
@@ -193,32 +181,16 @@ def logistic_regression(X, Y, beta0, split_percent: int = 0.5):
 def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, log: bool = False):
 
     train_set_length = int(len(Y) * split_percent)
-    test_set_length = len(Y) - train_set_length
-    poly = PolynomialFeatures(2)
+    poly = PolynomialFeatures(DEG)
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
-    atomic_errors = compute_atomic_errors(remote_poly_reg, poly_features[train_set_length:], Y[train_set_length:])
-
-    beta_estimator = np.sum([e <= q0 for e in atomic_errors]) / len(atomic_errors)
-
-
-    pvalue = norm.cdf(np.sqrt(test_set_length) * (beta_estimator - beta0) / np.sqrt(beta0 * (1 - beta0)))
-
-
-    beta_critique = norm.ppf(0.05) * np.sqrt(beta0 * (1 - beta0))/ np.sqrt(test_set_length) + beta0
-
+    test = ProportionTest(beta0=beta0)
+    test.evaluate_test(q0, remote_poly_reg, poly_features[train_set_length:], Y[train_set_length:])
 
     if log:
-        if pvalue < 0.05:
-            print("=> H0 is rejected.")
-        else:
-            print("=> H0 can not be rejected.")
+        test.print()
 
-        print(f"\tEstimation de beta: {beta_estimator}")
-        print(f"\tP-value: {pvalue}")
-        print(f"\tBeta critique: {beta_critique}")
-
-    return beta_estimator, pvalue, atomic_errors
+    return test.beta_estimator, test.pvalue, test.atomic_errors
 
 
 def quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0: int, split_percent: int):
@@ -242,14 +214,9 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
     poly_reg1, q0_1, local_atomic_errors1 = polynomial_regression(X1, Y1, beta0, split_percent)
     poly_reg2, q0_2, local_atomic_errors2 = polynomial_regression(X2, Y2, beta0, split_percent)
 
-
-    # print("Client 1 receives the trained model from client 2 and evaluates it on its dataset.")
     beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent,
                                                               plot)
 
-
-
-    # print("Client 2 share its trained model with client 1 which will evaluate it on its dataset.")
     beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent,
                                                               plot)
 
@@ -336,7 +303,7 @@ if __name__ == "__main__":
 
     all_beta0 = [0.5, 0.75, 0.8, 0.9, 0.95]
     scenarios = ["same", "different", "Y_shift", "same_partionned_support", "X_shift", "same_partionned_support_different_Y",
-              "totally_different", "various_noise"]
+                 "totally_different", "various_noise", "more_general"]
     pvalues = {l: [] for l in scenarios}
 
     for scenario in scenarios:
@@ -344,17 +311,3 @@ if __name__ == "__main__":
             pvalues[scenario].append(algo(scenario, beta0, split_percent))
 
         plot_violin_pvalue(pvalues, all_beta0, scenario)
-
-        # algo("different", beta0, split_percent)
-        # # algo("classification", beta0, split_percent)
-        # algo("Y_shift", beta0, split_percent)
-        # algo("same_partionned_support", beta0, split_percent)
-        # # algo("X_shift", beta0, split_percent)
-        # algo("same_partionned_support_different_Y", beta0, split_percent)
-        # algo("totally_different", beta0, split_percent)
-        #
-        # algo("same_with_variations", beta0, split_percent)
-        # algo("various_noise", beta0, split_percent)
-        #
-        # np.random.seed(100)
-        # algo("partionned_support", beta0, split_percent)
