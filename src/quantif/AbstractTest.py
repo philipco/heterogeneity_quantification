@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, chi2
 
 class StatisticalTest(ABC):
     @abstractmethod

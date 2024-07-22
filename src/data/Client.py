@@ -15,14 +15,14 @@ class Client:
         self.output_dim = output_dim
 
         # Type of network to use, simply a class
-        self.net = net
+        self.net = net()
         self.criterion = criterion
         self.step_size = step_size
 
         self.train_features, self.test_features, self.train_labels, self.test_labels \
             = train_test_split(features.float(), labels.float(), test_size=self.test_size, random_state=42)
 
-        self.projecteur = features @ torch.linalg.pinv(features.T @ features) @ features.T
+        # self.projecteur = features @ torch.linalg.pinv(features.T @ features) @ features.T
 
     def resplit_train_test(self):
         self.train_features, self.test_features, self.train_labels, self.test_labels \
@@ -31,9 +31,9 @@ class Client:
 
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
-        self.trained_model, self.train_loss = train_neural_network(self.net(self.input_dim, self.output_dim), self.train_features,
-                                                  self.train_labels, criterion, nb_epochs, self.step_size,
-                                                  batch_size)
+        self.trained_model, self.train_loss = train_neural_network(self.net,
+                                                    self.train_features, self.train_labels, criterion, nb_epochs,
+                                                    self.step_size, batch_size)
 
         # Compute test loss
         test_outputs = self.trained_model(self.test_features)

@@ -19,7 +19,7 @@ matplotlib.rcParams.update({
 })
 
 DELTA = 0.05
-DEG = 6
+DEG = 4
 
 
 def f(scenario: str, n=100):
@@ -52,11 +52,11 @@ def f(scenario: str, n=100):
     elif scenario == "same_partionned_support_different_Y":
         X1 = np.random.uniform(0, 1, n)
         X2 = np.random.uniform(1., 2, n)
-        Y1 = [x ** 2 for x in X1] + noise1
-        Y2 = [x ** 2 for x in X2] + noise2
+        Y1 = [x ** 2 for x in X1] + 5 * noise1
+        Y2 = [x ** 2 for x in X2] + 5 * noise2
     elif scenario == "same_with_variations":
         Y1 = [x ** 2 for x in X1] + noise1
-        Y2 = [x ** 2 + np.sin(10 * x) / 10 for x in X2] + noise2 # or div by 2 ?
+        Y2 = [x ** 2 + np.sin(10 * x) / 2 for x in X2] + noise2 # or div by 2 ?
     elif scenario == "different":
         Y1 = [(x - 1) ** 2 for x in X1] + noise1
         Y2 = [(x + 1) ** 2 for x in X2] + noise2
@@ -105,9 +105,9 @@ def plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, p1, p2, beta1, beta2):
     # Warning: p1 computed on client 1 corresponds to the desir of client 2 to collaborate with client 1.
     # I.e., the beta and pvalue computed on client 1 are relevant for client 2.
     init_legend = [Line2D([], [], marker="o", color="tab:blue",
-                          label=fr'Client 1 - $\hat{{\beta}} = {beta2_sci}$, $\hat{{p}} = {p2_sci}$'),
+                          label=fr'Client 1 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$'),
                    Line2D([], [], marker="o", color="tab:orange",
-                          label=fr'Client 1 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$')
+                          label=fr'Client 1 - $\hat{{\beta}} = {beta2_sci}$, $\hat{{p}} = {p2_sci}$')
                    ]
     l2 = axs.legend(handles=init_legend, loc='upper right', fontsize=14)
     axs.add_artist(l2)
@@ -123,8 +123,12 @@ def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, 
     fig, axs = plt.subplots(1, 1, figsize=(4, 4))
 
     # Plot the fit function on the graph.
-    abs1 = np.linspace(min(X1), max(X1), 100)
-    abs2 = np.linspace(min(X2), max(X2), 100)
+    if scenario in ["totally_different", "partionned_support"]:
+        abs1 = np.linspace(min(min(X1), min(X2)), max(max(X1), max(X2)), 100)
+        abs2 = abs1
+    else:
+        abs1 = np.linspace(min(X1), max(X1), 100)
+        abs2 = np.linspace(min(X2), max(X2), 100)
     poly = PolynomialFeatures(DEG)
     plt.plot(abs1, poly_reg1.predict(poly.fit_transform(abs1.reshape(-1, 1))))
     plt.plot(abs2, poly_reg2.predict(poly.fit_transform(abs2.reshape(-1, 1))))
@@ -139,10 +143,13 @@ def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, 
         beta2_sci, p2_sci = f'{beta2:.2f}', f'{p2:.2e}'
     # Warning: p1 computed on client 1 corresponds to the desir of client 2 to collaborate with client 1.
     # I.e., the beta and pvalue computed on client 1 are relevant for client 2.
-    axs.scatter(X1, Y1, label=fr'Client 1 - $\hat{{\beta}} = {beta2_sci}$, $\hat{{p}} = {p2_sci}$')
-    axs.scatter(X2, Y2, label=fr'Client 2 - $\hat{{\beta}} = {beta1_sci}$, $\hat{{p}} = {p1_sci}$')
+    axs.scatter(X1, Y1, label=fr'Client 1 - $\hat{{\beta}}^{{1,2}} = {beta1_sci}$, $\hat{{p}}^{{1,2}} = {p1_sci}$')
+    axs.scatter(X2, Y2, label=fr'Client 2 - $\hat{{\beta}}^{{2,1}} = {beta2_sci}$, $\hat{{p}}^{{2,1}} = {p2_sci}$')
     # plt.scatter(X2, Y2, label=r'Client 2 - $\hat{\\beta} = {0}, \hat{p} = {1}$'.format(beta2, p2))
-    axs.legend(fontsize=14)
+    if scenario in ["same_with_variations", "partionned_support"]:
+        axs.legend(fontsize=12, loc="upper left")
+    else:
+        axs.legend(fontsize=12, loc="best")
     plt.axis('off')  # Hide axes
     plt.savefig(f"../../pictures/{scenario}.pdf", dpi=600, bbox_inches='tight')
     plt.close()
@@ -210,13 +217,17 @@ def quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0: int, split_pe
 
 
 def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_percent: int, plot=False):
-    # print("Client 1 and 2 train their models.")
+
+    # We train the model on client 1.
     poly_reg1, q0_1, local_atomic_errors1 = polynomial_regression(X1, Y1, beta0, split_percent)
+    # We train the model on client 2.
     poly_reg2, q0_2, local_atomic_errors2 = polynomial_regression(X2, Y2, beta0, split_percent)
 
+    # We share model 2 with client 1.
     beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent,
                                                               plot)
 
+    # We share model 1 with client 2.
     beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent,
                                                               plot)
 
@@ -247,32 +258,33 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
 #     plt.legend()
 #     plt.show()
 
-def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 25):
+def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 100, plot: bool = False):
 
     print(f"=== {scenario} ===")
     pvalue1, pvalue2 = [], []
     for k in range(nb_run):
         X1, X2, Y1, Y2 = f(scenario)
-        p1, p2 = quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0, split_percent, plot=(k==0))
+        p1, p2 = quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0, split_percent, plot=plot)
         pvalue1.append(p1)
         pvalue2.append(p2)
 
     # Replace pvalue equal to 0, by a small value in order to compute the log.
-    pvalue1 = [x if x != 0 else 10**-196 for x in pvalue1]
-    pvalue2 = [x if x != 0 else 10**-196 for x in pvalue2]
-    plt.hist(np.log10(pvalue2), density=True, stacked=False, histtype='bar',
-             color="tab:blue", alpha=0.5, align="right", label="Client 1")
-    plt.hist(np.log10(pvalue1), density=True, stacked=False, histtype='bar',
-             color="tab:orange", alpha=0.5, align="right", label="Client 2")
-    # plt.hist(, color="tab:orange", alpha=0.5)
-    plt.plot([np.log10(0.05), np.log10(0.05)], [0,0.5], color="tab:red", lw=3)
-    plt.xlabel(r"$\mathrm{log}_{10}(\hat{p})$", fontsize=14)
-    plt.ylabel("Density")
-    plt.legend(fontsize=14)
-    plt.savefig(f"../../pictures/{scenario}_pvalue.pdf", dpi=600, bbox_inches='tight')
-    plt.close()
+    if plot:
+        pvalue1 = [x if x != 0 else 10**-196 for x in pvalue1]
+        pvalue2 = [x if x != 0 else 10**-196 for x in pvalue2]
+        plt.hist(np.log10(pvalue1), density=True, stacked=False, histtype='bar',
+                 color="tab:blue", alpha=0.5, align="right", label="Client 1")
+        plt.hist(np.log10(pvalue2), density=True, stacked=False, histtype='bar',
+                 color="tab:orange", alpha=0.5, align="right", label="Client 2")
+        # plt.hist(, color="tab:orange", alpha=0.5)
+        plt.plot([np.log10(0.05), np.log10(0.05)], [0,0.5], color="tab:red", lw=3)
+        plt.xlabel(r"$\mathrm{log}_{10}(\hat{p})$", fontsize=14)
+        plt.ylabel("Density")
+        plt.legend(fontsize=14)
+        plt.savefig(f"../../pictures/{scenario}_pvalue.pdf", dpi=600, bbox_inches='tight')
+        plt.close()
 
-    return pvalue2, pvalue1
+    return pvalue1, pvalue2
 
     ##### Comparing two datasets with one model. #####
     # quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0, split_percent)
@@ -283,30 +295,36 @@ def plot_violin_pvalue(pvalues, all_beta0, scenario):
     fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(6, 4))
     pclient1 = [np.log10(p[0]) for p in pvalues[scenario]]
     pclient2 = [np.log10(p[1]) for p in pvalues[scenario]]
-    ax1.violinplot(pclient1, positions=np.arange(1, len(all_beta0) + 1) - 0.25, widths=0.25)
-    ax1.violinplot(pclient2, positions=np.arange(1, len(all_beta0) + 1) + 0.25, widths=0.25)
+    ax1.violinplot(pclient1, positions=np.arange(1, len(all_beta0) + 1) - 0.15, widths=0.25)
+    ax1.violinplot(pclient2, positions=np.arange(1, len(all_beta0) + 1) + 0.15, widths=0.25)
     ax1.plot([0.5, len(all_beta0) + 0.5], [np.log10(0.05), np.log10(0.05)], lw=2, color="tab:red")
     ax1.set_xticks(np.arange(1, len(all_beta0) + 1), labels=all_beta0)
     ax1.set_xlabel(r'Quantile level $\hat{\beta}$')
-    ax1.set_ylabel(r'Distribution of $p$-values $\hat{p}$')
+    ax1.set_ylabel(r'Distribution of $p$-values')
 
-    fake_handles = [mpatches.Patch(color='tab:blue', alpha=0.5), mpatches.Patch(color='tab:orange', alpha=0.5)]
-    ax1.legend(fake_handles, ["Client 1", "Client 2"], loc='lower left', fontsize=14)
+    fake_handles = [mpatches.Patch(color='tab:blue', alpha=0.5),
+                    mpatches.Patch(color='tab:orange', alpha=0.5),
+                    Line2D([0], [0], color="tab:red", lw=2)]
+    ax1.legend(fake_handles, ["Client 1", "Client 2", r"$p=.05$"], loc='lower left', fontsize=14)
     plt.savefig(f"../../pictures/{scenario}_pvalue_violin.pdf", dpi=600, bbox_inches='tight')
 
 
 if __name__ == "__main__":
-    beta0 = 0.95
+    BETA_0 = 0.8
     split_percent = 0.8
 
-    # np.random.seed(100)
+    np.random.seed(2024)
 
     all_beta0 = [0.5, 0.75, 0.8, 0.9, 0.95]
-    scenarios = ["same", "different", "Y_shift", "same_partionned_support", "X_shift", "same_partionned_support_different_Y",
-                 "totally_different", "various_noise", "more_general"]
+    scenarios = ["same", "different", "Y_shift", "same_partionned_support", "X_shift",
+                 "same_partionned_support_different_Y", "partionned_support",
+                 "totally_different", "various_noise", "more_general", "same_with_variations"]
+
+    # scenarios = ["same_with_variations"]
     pvalues = {l: [] for l in scenarios}
 
     for scenario in scenarios:
+        algo(scenario, BETA_0, split_percent, nb_run=1, plot=True)
         for beta0 in all_beta0:
             pvalues[scenario].append(algo(scenario, beta0, split_percent))
 

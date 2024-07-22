@@ -76,10 +76,10 @@ def plot_arrow_with_atomic_errors(local_loss, loss_with_remote_model, beta, pval
                 ha='left', va='center', color="tab:red")
 
         # Plot the estimated beta and the pvalue.
-        ax.text(line_length * 1.25, y_sep*1.25, rf'$\hat{{\beta}} = {estimated_beta}$', fontsize=14, ha='left', va='center',
-                color="tab:orange")
-        ax.text(line_length * 1.25, y_sep*0.75, rf'$\hat{{p}} = {pvalue}$', fontsize=14, ha='left', va='center',
-                color="tab:orange")
+        ax.text(line_length * 1.25, y_sep * 1, rf'$\hat{{\beta}}^{{1,2}} = {estimated_beta}$', fontsize=14, ha='left',
+                va='center', color="tab:red")
+        ax.text(line_length * 1.25, y_sep * 0, rf'$\hat{{p}}^{{1,2}} = {pvalue}$', fontsize=14, ha='left', va='center',
+                color="tab:blue")
 
     else:
         ax.plot([quantile_on_remote_loss, quantile_on_remote_loss], [-y_sep * 0.25, y_sep * 0.25],
@@ -97,10 +97,12 @@ def plot_arrow_with_atomic_errors(local_loss, loss_with_remote_model, beta, pval
                 va='center', color="tab:red")
 
         # Plot the estimated beta and the pvalue.
-        ax.text(line_length * 1.25, -y_sep * 0.25, rf'$\hat{{\beta}} = {estimated_beta}$', fontsize=14, ha='left', va='center',
-                color="tab:blue")
-        ax.text(line_length*1.25, y_sep * 0.25, rf'$\hat{{p}} = {pvalue}$', fontsize=14, ha='left', va='center',
-                color="tab:blue")
+        ax.text(line_length * 1.25, y_sep * 0, rf'$\hat{{\beta}}^{{2,1}} = {estimated_beta}$', fontsize=14, ha='left',
+                va='center', color="tab:red")
+        ax.text(line_length * 1.25, y_sep * 1, rf'$\hat{{p}}^{{2,1}} = {pvalue}$', fontsize=14, ha='left', va='center',
+                color="tab:orange")
+
+
 
     ax.text(-line_length*0.15, 0, '$\hat{w}_1$', fontsize=14, ha='center', va='center', color="tab:blue")
     ax.text(-line_length*0.15, y_sep, '$\hat{w}_2$', fontsize=14, ha='center', va='center', color="tab:orange")
