@@ -20,7 +20,7 @@ class Client:
         self.step_size = step_size
 
         self.train_features, self.test_features, self.train_labels, self.test_labels \
-            = train_test_split(features.float(), labels.float(), test_size=self.test_size, random_state=42)
+            = train_test_split(features.float(), labels, test_size=self.test_size, random_state=42)
 
         # self.projecteur = features @ torch.linalg.pinv(features.T @ features) @ features.T
 
@@ -31,9 +31,8 @@ class Client:
 
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
-        self.trained_model, self.train_loss = train_neural_network(self.net,
-                                                    self.train_features, self.train_labels, criterion, nb_epochs,
-                                                    self.step_size, batch_size)
+        self.trained_model, self.train_loss = train_neural_network(self.net, self.train_features, self.train_labels,
+                                                                   criterion, nb_epochs, self.step_size, batch_size)
 
         # Compute test loss
         test_outputs = self.trained_model(self.test_features)

@@ -88,12 +88,6 @@ class Network:
         for client in self.clients:
             client.resplit_train_test()
             client.train(self.nb_epochs, self.batch_size)
-        # self.all_models.train_all_clients(self.features_iid, self.features_heter, self.labels_iid, self.labels_heter)
-
-    # def resplit_iid(self) -> None:
-    #     super().resplit_iid()
-    #     self.PCA_fit_iid = [fit_PCA(X, IncrementalPCA(n_components=self.pca_nb_components), None, self.batch_size)
-    #                         for X in self.features_iid]
 
 
 def compute_Y_distribution(labels: List[np.array]) -> np.array:

@@ -8,7 +8,7 @@ from sklearn.preprocessing import PolynomialFeatures
 import matplotlib
 
 from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
-from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors
+from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors#, MSE, sigmoid_loss
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -167,9 +167,15 @@ def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
     poly_reg = LinearRegression()
     poly_reg.fit(poly_features[:train_set_length], Y[:train_set_length])
 
-    atomic_errors = compute_atomic_errors(poly_reg, poly_features[train_set_length:], Y[train_set_length:])
+    atomic_errors = compute_atomic_errors(poly_reg, poly_features[train_set_length:], Y[train_set_length:], MSE)
     q0 = np.quantile(atomic_errors, beta0, method="higher")
     return poly_reg, q0, atomic_errors
+
+def MSE(y, ypred):
+    return (y - ypred)**2 / 2
+
+def sigmoid_loss(y, y_pred):
+    return np.log(1 + np.exp(-y * y_pred))
 
 
 def logistic_regression(X, Y, beta0, split_percent: int = 0.5):
@@ -180,7 +186,7 @@ def logistic_regression(X, Y, beta0, split_percent: int = 0.5):
     log_reg.fit(X[:train_set_length], Y[:train_set_length])
 
     atomic_errors = compute_atomic_errors(log_reg, X[train_set_length:], Y[train_set_length:],
-                                          logistic=True)
+                                          loss=sigmoid_loss)
     q0 = np.quantile(atomic_errors, beta0, method="higher")
     return None, q0, atomic_errors
 
@@ -191,7 +197,7 @@ def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, l
     poly = PolynomialFeatures(DEG)
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
-    test = ProportionTest(beta0=beta0)
+    test = ProportionTest(beta0, MSE)
     test.evaluate_test(q0, remote_poly_reg, poly_features[train_set_length:], Y[train_set_length:])
 
     if log:

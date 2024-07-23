@@ -44,24 +44,6 @@ class CoxLoss(nn.Module):
         return loss.mean()
 
 
-if __name__ == "__main__":
-
-    mydataset = FedTcgaBrca(train=True, pooled=True)
-
-    model = Baseline()
-
-    X = torch.stack((mydataset[0][0], mydataset[1][0], mydataset[2][0]), dim=0)
-    truth = torch.stack((mydataset[0][1], mydataset[1][1], mydataset[2][1]), dim=0)
-
-    scores = model(X)
-
-    print(X)
-    print(scores)
-    print(truth)
-
-    loss = BaselineLoss()
-    print(loss(scores, truth))
-
 class DiceLoss(_Loss):
     def __init__(self):
         super(DiceLoss, self).__init__()

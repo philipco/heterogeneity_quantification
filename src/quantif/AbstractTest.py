@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+import torch
 from scipy.stats import norm, chi2
 
 class StatisticalTest(ABC):
@@ -24,8 +25,9 @@ class StatisticalTest(ABC):
 
 class ProportionTest(StatisticalTest):
 
-    def __init__(self, beta0):
+    def __init__(self, beta0, loss):
         self.beta0 = beta0
+        self.loss = loss # Require to have already instantiate the class to make it compatible with loss that are simple function.
         self.atomic_errors = None
         self.beta_estimator = None
         self.pvalue = None
@@ -33,8 +35,9 @@ class ProportionTest(StatisticalTest):
 
     def evaluate_test(self, q0, remote_model, features, labels):
         n = len(labels)
-        self.atomic_errors = compute_atomic_errors(remote_model, features, labels)
-
+        self.atomic_errors = compute_atomic_errors(remote_model, features, labels, self.loss)
+        if len(self.atomic_errors) != len(labels):
+            raise ValueError("The number of atomic errors is not equal to the number of labels.")
         self.beta_estimator = np.sum([e <= q0 for e in self.atomic_errors]) / n
         self.pvalue = norm.cdf(np.sqrt(n) * (self.beta_estimator - self.beta0) / np.sqrt(self.beta0 * (1 - self.beta0)))
         self.beta_critique = norm.ppf(0.05) * np.sqrt(self.beta0 * (1 - self.beta0)) / np.sqrt(n) + self.beta0
@@ -53,17 +56,19 @@ class ProportionTest(StatisticalTest):
         print(f"\tBeta critique: {self.beta_critique}")
 
 
-def MSE(y, ypred):
-    return (y - ypred)**2 / 2
-
-
-def sigmoid_loss(y, y_pred):
-    return np.log(1 + np.exp(-y * y_pred))
-
-def compute_atomic_errors(reg, features, Y, logistic=False):
-    prediction = reg.predict(features)
-    if not logistic:
-        atomic_errors = [MSE(y, ypred) for (y, ypred) in zip(Y, prediction)]
+def compute_atomic_errors(reg, features, Y, loss):
+    # Unified interface to handle both scikit-learn and PyTorch.
+    if isinstance(reg, torch.nn.Module):
+        # If the regressor is a PyTorch model
+        reg.eval()  # Set the model to evaluation mode
+        with torch.no_grad():
+            predictions = reg(features)
+            atomic_errors = loss(predictions, Y)
+    elif hasattr(reg, 'predict'):
+        # If the regressor is a scikit-learn model
+        predictions = reg.predict(features)
+        atomic_errors = [loss(ypred, y) for (y, ypred) in zip(Y, predictions)]
     else:
-        atomic_errors = [sigmoid_loss(y, ypred) for (y, ypred) in zip(Y, prediction)]
+        raise ValueError("Unsupported regressor type.")
+
     return atomic_errors

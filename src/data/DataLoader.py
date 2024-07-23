@@ -18,7 +18,9 @@ def get_element_from_dataloader(loader):
     for x, y in loader:
         X.append(x)
         Y.append(y)
-    return torch.concat(X), torch.concat(Y).flatten()
+    # For IXI, we should not flatten the dataset!
+    # Same for tcga_brca.
+    return torch.concat(X), torch.concat(Y)#.flatten()
 
 
 def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
