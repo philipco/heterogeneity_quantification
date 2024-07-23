@@ -7,8 +7,8 @@ import torch
 from src.data.Client import Client
 from src.data.DatasetConstants import MODELS, CRITERION, NB_LABELS, STEP_SIZE
 from src.data.Split import iid_split
-from src.utils.PickleHandler import pickle_saver
-from src.utils.Utilities import get_project_root, create_folder_if_not_existing
+from src.utils.PickleHandler import pickle_saver, pickle_loader
+from src.utils.Utilities import get_project_root, create_folder_if_not_existing, file_exist
 
 
 class Data:
@@ -53,7 +53,7 @@ class DataCentralized(Data):
 
 class Network:
 
-    def __init__(self, X, Y, nb_epochs, batch_size, dataset_name):
+    def __init__(self, X, Y, batch_size, nb_epochs, dataset_name):
         super().__init__()
         self.dataset_name = dataset_name
         self.nb_clients = len(Y)
@@ -72,10 +72,17 @@ class Network:
         for client in self.clients:
             client.train(self.nb_epochs, self.batch_size)
 
+    @classmethod
+    def loader(cls, dataset_name):
+        root = get_project_root()
+        if file_exist("{0}/pickle/{1}/processed_data/network.pkl".format(root, dataset_name)):
+            return pickle_loader("{0}/pickle/{1}/processed_data/network".format(root, dataset_name))
+        raise FileNotFoundError()
+
     def save(self):
         root = get_project_root()
-        create_folder_if_not_existing("{0}/pickle/{0}/processed_data".format(root, self.dataset_name))
-        pickle_saver(self, "{0}/pickle/{0}/processed_data/decentralized".format(root, self.dataset_name))
+        create_folder_if_not_existing("{0}/pickle/{1}/processed_data".format(root, self.dataset_name))
+        pickle_saver(self, "{0}/pickle/{1}/processed_data/network".format(root, self.dataset_name))
 
     def retrain_all_clients(self):
         for client in self.clients:
