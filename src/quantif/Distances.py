@@ -10,7 +10,8 @@ from scipy.stats import ranksums
 import torch
 import torch.nn as nn
 
-from src.data.Data import Data,  DataCentralized, Network
+from src.data.Data import Data,  DataCentralized
+from src.data.Network import Network
 from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors
 from src.quantif.Metrics import Metrics
 
@@ -171,33 +172,18 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
     return 0, d_heter
 
 
-def function_to_compute_model_discrepency_pvalue(network: Network, i: int, j: int):
-
-    # All clients have the same number of models.
-
-    total_params = sum(p.numel() for p in network.clients[0].trained_model.parameters() if p.requires_grad)
-    # d_iid = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].train_features,
-    #                                                            network.clients[i].models_iid,
-    #                                                            network.clients[j].models_iid,
-    #                                                            network.clients[i].train_loss, total_params,
-    #                                                            len(network.clients[i].train_labels),
-    #                                                            len(network.clients[j].train_labels))
-    d_heter = compute_distance_based_on_model_discrepency_pvalue(network.clients[i].train_features,
-                                                                 network.clients[j].train_features,
-                                                                 network.clients[i].trained_model,
-                                                                 network.clients[j].trained_model,
-                                                                 network.clients[i].train_loss, total_params,
-                                                                 len(network.clients[i].train_labels),
-                                                                 len(network.clients[j].train_labels))
-    return 0, d_heter
-
 def function_to_compute_quantile_pvalue(network: Network, i: int, j: int):
+    d_iid = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
+                                                        network.clients[i].test_features,
+                                                         network.clients[i].test_labels,
+                                                         network.clients[i].trained_model,
+                                                         network.clients[j].trained_model)
     d_heter = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
                                                         network.clients[i].test_features,
                                                          network.clients[i].test_labels,
                                                          network.clients[i].trained_model,
                                                          network.clients[j].trained_model)
-    return 0, d_heter
+    return d_iid, d_heter
 
 
 def function_to_compute_LSR_error(network: Network, i: int, j: int):

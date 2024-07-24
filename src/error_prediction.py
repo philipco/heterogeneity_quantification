@@ -3,15 +3,15 @@ import sys
 
 import torchvision
 
-from src.data.Data import Network
+from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, TRANSFORM
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
-from src.plot.PlotDistance import plot_distance
+from src.plot.PlotDistance import plot_distance, plot_pvalues
 from src.quantif.Metrics import Metrics
 from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_PCA_error, \
     function_to_compute_EM, function_to_compute_TV_error, function_to_compute_LSR_error, \
     function_to_compute_nn_distance, function_to_compute_ranksums_pvalue, function_to_compute_cond_var_pvalue, \
-    function_to_compute_model_discrepency_pvalue, function_to_compute_quantile_pvalue
+    function_to_compute_quantile_pvalue
 from src.utils.Utilities import get_project_root, get_path_to_datasets
 
 
@@ -34,8 +34,9 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 # from datasets.fed_isic2019.dataset import FedIsic2019
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
+NB_RUN = 1
 batch_size = 256
-nb_epochs = 2 # PUT TRUE VALUE
+nb_epochs = 100 # PUT TRUE VALUE
 
 dataset_name = "cifar10"
 nb_of_clients = NB_CLIENTS[dataset_name]
@@ -67,21 +68,22 @@ if __name__ == '__main__':
     metrics_TEST_QUANTILE = Metrics(dataset_name, "TEST_QUANTILE", network.nb_clients,
                                               network.nb_points_by_clients)
 
-    for i in range(2):
+    for i in range(NB_RUN):
         print(f"=== RUN {i+1} ===")
         ### We compute the distance between clients.
 
-        compute_matrix_of_distances(function_to_compute_ranksums_pvalue, network, metrics_RANKS,
-                                    symetric_distance=False)
-        compute_matrix_of_distances(function_to_compute_nn_distance, network, metrics_NET,
-                                    symetric_distance=False)
-        compute_matrix_of_distances(function_to_compute_cond_var_pvalue, network, metrics_TEST_COND_VAR,
-                                    symetric_distance=True)
+        # compute_matrix_of_distances(function_to_compute_ranksums_pvalue, network, metrics_RANKS,
+        #                             symetric_distance=False)
+        # compute_matrix_of_distances(function_to_compute_nn_distance, network, metrics_NET,
+        #                             symetric_distance=False)
+        # compute_matrix_of_distances(function_to_compute_cond_var_pvalue, network, metrics_TEST_COND_VAR,
+        #                             symetric_distance=True)
         compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
                                     metrics_TEST_QUANTILE, symetric_distance=False)
 
         ### We need to retrain the client
-        network.retrain_all_clients()
+        if NB_RUN > 1:
+            network.retrain_all_clients()
 
 
     print(metrics_NET.aggreage_heter())
@@ -89,8 +91,11 @@ if __name__ == '__main__':
     print(metrics_TEST_COND_VAR.aggreage_heter())
     print(metrics_TEST_QUANTILE.aggreage_heter())
 
-    ### We print the distances.
-    plot_distance(metrics_NET)
-    plot_distance(metrics_RANKS)
-    plot_distance(metrics_TEST_COND_VAR)
-    plot_distance(metrics_TEST_QUANTILE)
+    ### We print the distances in the heterogeneous scenario.
+    # plot_distance(metrics_NET, "heter")
+    # plot_distance(metrics_RANKS, "heter")
+    # plot_distance(metrics_TEST_COND_VAR, "heter")
+    plot_pvalues(metrics_TEST_QUANTILE, "heter")
+
+    ### We print the distances in the homogeneous scenario.
+    # plot_distance(metrics_TEST_QUANTILE, "homog")

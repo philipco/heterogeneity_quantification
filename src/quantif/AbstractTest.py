@@ -38,7 +38,7 @@ class ProportionTest(StatisticalTest):
         self.atomic_errors = compute_atomic_errors(remote_model, features, labels, self.loss)
         if len(self.atomic_errors) != len(labels):
             raise ValueError("The number of atomic errors is not equal to the number of labels.")
-        self.beta_estimator = np.sum([e <= q0 for e in self.atomic_errors]) / n
+        self.beta_estimator = np.sum([1 if e <= q0 else 0 for e in self.atomic_errors]) / n
         self.pvalue = norm.cdf(np.sqrt(n) * (self.beta_estimator - self.beta0) / np.sqrt(self.beta0 * (1 - self.beta0)))
         self.beta_critique = norm.ppf(0.05) * np.sqrt(self.beta0 * (1 - self.beta0)) / np.sqrt(n) + self.beta0
 

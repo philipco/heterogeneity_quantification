@@ -4,11 +4,7 @@ from typing import List
 import numpy as np
 import torch
 
-from src.data.Client import Client
-from src.data.DatasetConstants import MODELS, CRITERION, NB_LABELS, STEP_SIZE
 from src.data.Split import iid_split
-from src.utils.PickleHandler import pickle_saver, pickle_loader
-from src.utils.Utilities import get_project_root, create_folder_if_not_existing, file_exist
 
 
 class Data:
@@ -51,43 +47,7 @@ class DataCentralized(Data):
         super().resplit_iid()
 
 
-class Network:
 
-    def __init__(self, X, Y, batch_size, nb_epochs, dataset_name):
-        super().__init__()
-        self.dataset_name = dataset_name
-        self.nb_clients = len(Y)
-        self.nb_epochs = nb_epochs
-        self.batch_size = batch_size
-        self.nb_points_by_clients = [len(y) for y in Y]
-        self.criterion = CRITERION[dataset_name]
-
-        # Creating clients.
-        self.clients = []
-        for i in range(self.nb_clients):
-            self.clients.append(Client(X[i], Y[i], NB_LABELS[dataset_name], MODELS[dataset_name],
-                                       CRITERION[dataset_name], STEP_SIZE[dataset_name]))
-
-        # Training all clients
-        for client in self.clients:
-            client.train(self.nb_epochs, self.batch_size)
-
-    @classmethod
-    def loader(cls, dataset_name):
-        root = get_project_root()
-        if file_exist("{0}/pickle/{1}/processed_data/network.pkl".format(root, dataset_name)):
-            return pickle_loader("{0}/pickle/{1}/processed_data/network".format(root, dataset_name))
-        raise FileNotFoundError()
-
-    def save(self):
-        root = get_project_root()
-        create_folder_if_not_existing("{0}/pickle/{1}/processed_data".format(root, self.dataset_name))
-        pickle_saver(self, "{0}/pickle/{1}/processed_data/network".format(root, self.dataset_name))
-
-    def retrain_all_clients(self):
-        for client in self.clients:
-            client.resplit_train_test()
-            client.train(self.nb_epochs, self.batch_size)
 
 
 def compute_Y_distribution(labels: List[np.array]) -> np.array:
