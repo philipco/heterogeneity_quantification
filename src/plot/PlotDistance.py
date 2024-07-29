@@ -11,7 +11,7 @@ from src.quantif.Metrics import Metrics
 from src.utils.Utilities import create_folder_if_not_existing, get_project_root
 from src.utils.UtilitiesNumpy import remove_diagonal, create_matrix_with_zeros_diagonal_from_array
 
-from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap
+from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap, to_rgba
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -42,15 +42,18 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
     clients_order = np.arange(metrics.nb_of_clients)
 
     # Define the custom colormap
-    colors = ['#e60000', '#ff1a1a', '#ff4d4d', '#ff6666', 'green']
+    colors = ['#b30000', '#ff1a1a', '#ff4d4d', '#fcb3b3', 'tab:green']
+    colors_with_alpha = [to_rgba(color, 0.55) for color in colors]
+    # cmap = ListedColormap(colors_with_alpha)
+
     # Warning: the first and last value must correspond to the real min/max bounds !
     bounds = [0, 5e-10, 1e-4, 0.01, 0.05, 1]
 
-    cmap = ListedColormap(colors)
+    cmap = ListedColormap(colors_with_alpha)
     cmap.set_bad((204 / 255, 204 / 255, 204 / 255, 1))
 
     norm = plt.cm.colors.BoundaryNorm(bounds, cmap.N)
-    kwargs = dict(origin='lower', aspect="equal", cmap=cmap, norm=norm, alpha=0.5)
+    kwargs = dict(origin='lower', cmap=cmap, norm=norm)
     # We set the diagonal at nan.
     # matrix_to_plot[0][np.arange(metrics.nb_of_clients), np.arange(metrics.nb_of_clients)] = np.nan
     matrix_to_plot[np.arange(metrics.nb_of_clients), np.arange(metrics.nb_of_clients)] = np.nan
@@ -65,6 +68,8 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
             # The size of each row/column is depedent of the number of point on the client.
             # data1 = matrix_to_plot[1][x:x + 1, y:y + 1]
             data0 = matrix_to_plot[x:x + 1, y:y + 1]
+            if data0 < 10**-99 and data0 != 0:
+                data0[0,0] = 10**-99
 
             size_x = metrics.nb_of_points_by_clients[clients_order[x]] / total_nb_of_points * metrics.nb_of_clients
             size_y = metrics.nb_of_points_by_clients[clients_order[y]] / total_nb_of_points * metrics.nb_of_clients
@@ -84,11 +89,11 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
         xticks.append(x_non_iid + size_x / 2)
         x_non_iid += size_x
 
-    settings_plot(fig, axes, metrics, xticks, clients_order, im)
+    settings_plot(fig, axes, metrics, xticks, clients_order, im, cmap, norm)
     save_plot(matrix_to_plot, metrics, scenario)
 
 
-def settings_plot(fig, axes, metrics, xticks, clients_order, im):
+def settings_plot(fig, axes, metrics, xticks, clients_order, im, cmap, norm):
 
     axes.set_ylim(0, metrics.nb_of_clients)
     axes.set_xlim(0, metrics.nb_of_clients)
@@ -100,12 +105,14 @@ def settings_plot(fig, axes, metrics, xticks, clients_order, im):
     # Add color bar
     cbar = fig.colorbar(im, ticks=[0, 5e-10, 1e-4, 0.01, 0.05, 1])
     cbar.ax.set_yticklabels(['0', '5e-10', '1e-4', '0.01', '0.05', '1'])
+    cbar.cmap = cmap
+    cbar.norm = norm
 
 
 def save_plot(matrix_to_plot, metrics, scenario):
     root = get_project_root()
     create_folder_if_not_existing('{0}/pictures/{1}'.format(root, metrics.dataset_name))
-    plt.savefig('{0}/pictures/{1}/{2}-{3}.pdf'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
+    plt.savefig('{0}/pictures/{1}/{1}-{2}-{3}.pdf'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
                 bbox_inches='tight', dpi=600)
     print_latex_matrix(root, metrics, scenario, matrix_to_plot)
     np.savetxt('{0}/pictures/{1}/{2}-{3}.txt'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
