@@ -25,8 +25,9 @@ class StatisticalTest(ABC):
 
 class ProportionTest(StatisticalTest):
 
-    def __init__(self, beta0, loss):
+    def __init__(self, beta0, delta, loss):
         self.beta0 = beta0
+        self.delta = delta
         self.loss = loss # Require to have already instantiate the class to make it compatible with loss that are simple function.
         self.atomic_errors = None
         self.beta_estimator = None
@@ -39,8 +40,8 @@ class ProportionTest(StatisticalTest):
         if len(self.atomic_errors) != len(labels):
             raise ValueError("The number of atomic errors is not equal to the number of labels.")
         self.beta_estimator = np.sum([1 if e <= q0 else 0 for e in self.atomic_errors]) / n
-        self.pvalue = norm.cdf(np.sqrt(n) * (self.beta_estimator - self.beta0) / np.sqrt(self.beta0 * (1 - self.beta0)))
-        self.beta_critique = norm.ppf(0.05) * np.sqrt(self.beta0 * (1 - self.beta0)) / np.sqrt(n) + self.beta0
+        self.pvalue = norm.cdf(np.sqrt(n) * (self.beta_estimator - self.beta0 - self.delta) / np.sqrt(self.beta0 * (1 - self.beta0)))
+        self.beta_critique = norm.ppf(0.05) * np.sqrt(self.beta0 * (1 - self.beta0)) / np.sqrt(n) + self.beta0 + self.delta
 
     def print(self):
         print("=   Proportion test   =")

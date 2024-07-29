@@ -197,7 +197,7 @@ def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, l
     poly = PolynomialFeatures(DEG)
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
-    test = ProportionTest(beta0, MSE)
+    test = ProportionTest(beta0, DELTA, MSE)
     test.evaluate_test(q0, remote_poly_reg, poly_features[train_set_length:], Y[train_set_length:])
 
     if log:
