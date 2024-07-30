@@ -4,6 +4,7 @@ import torchvision
 import torch.nn as nn
 
 from src.optim.CustomLoss import DiceLoss, CoxLoss
+from src.optim.Metric import dice, auc, c_index, accuracy
 from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
     HeartDiseaseRegression
 from src.optim.nn.Unet import UNet
@@ -47,10 +48,12 @@ MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10, "heart_disease": HeartDise
           "tcga_brca": TcgaRegression, "ixi": UNet}
 CRITERION = {"mnist": nn.CrossEntropyLoss, "cifar10": nn.CrossEntropyLoss, "heart_disease": nn.BCELoss,
              "tcga_brca": CoxLoss, "ixi": DiceLoss}
+METRIC =  {"mnist": accuracy, "cifar10": accuracy, "heart_disease": auc, "tcga_brca": c_index, "ixi": dice}
 
 
 TRANSFORM = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_CIFAR10}
 STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": 0.001, "heart_disease": 0.001, "ixi": 0.001}
+BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 128}
 MOMENTUM = {"mnist": 0.95, "cifar10": 0.95, "tcga_brca": 0.95, "heart_disease": 0.95, "ixi": 0.95}
 
 

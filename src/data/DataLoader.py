@@ -2,6 +2,7 @@
 from typing import List
 
 import torch
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from src.data.DatasetConstants import MAX_NB_POINTS
@@ -45,6 +46,11 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
 
     ### We generate a non-iid datasplit if it's not already done.
     X, Y = create_non_iid_split(X, Y, nb_of_clients, natural_split)
+
+    train_features, test_features, train_labels, test_labels = train_test_split(X.float(), Y,
+                                                                                test_size=len(labels_test),
+                                                                                random_state=42)
+
     return X, Y, natural_split
 
 
@@ -66,8 +72,8 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: b
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
-        X.append(torch.concat([data_train, data_test]))
-        Y.append(torch.concat([labels_train, labels_test]))
+        X.append([data_train, data_test])
+        Y.append([labels_train, labels_test])
 
     natural_split = True
     return X, Y, natural_split

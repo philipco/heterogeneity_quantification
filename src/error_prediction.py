@@ -4,7 +4,7 @@ import sys
 import torchvision
 
 from src.data.Network import Network
-from src.data.DatasetConstants import NB_CLIENTS, TRANSFORM
+from src.data.DatasetConstants import NB_CLIENTS, TRANSFORM, BATCH_SIZE
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
 from src.plot.PlotDistance import plot_distance, plot_pvalues
 from src.quantif.Metrics import Metrics
@@ -35,10 +35,9 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
 NB_RUN = 1
-batch_size = 256
-nb_epochs = 100 # PUT TRUE VALUE
+nb_epochs = 200 # PUT TRUE VALUE
 
-dataset_name = "cifar10"
+dataset_name = "tcga_brca"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':
@@ -48,25 +47,28 @@ if __name__ == '__main__':
         X, Y, natural_split = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
                                                     kwargs_dataset = dict(root=get_path_to_datasets(), download=False,
                                                                       transform=TRANSFORM[dataset_name]),
-                                                    kwargs_dataloader = dict(batch_size=batch_size, shuffle=False))
+                                                    kwargs_dataloader = dict(batch_size=BATCH_SIZE[dataset_name],
+                                                                             shuffle=False))
 
     else:
         X, Y, natural_split = get_data_from_flamby(DATASET[dataset_name], nb_of_clients,
-                                               kwargs_dataloader=dict(batch_size=batch_size, shuffle=False))
+                                               kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name],
+                                                                      shuffle=False))
 
     ### We process the data in a decentralized way.
-    try:
-        network = Network.loader(dataset_name)
-    except FileNotFoundError:
-        network = Network(X, Y, batch_size, nb_epochs, dataset_name)
-        network.save()
+    # try:
+    #     network = Network.loader(dataset_name)
+    # except FileNotFoundError:
+    network = Network(X, Y, BATCH_SIZE[dataset_name], nb_epochs, dataset_name)
+    network.save()
 
     ### We define three measures : PCA and EM on features, and TV on labels.
-    metrics_NET = Metrics(dataset_name, "NET", network.nb_clients, network.nb_points_by_clients)
-    metrics_RANKS = Metrics(dataset_name, "RANKS", network.nb_clients, network.nb_points_by_clients)
-    metrics_TEST_COND_VAR = Metrics(dataset_name, "TEST_COND_VAR", network.nb_clients, network.nb_points_by_clients)
+    metrics_NET = Metrics(dataset_name, "NET", network.nb_clients, network.nb_testpoints_by_clients)
+    metrics_RANKS = Metrics(dataset_name, "RANKS", network.nb_clients, network.nb_testpoints_by_clients)
+    metrics_TEST_COND_VAR = Metrics(dataset_name, "TEST_COND_VAR", network.nb_clients,
+                                    network.nb_testpoints_by_clients)
     metrics_TEST_QUANTILE = Metrics(dataset_name, "TEST_QUANTILE", network.nb_clients,
-                                              network.nb_points_by_clients)
+                                    network.nb_testpoints_by_clients)
 
     for i in range(NB_RUN):
         print(f"=== RUN {i+1} ===")

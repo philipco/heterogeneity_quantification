@@ -134,7 +134,7 @@ def compute_distance_based_on_quantile_pvalue(criterion, features, labels, local
     beta0 = 0.8
     atomic_errors = compute_atomic_errors(local_net, features, labels, criterion)
     q0 = np.quantile(atomic_errors, beta0, method="higher")
-    test = ProportionTest(beta0, criterion)
+    test = ProportionTest(beta0, delta=0, loss=criterion)
     test.evaluate_test(q0, remote_net, features, labels)
     return test.pvalue
 
@@ -174,15 +174,18 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
 
 def function_to_compute_quantile_pvalue(network: Network, i: int, j: int):
     d_iid = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
-                                                        network.clients[i].test_features,
-                                                         network.clients[i].test_labels,
-                                                         network.clients[i].trained_model,
-                                                         network.clients[j].trained_model)
+                                                      network.clients[i].test_features,
+                                                      network.clients[i].test_labels,
+                                                      network.clients[i].trained_model,
+                                                      network.clients[j].trained_model)
+    # TODO : check that the train/test dataset are different.
     d_heter = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
                                                         network.clients[i].test_features,
-                                                         network.clients[i].test_labels,
-                                                         network.clients[i].trained_model,
-                                                         network.clients[j].trained_model)
+                                                        network.clients[i].test_labels,
+                                                        network.clients[i].trained_model,
+                                                        network.clients[j].trained_model)
+
+
     return d_iid, d_heter
 
 
