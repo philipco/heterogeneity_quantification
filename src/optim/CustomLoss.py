@@ -45,8 +45,9 @@ class CoxLoss(nn.Module):
 
 
 class DiceLoss(_Loss):
-    def __init__(self):
+    def __init__(self, reduction = False):
         super(DiceLoss, self).__init__()
+        self.reduction = reduction
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         """Get dice loss to evaluate the semantic segmentation model.
@@ -66,6 +67,8 @@ class DiceLoss(_Loss):
         torch.Tensor
             A torch tensor containing the respective dice losses.
         """
+        if self.reduction == 'none':
+            return torch.mean(1 - get_dice_score(output, target), axis=1)
         return torch.mean(1 - get_dice_score(output, target))
 
 

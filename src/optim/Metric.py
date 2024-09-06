@@ -2,21 +2,54 @@
 
 import lifelines
 import numpy as np
+import torch
+
+import torch.nn.functional as F
 
 
-def accuracy(y_true, y_pred):
-    pass
+def accuracy(y_true, y_output_net):
+    """
+    Calculate the accuracy of predictions.
+
+    Parameters:
+    y_true (list or array-like): True labels
+    y_output_net (list or array-like): Output of the neural network (without softmax function).
+
+    Returns:
+    float: Accuracy as the proportion of correct predictions
+    """
+
+    # Apply softmax to get probabilities
+    test_probabilities = F.softmax(y_output_net, dim=1)
+
+    # Get the predicted class (the class with the highest probability)
+    predicted_label = torch.argmax(test_probabilities, dim=1)
+
+    if len(predicted_label.unique()) == 1:
+        print(f"The network predict only the single label '{predicted_label[0]}'")
+
+    # Ensure both inputs are lists or arrays of the same length
+    assert len(y_true) == len(predicted_label), "Length of y_true and y_output_net must be the same"
+
+    # Calculate the number of correct predictions
+    correct = sum(yt == yp for yt, yp in zip(y_true, predicted_label))
+
+    # Calculate accuracy as the proportion of correct predictions
+    accuracy_value = correct / len(y_true)
+
+    return accuracy_value
 
 
 def auc(y_true, y_pred):
     # y_true = y_true.astype("uint8")
     # The try except is needed because when the metric is batched some batches
     # have one class only
+    assert len(y_true) == len(y_pred), "Length of y_true and y_pred must be the same"
     try:
         # return roc_auc_score(y_true, y_pred)
         # proposed modification in order to get a metric that calcs on center 2
         # (y=1 only on that center)
-        return ((y_pred > 0.5) == y_true).mean()
+        return ((y_pred > 0.5) == y_true).sum()/len(y_pred)
     except ValueError:
         return np.nan
 

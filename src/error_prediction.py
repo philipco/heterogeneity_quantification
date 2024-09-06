@@ -35,23 +35,23 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
 NB_RUN = 1
-nb_epochs = 200 # PUT TRUE VALUE
+nb_epochs = 40 # PUT TRUE VALUE
 
-dataset_name = "tcga_brca"
+dataset_name = "mnist"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':
 
     ### We the dataset naturally splitted or not.
     if dataset_name in ["mnist", "cifar10"]:
-        X, Y, natural_split = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
+        X_train, X_test, Y_train, Y_test, natural_split = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
                                                     kwargs_dataset = dict(root=get_path_to_datasets(), download=False,
                                                                       transform=TRANSFORM[dataset_name]),
                                                     kwargs_dataloader = dict(batch_size=BATCH_SIZE[dataset_name],
                                                                              shuffle=False))
 
     else:
-        X, Y, natural_split = get_data_from_flamby(DATASET[dataset_name], nb_of_clients,
+        X_train, X_test, Y_train, Y_test, natural_split = get_data_from_flamby(DATASET[dataset_name], nb_of_clients,
                                                kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name],
                                                                       shuffle=False))
 
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     # try:
     #     network = Network.loader(dataset_name)
     # except FileNotFoundError:
-    network = Network(X, Y, BATCH_SIZE[dataset_name], nb_epochs, dataset_name)
+    network = Network(X_train, X_test, Y_train, Y_test, BATCH_SIZE[dataset_name], nb_epochs, dataset_name)
     network.save()
 
     ### We define three measures : PCA and EM on features, and TV on labels.

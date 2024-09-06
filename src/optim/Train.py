@@ -47,6 +47,8 @@ def train_neural_network(net, train_features, train_labels, criterion, nb_epochs
     return net, train_loss #, atomic_test_losses
 
 def evaluate_test_metric(net, test_features, test_labels, metric):
+    # Eval mode to deactivate any layers that behave differently during training.
+    net.eval()
     with torch.no_grad():
         test_outputs = net(test_features)
-        return metric(test_labels.detach().cpu().numpy(), test_outputs.detach().cpu().numpy())
+        return metric(test_labels.detach().cpu(), test_outputs.detach().cpu())
