@@ -4,7 +4,9 @@ import torchvision
 import torch.nn as nn
 
 from src.optim.CustomLoss import DiceLoss, CoxLoss
-from src.optim.nn.Nets import LinearRegression, LogisticRegression
+from src.optim.Metric import dice, auc, c_index, accuracy
+from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
+    HeartDiseaseRegression
 from src.optim.nn.Unet import UNet
 from src.utils.UtilitiesPytorch import ReshapeTransform
 
@@ -12,9 +14,10 @@ PCA_NB_COMPONENTS = 16
 
 TRANSFORM_MNIST = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+        torchvision.transforms.Normalize((0.1307,), (0.3081,))
         # We reshape mnist to match with our neural network
-        ReshapeTransform((-1,))
+        # ReshapeTransform((-1,))
+
     ])
 
 TRANSFORM_CIFAR10 = torchvision.transforms.Compose(
@@ -41,15 +44,17 @@ NB_CLIENTS = {"mnist": 4, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "h
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}
 # CRITERION = {"mnist": nn.CrossEntropyLoss(), "cifar10": nn.CrossEntropyLoss()}
 
-MODELS = {"mnist": LinearRegression, "cifar10": LinearRegression, "heart_disease": LogisticRegression,
-          "tcga_brca": LinearRegression, "ixi": UNet}
-CRITERION = {"mnist": nn.MSELoss, "cifar10": nn.MSELoss, "heart_disease": nn.BCELoss, "tcga_brca": CoxLoss,
-             "ixi": DiceLoss}
+MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10, "heart_disease": HeartDiseaseRegression,
+          "tcga_brca": TcgaRegression, "ixi": UNet}
+CRITERION = {"mnist": nn.CrossEntropyLoss, "cifar10": nn.CrossEntropyLoss, "heart_disease": nn.BCELoss,
+             "tcga_brca": CoxLoss, "ixi": DiceLoss}
+METRIC =  {"mnist": accuracy, "cifar10": accuracy, "heart_disease": auc, "tcga_brca": c_index, "ixi": dice}
 
 
 TRANSFORM = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_CIFAR10}
-STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "heart_disease": 0.001, "ixi": 0.001}
-MOMENTUM = {"mnist": 0.95, "cifar10": 0.95, "heart_disease": 0.95, "ixi": 0.95}
+STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": 0.001, "heart_disease": 0.001, "ixi": 0.001}
+BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 128}
+MOMENTUM = {"mnist": 0.95, "cifar10": 0.95, "tcga_brca": 0.95, "heart_disease": 0.95, "ixi": 0.95}
 
 
 

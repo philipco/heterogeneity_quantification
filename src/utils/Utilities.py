@@ -12,14 +12,14 @@ from src.data.DatasetConstants import OUTPUT_TYPE
 def get_project_root() -> str:
     import pathlib
     path = str(pathlib.Path().absolute())
-    root_dir = str(Path(__file__).parent.parent)
+    root_dir = str(Path(__file__).parent.parent.parent)
     split = path.split(root_dir)
     return root_dir
 
 def get_path_to_datasets() -> str:
     """Return the path to the datasets. For sake of anonymization, the path to datasets on clusters is not keep on
     GitHub and must be personalized locally"""
-    return '{0}/../../DATASETS/'.format(get_project_root())
+    return '{0}/../DATASETS/'.format(get_project_root())
 
 def create_folder_if_not_existing(folder) -> None:
     if not os.path.exists(folder):

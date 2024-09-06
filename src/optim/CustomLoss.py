@@ -21,8 +21,9 @@ class CoxLoss(nn.Module):
     torch.Tensor of dimension (1, ) giving mean of Cox loss.
     """
 
-    def __init__(self):
+    def __init__(self, reduction=True):
         super(CoxLoss, self).__init__()
+        self.reduction  = reduction
 
     def forward(self, scores, truth):
         # The Cox loss calc expects events to be reverse sorted in time
@@ -38,30 +39,15 @@ class CoxLoss(nn.Module):
             aux_.exp_()
             loss[i] = m + torch.log(aux_.sum(0))
         loss *= events
+        if self.reduction == 'none':
+            return loss
         return loss.mean()
 
 
-if __name__ == "__main__":
-
-    mydataset = FedTcgaBrca(train=True, pooled=True)
-
-    model = Baseline()
-
-    X = torch.stack((mydataset[0][0], mydataset[1][0], mydataset[2][0]), dim=0)
-    truth = torch.stack((mydataset[0][1], mydataset[1][1], mydataset[2][1]), dim=0)
-
-    scores = model(X)
-
-    print(X)
-    print(scores)
-    print(truth)
-
-    loss = BaselineLoss()
-    print(loss(scores, truth))
-
 class DiceLoss(_Loss):
-    def __init__(self):
+    def __init__(self, reduction = False):
         super(DiceLoss, self).__init__()
+        self.reduction = reduction
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         """Get dice loss to evaluate the semantic segmentation model.
@@ -81,6 +67,8 @@ class DiceLoss(_Loss):
         torch.Tensor
             A torch tensor containing the respective dice losses.
         """
+        if self.reduction == 'none':
+            return torch.mean(1 - get_dice_score(output, target), axis=1)
         return torch.mean(1 - get_dice_score(output, target))
 
 
