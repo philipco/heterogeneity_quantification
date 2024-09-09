@@ -1,24 +1,25 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
-from sklearn.model_selection import train_test_split
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-def train_neural_network(net, train_features, train_labels, criterion, nb_epochs, lr, batch_size):
+def train_neural_network(net, client_ID, X_train, X_val, Y_train, Y_val, criterion, nb_epochs, lr, momentum,
+                         batch_size, metric):
     """Create train/test and train a neural network."""
-    # Split dataset into train and test sets
+    # Writer for TensorBoard
+    writer = SummaryWriter(log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{client_ID}')
 
-    optimizer = optim.Adam(net.parameters(), lr=lr)
+    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.9)
     train_loss = []
 
     # Training
     print("=== Training the neural network. ===")
     for epoch in tqdm(range(nb_epochs)):
-        # Convert numpy arrays to PyTorch tensors
-        for i in range(0, len(train_features), batch_size):
-            x_batch = train_features[i:i + batch_size]
-            y_batch = train_labels[i:i + batch_size]
+        net.train()
+        for i in range(0, len(X_train), batch_size):
+            x_batch = X_train[i:i + batch_size]
+            y_batch = Y_train[i:i + batch_size]
 
             net.zero_grad()
 
@@ -31,20 +32,35 @@ def train_neural_network(net, train_features, train_labels, criterion, nb_epochs
             loss.backward()
             optimizer.step()
 
-        # We compute the train loss.
+        # We compute the train loss/performance-metric on the full train set after a full pass on it.
         epoch_train_loss = 0
+        all_outputs = []
+        epoch_accuracy = 0
+        net.eval()
         with torch.no_grad():
-            for i in range(0, len(train_features), batch_size):
-                x_batch = train_features[i:i + batch_size]
-                y_batch = train_labels[i:i + batch_size]  # .float()
+            for i in range(0, len(X_train), batch_size):
+                x_batch = X_train[i:i + batch_size]
+                y_batch = Y_train[i:i + batch_size]
 
-                # Forward pass
                 outputs = net(x_batch).float()
                 epoch_train_loss += criterion(outputs, y_batch)
-        epoch_train_loss /= len(train_features)
+                all_outputs.append(outputs)
+        epoch_accuracy = metric(Y_train, torch.concat(all_outputs))
+        epoch_train_loss /= len(Y_train)
         train_loss.append(epoch_train_loss)
 
-    return net, train_loss #, atomic_test_losses
+        # Writing logs.
+        writer.add_scalar('training_loss', epoch_train_loss, epoch)
+        writer.add_scalar('training_accuracy', epoch_accuracy, epoch)
+
+        for name, param in net.named_parameters():
+            writer.add_histogram(f'{name}.grad', param.grad, epoch)
+            writer.add_histogram(f'{name}.weight', param, epoch)
+
+    # Close the writer at the end of training
+    writer.close()
+
+    return net, train_loss#, writer #, atomic_test_losses
 
 def evaluate_test_metric(net, test_features, test_labels, metric):
     # Eval mode to deactivate any layers that behave differently during training.

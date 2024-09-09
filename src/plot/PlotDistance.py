@@ -95,6 +95,8 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
 
 def settings_plot(fig, axes, metrics, xticks, clients_order, im, cmap, norm):
 
+    axes.set_xlabel(r"Evaluated on client $i$")
+    axes.set_ylabel(r"Remote model from client $j$")
     axes.set_ylim(0, metrics.nb_of_clients)
     axes.set_xlim(0, metrics.nb_of_clients)
     axes.set_yticks(xticks)

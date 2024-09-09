@@ -25,9 +25,6 @@ def accuracy(y_true, y_output_net):
     # Get the predicted class (the class with the highest probability)
     predicted_label = torch.argmax(test_probabilities, dim=1)
 
-    if len(predicted_label.unique()) == 1:
-        print(f"The network predict only the single label '{predicted_label[0]}'")
-
     # Ensure both inputs are lists or arrays of the same length
     assert len(y_true) == len(predicted_label), "Length of y_true and y_output_net must be the same"
 

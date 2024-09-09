@@ -44,27 +44,29 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
     print("Train data shape:", X[0].shape)
     print("Test data shape:", Y[0].shape)
 
-    natural_split = False
-
     ### We generate a non-iid datasplit if it's not already done.
-    X, Y = create_non_iid_split(X, Y, nb_of_clients, natural_split)
+    X, Y = create_non_iid_split(X, Y, nb_of_clients, natural_split=False)
 
     # Then for each (heterogeneous) client, we split the dataset into train/test
-    X_train, X_test, Y_train, Y_test = [], [], [], []
+    X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
     for (x,y) in zip(X, Y):
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+        x2, x_test, y2, y_test = train_test_split(x, y, test_size=0.2, random_state=2024)
+        x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=2023)
         X_train.append(x_train)
+        X_val.append(x_val)
         X_test.append(x_test)
         Y_train.append(y_train)
+        Y_val.append(y_val)
         Y_test.append(y_test)
 
-    return X_train, X_test, Y_train, Y_test, natural_split
+    natural_split = False
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
 
 
 def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: bool = False) \
         -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-    X_train, X_test, Y_train, Y_test = [], [], [], []
+    X_train, X_test, X_val, Y_train, Y_val, Y_test = [], [], [], [], [], []
     for i in range(nb_of_clients):
         kwargs_dataset = dict(center=i, pooled=False)
         if debug:
@@ -77,12 +79,16 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: b
 
         # Get all element from the dataloader.
         data_train, labels_train = get_element_from_dataloader(loader_train)
+        data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
+                                                                          test_size=0.2, random_state=2023)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
         X_train.append(torch.concat([data_train]))
         Y_train.append(torch.concat([labels_train]))
         X_test.append(torch.concat([data_test]))
         Y_test.append(torch.concat([labels_test]))
+        X_val.append(torch.concat([data_val]))
+        Y_val.append(torch.concat([labels_val]))
 
     natural_split = True
-    return X_train, X_test, Y_train, Y_test, natural_split
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split

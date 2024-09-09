@@ -1,12 +1,12 @@
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC
+from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC, MOMENTUM
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing
 
 
 class Network:
 
-    def __init__(self, X_train, X_test, Y_train, Y_test, batch_size, nb_epochs, dataset_name):
+    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_epochs, dataset_name):
         super().__init__()
         self.dataset_name = dataset_name
         self.nb_clients = len(Y_train)
@@ -19,9 +19,10 @@ class Network:
         # Creating clients.
         self.clients = []
         for i in range(self.nb_clients):
-            self.clients.append(Client(X_train[i], X_test[i], Y_train[i], Y_test[i],
+            self.clients.append(Client(f"{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
+                                       Y_train[i], Y_val[i], Y_test[i],
                                        NB_LABELS[dataset_name], MODELS[dataset_name], CRITERION[dataset_name],
-                                       METRIC[dataset_name], STEP_SIZE[dataset_name]))
+                                       METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name]))
 
         # Training all clients
         for client in self.clients:
