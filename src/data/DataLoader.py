@@ -80,7 +80,7 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: b
         # Get all element from the dataloader.
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
-                                                                          test_size=0.2, random_state=2023)
+                                                                          test_size=0.1, random_state=2024)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
         X_train.append(torch.concat([data_train]))

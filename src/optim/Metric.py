@@ -69,8 +69,8 @@ def c_index(y_true, y_pred):
     """
 
     c_index = lifelines.utils.concordance_index(y_true[:, 1], -y_pred, y_true[:, 0])
-
     return c_index
+
 
 def dice(y_true, y_pred):
     """Soft Dice coefficient."""

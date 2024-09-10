@@ -38,7 +38,10 @@ class CoxLoss(nn.Module):
             aux_ = aux - m
             aux_.exp_()
             loss[i] = m + torch.log(aux_.sum(0))
-        loss *= events
+        # If events contains only zeros, or if there are too many censored individuals ((i.e. the event has not yet
+        # occurred), multiplying by events causes all the loss values to become zero.
+        # So, should we exclude individuals censored from loss computation? If yes, uncomment following line.
+        # loss *= events
         if self.reduction == 'none':
             return loss
         return loss.mean()

@@ -1,5 +1,6 @@
 import torch
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -10,11 +11,12 @@ def train_neural_network(net, client_ID, X_train, X_val, Y_train, Y_val, criteri
     # Writer for TensorBoard
     writer = SummaryWriter(log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{client_ID}')
 
-    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.9)
+    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.1)
     train_loss = []
 
     # Training
-    print("=== Training the neural network. ===")
+    print(f"=== Training the neural network on {client_ID}. ===")
     for epoch in tqdm(range(nb_epochs)):
         net.train()
         for i in range(0, len(X_train), batch_size):
@@ -28,8 +30,12 @@ def train_neural_network(net, client_ID, X_train, X_val, Y_train, Y_val, criteri
             loss = criterion(outputs, y_batch)
 
             # Backward pass and optimization
-            optimizer.zero_grad()
             loss.backward()
+
+            for name, param in net.named_parameters():
+                writer.add_histogram(f'{name}.grad', param.grad, epoch)
+                writer.add_histogram(f'{name}.weight', param, epoch)
+
             optimizer.step()
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
@@ -53,12 +59,13 @@ def train_neural_network(net, client_ID, X_train, X_val, Y_train, Y_val, criteri
         writer.add_scalar('training_loss', epoch_train_loss, epoch)
         writer.add_scalar('training_accuracy', epoch_accuracy, epoch)
 
-        for name, param in net.named_parameters():
-            writer.add_histogram(f'{name}.grad', param.grad, epoch)
-            writer.add_histogram(f'{name}.weight', param, epoch)
+        scheduler.step(epoch_train_loss)
 
     # Close the writer at the end of training
     writer.close()
+
+    print("Final train loss:", train_loss[-1])
+    print("Final accuracy:", epoch_accuracy)
 
     return net, train_loss#, writer #, atomic_test_losses
 
