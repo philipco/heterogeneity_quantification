@@ -39,9 +39,10 @@ def accuracy(y_true, y_output_net):
 
 def auc(y_true, y_pred):
     # y_true = y_true.astype("uint8")
+
+    assert len(y_true) == len(y_pred), "Length of y_true and y_pred must be the same"
     # The try except is needed because when the metric is batched some batches
     # have one class only
-    assert len(y_true) == len(y_pred), "Length of y_true and y_pred must be the same"
     try:
         # return roc_auc_score(y_true, y_pred)
         # proposed modification in order to get a metric that calcs on center 2

@@ -22,7 +22,7 @@ class Client:
         self.output_dim = output_dim
 
         # Type of network to use, simply a class
-        self.net = net()
+        self.net = net
         self.criterion = criterion
         self.metric = metric
         self.step_size, self.momentum = step_size, momentum
@@ -39,7 +39,7 @@ class Client:
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
 
-        self.trained_model, self.train_loss = train_neural_network(self.net, self.ID, self.X_train, self.X_val,
+        self.trained_model, self.train_loss = train_neural_network(self.net(), self.ID, self.X_train, self.X_val,
                                                                    self.Y_train, self.Y_val, criterion, nb_epochs,
                                                                    self.step_size, self.momentum, batch_size,
                                                                    self.metric)

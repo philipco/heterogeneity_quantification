@@ -4,7 +4,6 @@ from typing import List
 import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
-from num2tex import num2tex
 from sklearn.preprocessing import StandardScaler
 
 from src.quantif.Metrics import Metrics

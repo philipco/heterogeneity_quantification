@@ -35,7 +35,7 @@ class HeartDiseaseRegression(LogisticRegression):
     def __init__(self):
         super(HeartDiseaseRegression, self).__init__(13)
 
-class TcgaRegression(TwoLayerRegression):
+class TcgaRegression(LinearRegression):
     def __init__(self):
         super(TcgaRegression, self).__init__(39)
 
