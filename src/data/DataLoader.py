@@ -25,13 +25,13 @@ def get_element_from_dataloader(loader):
     return torch.concat(X), torch.concat(Y)#.flatten()
 
 
-def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
+def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_train_dataset, kwargs_test_dataset,
                           kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     # Get dataloader for train/test.
-    loader_train = get_dataloader(fed_dataset, train=True, kwargs_dataset=kwargs_dataset,
+    loader_train = get_dataloader(fed_dataset, train=True, kwargs_dataset=kwargs_train_dataset,
                             kwargs_dataloader=kwargs_dataloader)
-    loader_test = get_dataloader(fed_dataset, train=False, kwargs_dataset=kwargs_dataset,
+    loader_test = get_dataloader(fed_dataset, train=False, kwargs_dataset=kwargs_test_dataset,
                             kwargs_dataloader=kwargs_dataloader)
 
     # Get all element from the dataloader.
@@ -51,7 +51,7 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_dataset,
     X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
     for (x,y) in zip(X, Y):
         x2, x_test, y2, y_test = train_test_split(x, y, test_size=0.2, random_state=2024)
-        x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=2023)
+        x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.1, random_state=2024)
         X_train.append(x_train)
         X_val.append(x_val)
         X_test.append(x_test)
@@ -80,7 +80,7 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, kwargs_dataloader, debug: b
         # Get all element from the dataloader.
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
-                                                                          test_size=0.1, random_state=2024)
+                                                                          test_size=0.1, random_state=2023)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
         X_train.append(torch.concat([data_train]))

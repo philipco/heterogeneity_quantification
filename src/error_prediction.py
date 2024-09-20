@@ -3,8 +3,9 @@ import sys
 
 import torchvision
 
+from src.data.Algo import federated_training, fedquantile_training
 from src.data.Network import Network
-from src.data.DatasetConstants import NB_CLIENTS, TRANSFORM, BATCH_SIZE
+from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
 from src.plot.PlotDistance import plot_distance, plot_pvalues
 from src.quantif.Metrics import Metrics
@@ -35,9 +36,9 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
 NB_RUN = 1
-nb_epochs = 20 # PUT TRUE VALUE
+nb_epochs = 50 # PUT TRUE VALUE
 
-dataset_name = "tcga_brca"
+dataset_name = "cifar10"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':
@@ -46,8 +47,10 @@ if __name__ == '__main__':
     if dataset_name in ["mnist", "cifar10"]:
         X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split \
             = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
-                                    kwargs_dataset = dict(root=get_path_to_datasets(), download=False,
-                                                          transform=TRANSFORM[dataset_name]),
+                                    kwargs_train_dataset = dict(root=get_path_to_datasets(), download=False,
+                                                          transform=TRANSFORM_TRAIN[dataset_name]),
+                                    kwargs_test_dataset=dict(root=get_path_to_datasets(), download=False,
+                                                              transform=TRANSFORM_TEST[dataset_name]),
                                     kwargs_dataloader = dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False))
 
     else:
@@ -59,15 +62,11 @@ if __name__ == '__main__':
     # try:
     #     network = Network.loader(dataset_name)
     # except FileNotFoundError:
-    network = Network(X_train, X_val, X_test, Y_train, Y_test, Y_test, BATCH_SIZE[dataset_name], nb_epochs,
+    network = Network(X_train, X_val, X_test, Y_train, Y_val, Y_test, BATCH_SIZE[dataset_name], nb_epochs,
                       dataset_name)
     network.save()
 
     ### We define three measures : PCA and EM on features, and TV on labels.
-    metrics_NET = Metrics(dataset_name, "NET", network.nb_clients, network.nb_testpoints_by_clients)
-    metrics_RANKS = Metrics(dataset_name, "RANKS", network.nb_clients, network.nb_testpoints_by_clients)
-    metrics_TEST_COND_VAR = Metrics(dataset_name, "TEST_COND_VAR", network.nb_clients,
-                                    network.nb_testpoints_by_clients)
     metrics_TEST_QUANTILE = Metrics(dataset_name, "TEST_QUANTILE", network.nb_clients,
                                     network.nb_testpoints_by_clients)
 
@@ -75,12 +74,6 @@ if __name__ == '__main__':
         print(f"=== RUN {i+1} ===")
         ### We compute the distance between clients.
 
-        # compute_matrix_of_distances(function_to_compute_ranksums_pvalue, network, metrics_RANKS,
-        #                             symetric_distance=False)
-        # compute_matrix_of_distances(function_to_compute_nn_distance, network, metrics_NET,
-        #                             symetric_distance=False)
-        # compute_matrix_of_distances(function_to_compute_cond_var_pvalue, network, metrics_TEST_COND_VAR,
-        #                             symetric_distance=True)
         compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
                                     metrics_TEST_QUANTILE, symetric_distance=False)
 
@@ -89,16 +82,12 @@ if __name__ == '__main__':
             network.retrain_all_clients()
 
 
-    print(metrics_NET.aggreage_heter())
-    print(metrics_RANKS.aggreage_heter())
-    print(metrics_TEST_COND_VAR.aggreage_heter())
     print(metrics_TEST_QUANTILE.aggreage_heter())
 
     ### We print the distances in the heterogeneous scenario.
-    # plot_distance(metrics_NET, "heter")
-    # plot_distance(metrics_RANKS, "heter")
-    # plot_distance(metrics_TEST_COND_VAR, "heter")
     plot_pvalues(metrics_TEST_QUANTILE, "heter")
+
+    fedquantile_training(network, metrics_TEST_QUANTILE)
 
     ### We print the distances in the homogeneous scenario.
     # plot_distance(metrics_TEST_QUANTILE, "homog")

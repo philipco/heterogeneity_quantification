@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
 
 class LinearRegression(nn.Module):
     def __init__(self, input_size: int):
@@ -9,6 +10,38 @@ class LinearRegression(nn.Module):
 
     def forward(self, x):
         return self.linear(x)#.flatten()
+
+
+class ResNet50TransferLearning(nn.Module):
+    def __init__(self):
+        super(ResNet50TransferLearning, self).__init__()
+
+        freeze = True
+
+        # Load pretrained ResNet50
+        self.model = models.googlenet(pretrained=True)
+
+        if hasattr(self.model, 'fc'):  # for models like ResNet, GoogLeNet
+            num_ftrs = self.model.fc.in_features
+            self.model.fc = nn.Linear(num_ftrs, 10)
+        elif hasattr(self.model, 'classifier'):  # for models like VGG, AlexNet
+            num_ftrs = self.model.classifier[-1].in_features
+            self.model.classifier[-1] = nn.Linear(num_ftrs, 10)
+        else:
+            raise AttributeError(f"Pretrained model does not have a recognizable final layer (fc or classifier).")
+
+
+        # Optionally freeze all layers except the final one
+        if freeze:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+            # Unfreeze only the final layer for training
+            for param in self.model.fc.parameters():
+                param.requires_grad = True
+
+    def forward(self, x):
+        return self.model(x)
 
 
 class LogisticRegression(nn.Module):
