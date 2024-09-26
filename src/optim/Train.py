@@ -80,7 +80,7 @@ def compute_loss_accuracy(net, device, X, Y, batch_size, criterion, metric):
             outputs = net(x_batch).float()
             epoch_loss += criterion(outputs, y_batch)
             all_outputs.append(outputs)
-    epoch_accuracy = metric(Y, torch.concat(all_outputs))
+    epoch_accuracy = metric(Y.to(device), torch.concat(all_outputs))
     epoch_loss /= len(Y)
     return epoch_loss, epoch_accuracy
 
