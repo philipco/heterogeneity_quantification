@@ -3,16 +3,13 @@ import sys
 
 import torchvision
 
-from src.data.Algo import federated_training, fedquantile_training
+from src.optim.Algo import fedquantile_training
 from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
-from src.plot.PlotDistance import plot_distance, plot_pvalues
+from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Metrics import Metrics
-from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_PCA_error, \
-    function_to_compute_EM, function_to_compute_TV_error, function_to_compute_LSR_error, \
-    function_to_compute_nn_distance, function_to_compute_ranksums_pvalue, function_to_compute_cond_var_pvalue, \
-    function_to_compute_quantile_pvalue
+from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_quantile_pvalue
 from src.utils.Utilities import get_project_root, get_path_to_datasets
 
 
@@ -21,9 +18,7 @@ root = get_project_root()
 FLAMBY_PATH = '{0}/../FLamby'.format(root)
 
 sys.path.insert(0, FLAMBY_PATH)
-import flamby
 sys.path.insert(0, FLAMBY_PATH + '/flamby')
-import datasets
 
 from datasets.fed_heart_disease.dataset import FedHeartDisease
 from datasets.fed_tcga_brca.dataset import FedTcgaBrca
@@ -38,7 +33,7 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 NB_RUN = 1
 nb_epochs = 50 # PUT TRUE VALUE
 
-dataset_name = "cifar10"
+dataset_name = "heart_disease"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':
@@ -88,6 +83,7 @@ if __name__ == '__main__':
     plot_pvalues(metrics_TEST_QUANTILE, "heter")
 
     fedquantile_training(network, metrics_TEST_QUANTILE)
+    # federated_training(network)
 
     ### We print the distances in the homogeneous scenario.
     # plot_distance(metrics_TEST_QUANTILE, "homog")

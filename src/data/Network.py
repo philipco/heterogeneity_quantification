@@ -1,5 +1,5 @@
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC, MOMENTUM
+from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing
 
@@ -22,7 +22,8 @@ class Network:
             self.clients.append(Client(f"{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
                                        Y_train[i], Y_val[i], Y_test[i],
                                        NB_LABELS[dataset_name], MODELS[dataset_name], CRITERION[dataset_name],
-                                       METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name]))
+                                       METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],
+                                       BATCH_SIZE[dataset_name]))
 
         # Training all clients
         for client in self.clients:

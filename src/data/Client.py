@@ -3,14 +3,16 @@ import torch
 from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 
+from src.data.DatasetConstants import BATCH_SIZE
 from src.optim.Train import train_local_neural_network, evaluate_test_metric
 
 
 class Client:
 
     def __init__(self, ID, X_train, X_val, X_test, Y_train, Y_val, Y_test, output_dim: int, net: nn.Module,
-                 criterion, metric, step_size: int, momentum: int):
+                 criterion, metric, step_size: int, momentum: int, batch_size: int):
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,10 +20,12 @@ class Client:
 
         self.ID = ID
 
-        self.X_train, self.X_val, self.X_test = X_train, X_val, X_test.to(self.device)
-        self.Y_train, self.Y_val, self.Y_test = Y_train, Y_val, Y_test.to(self.device)
+        self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size, shuffle=True)
+        self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size, shuffle=True)
 
-        self.input_dim = self.X_train.shape[1]
+        self.X_test, self.Y_test = X_test.to(self.device), Y_test.to(self.device)
+
+        self.input_dim = self.X_test.shape[1]
         self.output_dim = output_dim
 
         # Type of network to use, simply a class
@@ -44,8 +48,8 @@ class Client:
         criterion = self.criterion()
 
         self.trained_model, self.train_loss, self.writer \
-            = train_local_neural_network(self.net(), self.device, self.ID, self.X_train, self.X_val,
-                                                                         self.Y_train, self.Y_val, criterion, nb_epochs,
+            = train_local_neural_network(self.net(), self.device, self.ID, self.train_loader, self.val_loader,
+                                         criterion, nb_epochs,
                                                                          self.step_size, self.momentum, batch_size,
                                                                          self.metric, self.last_epoch)
         self.last_epoch += nb_epochs
@@ -64,19 +68,32 @@ class Client:
         criterion = self.criterion()
 
         self.trained_model, self.train_loss, self.writer \
-            = train_local_neural_network(self.trained_model, self.device, self.ID, self.X_train, self.X_val,
-                                                                         self.Y_train, self.Y_val, criterion, nb_epochs,
+            = train_local_neural_network(self.trained_model, self.device, self.ID, self.train_loader, self.val_loader,
+                                         criterion, nb_epochs,
                                                                          self.step_size, self.momentum, batch_size,
                                                                          self.metric, self.last_epoch, self.writer)
+        torch.cuda.empty_cache()
         self.last_epoch += nb_epochs
 
         # Compute test metrics
         test_metric = evaluate_test_metric(self.trained_model, self.X_test, self.Y_test, self.metric)
         print(f"\nTest metric:", test_metric)
         # Compute test loss
-        test_outputs = self.trained_model(self.X_test)
-        self.test_loss = criterion(test_outputs, self.Y_test)
+
+        # Compute the test loss aggregated and atomic.
         atomic_criterion = self.criterion(reduction='none')
-        self.atomic_test_losses = atomic_criterion(test_outputs, self.Y_test)
+        self.test_loss, self.atomic_test_losses = [], []
+        with torch.no_grad():
+
+            for i in range(0, len(self.X_test), batch_size):
+                x_batch = self.X_test[i:i + batch_size]#.to(device)
+                y_batch = self.Y_test[i:i + batch_size]#.to(device)
+                predictions = self.trained_model(x_batch)
+
+                self.test_loss.append(criterion(predictions, y_batch))
+                self.atomic_test_losses.append(atomic_criterion(predictions, y_batch))
+        self.atomic_test_losses = torch.concat(self.atomic_test_losses)
+        self.test_loss = torch.mean(torch.stack(self.test_loss))
+        torch.cuda.empty_cache()
 
 
