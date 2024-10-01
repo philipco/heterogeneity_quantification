@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 import numpy as np
@@ -14,7 +15,7 @@ def get_models_of_collaborating_models(network: Network, test_quantile: Metrics,
         models.append(network.clients[j].trained_model)
         # if i == j:
         #     weights.append(len(network.clients[j].Y_train))
-        if pvalue_matrix[i][j] > 0.05:
+        if pvalue_matrix[i][j] > 0.05 or i == j:
             weights.append(len(network.clients[j].train_loader.dataset))
         else:
             weights.append(0)
@@ -29,27 +30,25 @@ def print_collaborating_clients(network: Network, test_quantile: Metrics):
     for i in range(network.nb_clients):
         list_of_collaboration[i] = []
         for j in range(network.nb_clients):
-            if pvalue_matrix[i][j] > 0.05 and i != j:
-                list_of_collaboration[i].append(j)
-            if i == j:
+            if pvalue_matrix[i][j] > 0.05 or i == j:
                 list_of_collaboration[i].append(j)
     print(list_of_collaboration)
 
 def aggregate_models(models: List[torch.nn.Module], weights: List[int]) -> torch.nn.Module:
     # Assume models is a list of PyTorch models of the same architecture
-    num_models = len(models)
 
     # Initialize the parameters of the first model as the running sum
-    aggregated_model = models[0]
+    avg_model = copy.deepcopy(models[0])
 
     # Loop through the other models and add their parameters to the first model
     with torch.no_grad():  # Disable gradient tracking
-        for name, param in aggregated_model.named_parameters():
-            i = 0
-            param.data *= weights[i]
+        for name, param in avg_model.named_parameters():
+            # Initialize the parameter tensor to zero
+            avg_param = torch.zeros_like(param)
             # Sum the parameters from all models
-            for model in models[1:]:
-                i+=1
-                param.data += (model.state_dict()[name].data * weights[i])
+            for model, weight in zip(models, weights):
+                avg_param += (model.state_dict()[name].clone() * weight)
 
-    return aggregated_model
+            # Update the averaged model with the new parameter values
+            avg_model.state_dict()[name].copy_(avg_param)
+    return avg_model

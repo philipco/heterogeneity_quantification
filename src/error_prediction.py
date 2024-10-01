@@ -3,16 +3,14 @@ import sys
 
 import torchvision
 
-from src.optim.Algo import fedquantile_training
+from src.optim.Algo import fedquantile_training, federated_training
 from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Metrics import Metrics
 from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_quantile_pvalue
-from src.utils.Utilities import get_project_root, get_path_to_datasets
-
-
+from src.utils.Utilities import get_project_root, get_path_to_datasets, set_seed
 
 root = get_project_root()
 FLAMBY_PATH = '{0}/../FLamby'.format(root)
@@ -53,10 +51,6 @@ if __name__ == '__main__':
             = get_data_from_flamby(DATASET[dataset_name], nb_of_clients,
                                    kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False))
 
-    ### We process the data in a decentralized way.
-    # try:
-    #     network = Network.loader(dataset_name)
-    # except FileNotFoundError:
     network = Network(X_train, X_val, X_test, Y_train, Y_val, Y_test, BATCH_SIZE[dataset_name], nb_epochs,
                       dataset_name)
     network.save()
@@ -72,18 +66,13 @@ if __name__ == '__main__':
         compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
                                     metrics_TEST_QUANTILE, symetric_distance=False)
 
-        ### We need to retrain the client
-        if NB_RUN > 1:
-            network.retrain_all_clients()
-
 
     print(metrics_TEST_QUANTILE.aggreage_heter())
 
     ### We print the distances in the heterogeneous scenario.
     plot_pvalues(metrics_TEST_QUANTILE, "heter")
 
+    set_seed(0)
+
     fedquantile_training(network, metrics_TEST_QUANTILE)
     # federated_training(network)
-
-    ### We print the distances in the homogeneous scenario.
-    # plot_distance(metrics_TEST_QUANTILE, "homog")

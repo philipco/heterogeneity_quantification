@@ -2,9 +2,11 @@
 
 import os
 from pathlib import Path
+import random
 
 import numpy as np
 import psutil
+import torch
 
 from src.data.DatasetConstants import OUTPUT_TYPE
 
@@ -49,3 +51,13 @@ def open_plotted_matrix(dataset_name: str, iid: bool = False) -> [np.ndarray, np
     Y_name = "Y_TV" if OUTPUT_TYPE[dataset_name] == "discrete" else "Y"
     non_iid_distance_Y = np.loadtxt('{0}/{1}-{2}.txt'.format(metrics_folder, Y_name, type), delimiter=',')
     return non_iid_distance_X, non_iid_distance_Y
+
+# Set seeds for reproducibility
+def set_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

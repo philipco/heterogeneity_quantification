@@ -4,16 +4,16 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from src.utils.Utilities import set_seed
+
 
 def train_local_neural_network(net, device, client_ID, train_loader, val_loader, criterion, nb_epochs, lr, momentum,
-                               batch_size, metric, last_epoch: int, writer: SummaryWriter = None):
+                               metric, last_epoch: int, writer: SummaryWriter, epoch):
     """Create train/test and train a neural network."""
 
     net.to(device)
-
-    # Writer for TensorBoard
-    if writer is None:
-        writer = SummaryWriter(log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{client_ID}')
+    for name, param in net.named_parameters():
+        writer.add_histogram(f'{name}.weight', param, 2 * epoch)
 
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
     # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.1)
@@ -21,8 +21,9 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
 
     # Training
     print(f"=== Training the neural network on {client_ID}. ===")
-    for epoch in tqdm(range(nb_epochs)):
+    for local_epoch in tqdm(range(nb_epochs)):
         net.train()
+        set_seed(last_epoch)
         for x_batch, y_batch in train_loader:
             x_batch = x_batch.to(device)
             y_batch = y_batch.to(device)
@@ -37,6 +38,7 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
             loss.backward()
 
             optimizer.step()
+
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
         epoch_train_loss, epoch_train_accuracy = compute_loss_accuracy(net, device, train_loader, criterion,
@@ -56,6 +58,9 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
         writer.add_scalar('val_accuracy', epoch_val_accuracy, epoch + last_epoch)
 
         # scheduler.step(epoch_train_loss)
+
+    for name, param in net.named_parameters():
+        writer.add_histogram(f'{name}.weight', param, 2 * epoch + 1)
 
     # Close the writer at the end of training
     writer.close()
