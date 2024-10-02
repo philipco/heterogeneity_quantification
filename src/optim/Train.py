@@ -7,7 +7,7 @@ from tqdm import tqdm
 from src.utils.Utilities import set_seed
 
 
-def train_local_neural_network(net, device, client_ID, train_loader, val_loader, criterion, nb_epochs, lr, momentum,
+def train_local_neural_network(net, optimizer, device, client_ID, train_loader, val_loader, criterion, nb_epochs, lr, momentum,
                                metric, last_epoch: int, writer: SummaryWriter, epoch):
     """Create train/test and train a neural network."""
 
@@ -15,15 +15,17 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch)
 
-    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-    # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.1)
+    # The optimizer should be initialized once at the beginning of the training.
+    if optimizer is None:
+        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+
     train_loss = []
 
     # Training
     print(f"=== Training the neural network on {client_ID}. ===")
+    set_seed(last_epoch)
     for local_epoch in tqdm(range(nb_epochs)):
         net.train()
-        set_seed(last_epoch)
         for x_batch, y_batch in train_loader:
             x_batch = x_batch.to(device)
             y_batch = y_batch.to(device)
@@ -36,28 +38,22 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
 
             # Backward pass and optimization
             loss.backward()
-
             optimizer.step()
 
-
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
-        epoch_train_loss, epoch_train_accuracy = compute_loss_accuracy(net, device, train_loader, criterion,
-                                                                       metric)
-
+        epoch_train_loss, epoch_train_accuracy = compute_loss_accuracy(net, device, train_loader, criterion, metric)
         train_loss.append(epoch_train_loss)
 
         # Writing logs.
-        writer.add_scalar('training_loss', epoch_train_loss, epoch + last_epoch)
-        writer.add_scalar('training_accuracy', epoch_train_accuracy, epoch + last_epoch)
+        writer.add_scalar('training_loss', epoch_train_loss, local_epoch + last_epoch)
+        writer.add_scalar('training_accuracy', epoch_train_accuracy, local_epoch + last_epoch)
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
         epoch_val_loss, epoch_val_accuracy = compute_loss_accuracy(net, device, val_loader, criterion, metric)
 
         # Writing logs.
-        writer.add_scalar('val_loss', epoch_val_loss, epoch + last_epoch)
-        writer.add_scalar('val_accuracy', epoch_val_accuracy, epoch + last_epoch)
-
-        # scheduler.step(epoch_train_loss)
+        writer.add_scalar('val_loss', epoch_val_loss, local_epoch + last_epoch)
+        writer.add_scalar('val_accuracy', epoch_val_accuracy, local_epoch + last_epoch)
 
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch + 1)
@@ -68,7 +64,7 @@ def train_local_neural_network(net, device, client_ID, train_loader, val_loader,
     print("Final train loss:", train_loss[-1])
     print(f"Final train accuracy: {epoch_train_accuracy}\tFinal val accuracy: {epoch_val_accuracy}")
 
-    return net, train_loss, writer
+    return net, train_loss, writer, optimizer
 
 
 def compute_loss_accuracy(net, device, data_loader, criterion, metric):
@@ -83,6 +79,7 @@ def compute_loss_accuracy(net, device, data_loader, criterion, metric):
             epoch_loss += criterion(outputs, y_batch)
             epoch_accuracy += metric(y_batch, outputs)
     return epoch_loss / len(data_loader), epoch_accuracy / len(data_loader)
+
 
 def evaluate_test_metric(net, test_features, test_labels, metric):
     # Eval mode to deactivate any layers that behave differently during training.

@@ -72,7 +72,5 @@ if __name__ == '__main__':
     ### We print the distances in the heterogeneous scenario.
     plot_pvalues(metrics_TEST_QUANTILE, "heter")
 
-    set_seed(0)
-
     fedquantile_training(network, metrics_TEST_QUANTILE)
     # federated_training(network)

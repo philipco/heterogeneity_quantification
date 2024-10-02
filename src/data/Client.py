@@ -1,12 +1,9 @@
-import numpy as np
 import torch
-from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
-from src.data.DatasetConstants import BATCH_SIZE
 from src.optim.Train import train_local_neural_network, evaluate_test_metric
 
 
@@ -22,7 +19,8 @@ class Client:
         self.ID = ID
 
         # Writer for TensorBoard
-        self.writer = SummaryWriter(log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{self.ID}')
+        self.writer = SummaryWriter(
+            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{self.ID}_non_iid')
 
         self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
         self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
@@ -34,6 +32,7 @@ class Client:
 
         # Type of network to use, simply a class
         self.net = net
+        self.optimizer = None
         self.criterion = criterion
         self.metric = metric
         self.step_size, self.momentum = step_size, momentum
@@ -49,10 +48,9 @@ class Client:
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
 
-        self.trained_model, self.train_loss, self.writer \
-            = train_local_neural_network(self.net(), self.device, self.ID, self.train_loader, self.val_loader,
-                                         criterion, nb_epochs,
-                                         self.step_size, self.momentum,
+        self.trained_model, self.train_loss, self.writer, self.optimizer \
+            = train_local_neural_network(self.net(), self.optimizer, self.device, self.ID, self.train_loader,
+                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
                                          self.metric, self.last_epoch, self.writer, 0)
         self.last_epoch += nb_epochs
 
@@ -68,9 +66,9 @@ class Client:
     def continue_training(self, nb_epochs: int, batch_size: int, epoch):
         criterion = self.criterion()
 
-        self.trained_model, self.train_loss, self.writer \
-            = train_local_neural_network(self.trained_model, self.device, self.ID, self.train_loader, self.val_loader,
-                                         criterion, nb_epochs, self.step_size, self.momentum,
+        self.trained_model, self.train_loss, self.writer, self.optimizer \
+            = train_local_neural_network(self.trained_model, self.optimizer, self.device, self.ID, self.train_loader,
+                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
                                          self.metric, self.last_epoch, self.writer, epoch)
 
         torch.cuda.empty_cache()

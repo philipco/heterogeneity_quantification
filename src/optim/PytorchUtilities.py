@@ -8,13 +8,18 @@ from src.data.Network import Network
 from src.quantif.Metrics import Metrics
 
 
+def are_identical(model1, model2):
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        if p1.data.ne(p2.data).sum() > 0:
+            return False
+    return True
+
+
 def get_models_of_collaborating_models(network: Network, test_quantile: Metrics, i: int):
     pvalue_matrix = test_quantile.aggreage_heter()
     models, weights = [], []
     for j in range(network.nb_clients):
         models.append(network.clients[j].trained_model)
-        # if i == j:
-        #     weights.append(len(network.clients[j].Y_train))
         if pvalue_matrix[i][j] > 0.05 or i == j:
             weights.append(len(network.clients[j].train_loader.dataset))
         else:
@@ -34,21 +39,21 @@ def print_collaborating_clients(network: Network, test_quantile: Metrics):
                 list_of_collaboration[i].append(j)
     print(list_of_collaboration)
 
-def aggregate_models(models: List[torch.nn.Module], weights: List[int]) -> torch.nn.Module:
-    # Assume models is a list of PyTorch models of the same architecture
 
-    # Initialize the parameters of the first model as the running sum
-    avg_model = copy.deepcopy(models[0])
-
-    # Loop through the other models and add their parameters to the first model
+def copy_a_into_b(a: torch.nn.Module, b: torch.nn.Module, device):
     with torch.no_grad():  # Disable gradient tracking
-        for name, param in avg_model.named_parameters():
-            # Initialize the parameter tensor to zero
-            avg_param = torch.zeros_like(param)
-            # Sum the parameters from all models
-            for model, weight in zip(models, weights):
-                avg_param += (model.state_dict()[name].clone() * weight)
+        for name, param in a.named_parameters():
+            b.state_dict()[name].copy_(a.state_dict()[name].data.clone())
 
-            # Update the averaged model with the new parameter values
-            avg_model.state_dict()[name].copy_(avg_param)
-    return avg_model
+
+def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights: List[int], device: str) -> torch.nn.Module:
+    # Assume models is a list of PyTorch models of the same architecture
+    # The main model is the running sum
+    # Loop through the other models and add their parameters to the running model
+    with torch.no_grad():  # Disable gradient tracking
+        for name, param in models[idx_main_model].named_parameters():
+            temp_param = torch.zeros(param.shape).to(device)
+            for weight, model in zip(weights, models):
+                temp_param += weight * model.state_dict()[name].data.clone()
+
+            models[idx_main_model].state_dict()[name].copy_(temp_param)

@@ -3,7 +3,8 @@ from copy import deepcopy
 import numpy as np
 
 from src.data.Network import Network
-from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, get_models_of_collaborating_models
+from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
+    get_models_of_collaborating_models, are_identical, copy_a_into_b
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import function_to_compute_quantile_pvalue, compute_matrix_of_distances
 from src.quantif.Metrics import Metrics
@@ -28,9 +29,10 @@ def federated_training(network: Network, nb_of_local_epoch: int = 1, nb_of_commu
 
 
 def fedquantile_training(network: Network, test_quantile: Metrics,
-                         nb_of_local_epoch: int = 2, nb_of_communication: int = 10):
+                         nb_of_local_epoch: int = 2, nb_of_communication: int = 25):
 
     for epoch in range(1, nb_of_communication+1):
+        print(f"=============== Epoch {epoch}")
 
         print_collaborating_clients(network, test_quantile)
 
@@ -38,7 +40,8 @@ def fedquantile_training(network: Network, test_quantile: Metrics,
         for i in range(network.nb_clients):
             models_of_collaborating_clients, weights = get_models_of_collaborating_models(network, test_quantile, i)
             print(f"For client {i}, weights are: {weights}.")
-            network.clients[i].trained_model = aggregate_models(models_of_collaborating_clients, weights)
+            # Aggregate directly into model i.
+            aggregate_models(i, models_of_collaborating_clients, weights, network.clients[0].device)
 
         # One pass of local training
         for client in network.clients:
