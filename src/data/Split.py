@@ -7,9 +7,11 @@ import numpy as np
 from sklearn.manifold import TSNE
 
 
-def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
-              nb_points_by_non_iid_clients: np.array) -> [List[np.ndarray], List[np.ndarray]]:
+def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int) -> [List[np.ndarray], List[np.ndarray]]:
     nb_points = data.shape[0]
+    proportion_sampling = [np.random.uniform(0, 1) for i in range(nb_clients)]
+    proportion_sampling /= np.sum(proportion_sampling)
+    nb_points_by_non_iid_clients = [int(nb_points * p) for p in proportion_sampling]
     X = []
     Y = []
     indices = np.arange(nb_points)
@@ -25,8 +27,8 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
                          natural_split: bool) -> [List[np.ndarray], List[np.ndarray]]:
-    np.random.seed(45)
-    return dirichlet_split(features, labels, nb_clients)
+    np.random.seed(2024)
+    return sort_and_partition_split(features, labels, nb_clients)
 
 
 def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: int) \

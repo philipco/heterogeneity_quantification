@@ -5,7 +5,6 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
-from src.data.DatasetConstants import MAX_NB_POINTS
 from src.data.Split import create_non_iid_split
 
 

@@ -36,8 +36,6 @@ TRANSFORM_TEST_CIFAR10 = torchvision.transforms.Compose(
     [torchvision.transforms.ToTensor(),
      torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-MAX_NB_POINTS = 20000
-
 NB_LABELS = {"mnist": 10, "fashion_mnist": 10, "cifar10": 10,
              "camelyon16": 2,  "heart_disease": 2, "isic2019": 8,
              "ixi": None, "kits19": None, "lidc_idri": None,  "tcga_brca": 2}
@@ -50,7 +48,7 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-NB_CLIENTS = {"mnist": 12, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+NB_CLIENTS = {"mnist": 6, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6}
 
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}
@@ -66,9 +64,9 @@ METRIC =  {"mnist": accuracy, "cifar10": accuracy, "heart_disease": auc, "tcga_b
 
 TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10}
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10}
-STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": .01, "heart_disease": 0.01, "ixi": 0.001}
+STEP_SIZE = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .01, "heart_disease": 0.01, "ixi": 0.001}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 4, "heart_disease": 4, "ixi": 128}
-MOMENTUM = {"mnist": 0.9, "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95}
+MOMENTUM = {"mnist": 0.9, "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0.9, "ixi": 0.95}
 
 
 

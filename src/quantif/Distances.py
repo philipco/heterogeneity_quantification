@@ -1,5 +1,6 @@
 """Created by Constantin Philippenko, 20th April 2022."""
 import math
+from copy import deepcopy
 from typing import List
 
 import numpy as np
@@ -12,6 +13,8 @@ import torch.nn as nn
 
 from src.data.Data import Data,  DataCentralized
 from src.data.Network import Network
+from src.optim.PytorchUtilities import aggregate_models
+from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
 from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors
 from src.quantif.Metrics import Metrics
 
@@ -130,13 +133,23 @@ def majoration_proba(spectre, N, u):
         return proba
 
 
-def compute_distance_based_on_quantile_pvalue(criterion, features, labels, local_net, remote_net):
+def compute_distance_based_on_quantile_pvalue(criterion, dataloader, local_net, remote_net, n_loc, n_rem):
     beta0 = 0.8
-    atomic_errors = compute_atomic_errors(local_net, features, labels, criterion)
-    q0 = np.quantile(atomic_errors, beta0, method="higher")
+
+    atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
+    q0 = np.quantile(atomic_errors.cpu(), beta0, method="higher")
+
     test = ProportionTest(beta0, delta=0, loss=criterion)
-    test.evaluate_test(q0, remote_net, features, labels)
-    print(f"pvalue={test.pvalue}")
+
+    avg_model = deepcopy(local_net)
+    weights = [n_loc / (n_loc + n_rem), n_rem / (n_loc + n_rem)]
+    aggregate_models(0, [avg_model, remote_net], weights,
+                                 next(local_net.parameters()).device)
+
+    test.evaluate_test(q0, avg_model, dataloader)
+    # plot_arrow_with_atomic_errors(atomic_errors.cpu().numpy(), test.atomic_errors.cpu().numpy(), test.beta0, test.pvalue, 1, "test")
+
+    # print(f"pvalue={test.pvalue}")
     return test.pvalue
 
 
@@ -174,18 +187,19 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
 
 
 def function_to_compute_quantile_pvalue(network: Network, i: int, j: int):
-    print(f"i={i}, j={j}")
     d_iid = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
-                                                      network.clients[i].X_test,
-                                                      network.clients[i].Y_test,
+                                                      network.clients[i].val_loader,
                                                       network.clients[i].trained_model,
-                                                      network.clients[j].trained_model)
+                                                      network.clients[j].trained_model,
+                                                      len(network.clients[i].train_loader.dataset),
+                                                      len(network.clients[j].train_loader.dataset))
     # TODO : check that the train/test dataset are different.
     d_heter = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
-                                                        network.clients[i].X_test,
-                                                        network.clients[i].Y_test,
+                                                        network.clients[i].val_loader,
                                                         network.clients[i].trained_model,
-                                                        network.clients[j].trained_model)
+                                                        network.clients[j].trained_model,
+                                                        len(network.clients[i].train_loader.dataset),
+                                                        len(network.clients[j].train_loader.dataset))
 
 
     return d_iid, d_heter
