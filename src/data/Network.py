@@ -1,3 +1,5 @@
+import copy
+
 from src.data.Client import Client
 from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
 from src.utils.PickleHandler import pickle_loader, pickle_saver
@@ -13,16 +15,17 @@ class Network:
         self.nb_clients = len(Y_train)
         self.nb_epochs = nb_epochs
         self.batch_size = batch_size
-        self.nb_testpoints_by_clients = [len(y) for y in Y_test]
+        self.nb_testpoints_by_clients = [len(y) for y in Y_val]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
 
         # Creating clients.
         self.clients = []
         for i in range(self.nb_clients):
+            net = MODELS[dataset_name]()
             self.clients.append(Client(f"{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
                                        Y_train[i], Y_val[i], Y_test[i],
-                                       NB_LABELS[dataset_name], MODELS[dataset_name], CRITERION[dataset_name],
+                                       NB_LABELS[dataset_name], copy.deepcopy(net), CRITERION[dataset_name],
                                        METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],
                                        BATCH_SIZE[dataset_name]))
 

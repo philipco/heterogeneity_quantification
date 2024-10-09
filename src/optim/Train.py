@@ -1,23 +1,23 @@
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils.Utilities import set_seed
 
 
-def train_local_neural_network(net, optimizer, device, client_ID, train_loader, val_loader, criterion, nb_epochs, lr, momentum,
+def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion, nb_epochs, lr, momentum,
                                metric, last_epoch: int, writer: SummaryWriter, epoch):
     """Create train/test and train a neural network."""
 
-    net.to(device)
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch)
 
     # The optimizer should be initialized once at the beginning of the training.
     if optimizer is None:
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+        scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
 
     train_loss = []
 
@@ -39,6 +39,7 @@ def train_local_neural_network(net, optimizer, device, client_ID, train_loader, 
             # Backward pass and optimization
             loss.backward()
             optimizer.step()
+        scheduler.step()
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
         epoch_train_loss, epoch_train_accuracy = compute_loss_accuracy(net, device, train_loader, criterion, metric)
@@ -64,7 +65,7 @@ def train_local_neural_network(net, optimizer, device, client_ID, train_loader, 
     print("Final train loss:", train_loss[-1])
     print(f"Final train accuracy: {epoch_train_accuracy}\tFinal val accuracy: {epoch_val_accuracy}")
 
-    return net, train_loss, writer, optimizer
+    return net, train_loss, writer, optimizer, scheduler
 
 
 def compute_loss_accuracy(net, device, data_loader, criterion, metric):
