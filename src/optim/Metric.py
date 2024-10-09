@@ -82,3 +82,10 @@ def dice(y_true, y_pred):
     # If both inputs are empty the dice coefficient should be equal 1
     dice[union == 0] = 1
     return np.mean(dice)
+
+
+def l1_accuracy(y_true, y_pred):
+    # y_true = sum(df_true, [])
+    # y_pred = sum(df_pred, [])
+    metric = torch.abs(y_true) * (torch.sign(y_true) == torch.sign(y_pred))
+    return torch.sum(metric) / torch.norm(y_true, p=1)

@@ -5,7 +5,9 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
+from src.data.Dataset import prepare_liquid_asset
 from src.data.Split import create_non_iid_split
+from src.utils.Utilities import get_path_to_datasets
 
 
 def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
@@ -14,6 +16,8 @@ def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
 
 
 def get_element_from_dataloader(loader):
+    if len(loader) == 0:
+        return None, None
     X, Y = [], []
     for x, y in loader:
         X.append(x)
@@ -22,6 +26,32 @@ def get_element_from_dataloader(loader):
     # Same for tcga_brca.
     # TODO !
     return torch.concat(X), torch.concat(Y)#.flatten()
+
+
+def get_data_from_csv(dataset_name: str) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+
+    root = get_path_to_datasets()
+    if dataset_name == "liquid_asset":
+        data_train, labels_train = prepare_liquid_asset(root, train=True)
+    else:
+        return ValueError("Dataset not recognized.")
+
+    # Then for each (heterogeneous) client, we split the dataset into train/test
+    X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
+
+    for (x, y) in zip(data_train, labels_train):
+        x2, x_test, y2, y_test = train_test_split(x, y, test_size=0.2, random_state=2024)
+        x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.1, random_state=2024)
+        X_train.append(x_train)
+        X_val.append(x_val)
+        X_test.append(x_test)
+        Y_train.append(y_train)
+        Y_val.append(y_val)
+        Y_test.append(y_test)
+
+    natural_split = True
+    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
+
 
 
 def get_data_from_pytorch(fed_dataset, nb_of_clients, kwargs_train_dataset, kwargs_test_dataset,

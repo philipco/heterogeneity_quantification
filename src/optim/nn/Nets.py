@@ -12,9 +12,9 @@ class LinearRegression(nn.Module):
         return self.linear(x)#.flatten()
 
 
-class ResNet50TransferLearning(nn.Module):
+class GoogleNetTransferLearning(nn.Module):
     def __init__(self):
-        super(ResNet50TransferLearning, self).__init__()
+        super(GoogleNetTransferLearning, self).__init__()
 
         freeze = True
 
@@ -67,6 +67,16 @@ class TwoLayerRegression(nn.Module):
 class HeartDiseaseRegression(LogisticRegression):
     def __init__(self):
         super(HeartDiseaseRegression, self).__init__(13)
+
+
+class LiquidAssetRegression(nn.Module):
+    def __init__(self):
+        super(LiquidAssetRegression, self).__init__()
+        self.linear = nn.Linear(100, 1)  # One input feature, one output
+
+    def forward(self, x):
+        return self.linear(x)
+
 
 class TcgaRegression(LinearRegression):
     def __init__(self):

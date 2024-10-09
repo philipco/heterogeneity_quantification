@@ -3,10 +3,10 @@ import sys
 
 import torchvision
 
-from src.optim.Algo import fedquantile_training, federated_training
+from src.optim.Algo import fedquantile_training, federated_training, gossip_training
 from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
-from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby
+from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby, get_data_from_csv
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Metrics import Metrics
 from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_quantile_pvalue
@@ -23,15 +23,16 @@ from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 from flamby.datasets.fed_ixi import FedIXITiny
 
 DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.CIFAR10,
-           "heart_disease": FedHeartDisease, "tcga_brca": FedTcgaBrca, "ixi": FedIXITiny}
+           "heart_disease": FedHeartDisease, "tcga_brca": FedTcgaBrca, "ixi": FedIXITiny
+           }
 
 # from datasets.fed_isic2019.dataset import FedIsic2019
 # from datasets.fed_tcga_brca.dataset import FedTcgaBrca
 
 NB_RUN = 1
-nb_epochs = 50 # PUT TRUE VALUE
+nb_epochs = 15 # PUT TRUE VALUE
 
-dataset_name = "heart_disease"
+dataset_name = "liquid_asset"
 nb_of_clients = NB_CLIENTS[dataset_name]
 
 if __name__ == '__main__':
@@ -44,7 +45,11 @@ if __name__ == '__main__':
                                                           transform=TRANSFORM_TRAIN[dataset_name]),
                                     kwargs_test_dataset=dict(root=get_path_to_datasets(), download=False,
                                                               transform=TRANSFORM_TEST[dataset_name]),
-                                    kwargs_dataloader = dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False))
+                                    kwargs_dataloader = dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False),
+                                    natural_split=(dataset_name == "liquid_asset"))
+    elif dataset_name in ["liquid_asset"]:
+        X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split \
+            = get_data_from_csv(dataset_name)
 
     else:
         X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split \

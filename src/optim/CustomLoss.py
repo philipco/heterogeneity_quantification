@@ -38,13 +38,28 @@ class CoxLoss(nn.Module):
             aux_ = aux - m
             aux_.exp_()
             loss[i] = m + torch.log(aux_.sum(0))
-        # If events contains only zeros, or if there are too many censored individuals ((i.e. the event has not yet
+        # If events contains only zeros, or if there are too many censored individuals (i.e. the event has not yet
         # occurred), multiplying by events causes all the loss values to become zero.
         # So, should we exclude individuals censored from loss computation? If yes, uncomment following line.
-        # loss *= events
+        loss *= events
         if self.reduction == 'none':
             return loss
         return loss.mean()
+
+
+class L1WeightedAccuracyLoss(nn.Module):
+    def __init__(self, reduction: str = 'mean'):
+        super(L1WeightedAccuracyLoss, self).__init__()
+        self.reduction = reduction
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor):
+        # Compute sign of true and predicted labels
+
+        if self.reduction == 'none':
+            return torch.log(1 + torch.exp(output * torch.sign(target)))
+        loss = torch.mean(torch.log(1 + torch.exp(output * torch.sign(target))))
+
+        return loss
 
 
 class DiceLoss(_Loss):
