@@ -68,7 +68,8 @@ def c_index(y_true, y_pred):
     -------
     c-index: float, calculating using the lifelines library
     """
-
+    y_true = y_true.cpu().detach().numpy()
+    y_pred = y_pred.cpu().detach().numpy()
     c_index = lifelines.utils.concordance_index(y_true[:, 1], -y_pred, y_true[:, 0])
     return c_index
 
@@ -89,3 +90,7 @@ def l1_accuracy(y_true, y_pred):
     # y_pred = sum(df_pred, [])
     metric = torch.abs(y_true) * (torch.sign(y_true) == torch.sign(y_pred))
     return torch.sum(metric) / torch.norm(y_true, p=1)
+
+
+def mse_accuracy(y_true, y_pred):
+    return torch.mean(torch.norm(y_true - y_pred, p=2)**2)

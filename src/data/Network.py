@@ -1,17 +1,19 @@
 import copy
 
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
+from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
 
 
 class Network:
 
-    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_epochs, dataset_name, seed=0):
+    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_epochs, dataset_name, algo_name,
+                 seed=0):
         super().__init__()
         set_seed(seed)
         self.dataset_name = dataset_name
+        self.algo_name = algo_name
         self.nb_clients = len(Y_train)
         self.nb_epochs = nb_epochs
         self.batch_size = batch_size
@@ -23,9 +25,9 @@ class Network:
         self.clients = []
         for i in range(self.nb_clients):
             net = MODELS[dataset_name]()
-            self.clients.append(Client(f"{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
+            self.clients.append(Client(f"{algo_name}_{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
                                        Y_train[i], Y_val[i], Y_test[i],
-                                       NB_LABELS[dataset_name], copy.deepcopy(net), CRITERION[dataset_name],
+                                       copy.deepcopy(net), CRITERION[dataset_name],
                                        METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],
                                        BATCH_SIZE[dataset_name]))
 
