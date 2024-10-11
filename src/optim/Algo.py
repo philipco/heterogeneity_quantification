@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
-    get_models_of_collaborating_models, are_identical, copy_a_into_b
+    get_models_of_collaborating_models, are_identical
 from src.optim.Train import compute_loss_and_accuracy
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import function_to_compute_quantile_pvalue, compute_matrix_of_distances
@@ -44,7 +44,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
 
 def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
     writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.algo_name}_{network.dataset_name}_'
+        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
                 f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
@@ -80,9 +80,7 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
     # Close the writer at the end of training
 
 
-
-def gossip_training(network: Network, test_quantile: Metrics,
-                         nb_of_local_epoch: int = 1, nb_of_communication: int = 1001):
+def gossip_training(network: Network, nb_of_local_epoch: int = 1, nb_of_communication: int = 1001):
 
     nb_clients = network.nb_clients
     sender = np.random.randint(nb_clients)
@@ -111,21 +109,32 @@ def gossip_training(network: Network, test_quantile: Metrics,
 
         if epoch % 100 == 0:
             ### We compute the distance between clients.
+            test_quantile = Metrics(f"{network.dataset_name}_{network.algo_name}", "TEST_QUANTILE", network.nb_clients,
+                                    network.nb_testpoints_by_clients)
+
             compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
                                         test_quantile, symetric_distance=False)
-            plot_pvalues(test_quantile, f"heter_{epoch}")
+            ### We compute the distance between clients.
+            compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
+                                        test_quantile, symetric_distance=False)
+            plot_pvalues(test_quantile, f"{epoch}")
 
 
-def fedquantile_training(network: Network, test_quantile: Metrics,
-                         nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
+def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
     writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.algo_name}_{network.dataset_name}_'
+        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
                 f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, weights, writer, 0)
+
+    test_quantile = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                            "TEST_QUANTILE", network.nb_clients, network.nb_testpoints_by_clients)
+
+    compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
+                                test_quantile, symetric_distance=False)
 
     for epoch in range(1, nb_of_communication+1):
         print(f"=============== Epoch {epoch}")
@@ -145,12 +154,12 @@ def fedquantile_training(network: Network, test_quantile: Metrics,
 
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch )
 
-        ### We compute the distance between clients.
-        test_quantile = Metrics(network.dataset_name, "TEST_QUANTILE", network.nb_clients,
-                network.nb_testpoints_by_clients)
+        ### We compute the distance between clients (required at each epoch to decide collaboration or not).
+        test_quantile = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                                "TEST_QUANTILE", network.nb_clients, network.nb_testpoints_by_clients)
 
         compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
                                     test_quantile, symetric_distance=False)
 
         if epoch%5 == 0:
-            plot_pvalues(test_quantile, f"heter_{epoch}")
+            plot_pvalues(test_quantile, f"{epoch}")

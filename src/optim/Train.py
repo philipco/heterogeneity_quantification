@@ -19,7 +19,108 @@ def log_performance(subset_name: str, net, device, loader, criterion, metric, cl
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
                                nb_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch):
-    """Create train/test and train a neural network."""
+    """
+    Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
+
+    This function trains a neural network using a provided training and validation dataset loader. It allows
+    for optimizer and scheduler initialization if not provided, supports logging with TensorBoard, and tracks
+    loss and accuracy throughout the training process.
+
+    :param net:
+        The neural network model to train.
+    :type net: torch.nn.Module
+
+    :param optimizer:
+        The optimizer used for training the model. If `None`, a new optimizer (SGD) will be created.
+    :type optimizer: torch.optim.Optimizer or None
+
+    :param scheduler:
+        The learning rate scheduler used to adjust the learning rate during training. If `None`, a new scheduler
+        (StepLR) will be created.
+    :type scheduler: torch.optim.lr_scheduler or None
+
+    :param device:
+        The device to perform the computations on (e.g., 'cpu', 'cuda').
+    :type device: str
+
+    :param client_ID:
+        Identifier for the client (useful for federated learning or distributed settings).
+    :type client_ID: str
+
+    :param train_loader:
+        DataLoader for the training set, providing batches of training data.
+    :type train_loader: torch.utils.data.DataLoader
+
+    :param val_loader:
+        DataLoader for the validation set, providing batches of validation data.
+    :type val_loader: torch.utils.data.DataLoader
+
+    :param criterion:
+        The loss function used to compute the training loss.
+    :type criterion: torch.nn.Module
+
+    :param nb_epochs:
+        Number of epochs to train the model.
+    :type nb_epochs: int
+
+    :param lr:
+        Learning rate used for the optimizer (if it is initialized within the function).
+    :type lr: float
+
+    :param momentum:
+        Momentum value used in the SGD optimizer (if it is initialized within the function).
+    :type momentum: float
+
+    :param metric:
+        The performance metric to evaluate the model (e.g., accuracy).
+    :type metric: callable
+
+    :param last_epoch:
+        The last completed epoch number, used for seeding and TensorBoard logging.
+    :type last_epoch: int
+
+    :param writer:
+        TensorBoard SummaryWriter object for logging training statistics (loss, accuracy, histograms).
+    :type writer: torch.utils.tensorboard.SummaryWriter
+
+    :param epoch:
+        Current global epoch used for logging histograms of model parameters.
+    :type epoch: int
+
+    :return:
+        A tuple containing the trained model (`net`), list of training loss values, updated `writer`,
+        `optimizer`, and `scheduler`.
+    :rtype: Tuple[torch.nn.Module, List[float], torch.utils.tensorboard.SummaryWriter, torch.optim.Optimizer, torch.optim.lr_scheduler]
+
+    **Example usage:**
+
+    .. code-block:: python
+
+        net = MyModel()
+        optimizer = None
+        scheduler = None
+        device = 'cuda'
+        train_loader = ...
+        val_loader = ...
+        criterion = torch.nn.CrossEntropyLoss()
+        nb_epochs = 10
+        lr = 0.01
+        momentum = 0.9
+        metric = accuracy_function
+        last_epoch = 0
+        writer = SummaryWriter()
+
+        trained_model, train_loss, writer, optimizer, scheduler = train_local_neural_network(
+            net, optimizer, scheduler, device, 'client_1', train_loader, val_loader,
+            criterion, nb_epochs, lr, momentum, metric, last_epoch, writer, epoch=0
+        )
+
+    **Notes:**
+    - This function uses the `torch.no_grad()` context to disable gradient tracking when logging model parameters.
+    - It initializes the optimizer and scheduler if they are not provided.
+    - The function writes training/validation statistics to TensorBoard for each epoch, including histograms of model weights.
+    - The training process logs performance on both the training and validation sets after each epoch.
+    """
 
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch)

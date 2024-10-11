@@ -4,7 +4,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
-from src.optim.Train import train_local_neural_network, evaluate_test_metric, compute_loss_and_accuracy, log_performance
+from src.optim.Train import train_local_neural_network, log_performance
 
 
 class Client:
@@ -46,7 +46,7 @@ class Client:
         criterion = self.criterion()
 
         # Compute test metrics at initialization
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion, self.metric,
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
                         self.ID, self.writer, self.last_epoch)
 
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
@@ -56,7 +56,7 @@ class Client:
                                          self.metric, self.last_epoch, self.writer, self.last_epoch)
         self.last_epoch += nb_epochs
 
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion, self.metric,
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
                         self.ID, self.writer, self.last_epoch)
 
     def load_new_model(self, new_model):
@@ -75,7 +75,7 @@ class Client:
         torch.cuda.empty_cache()
         self.last_epoch += nb_epochs
 
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion, self.metric,
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
                         self.ID, self.writer, self.last_epoch)
 
         # Compute the test loss aggregated and atomic.

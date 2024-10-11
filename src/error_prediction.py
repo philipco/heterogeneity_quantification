@@ -37,12 +37,14 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
-    for dataset_name in ["liquid_asset"]:
+    for dataset_name in ["mnist"]:
+        print(f"### ================== DATASET: {dataset_name} ================== ###")
         nb_of_clients = NB_CLIENTS[dataset_name]
 
-        nb_epochs = 50 if dataset_name in ["mnist", "cifar10"] else 1
+        nb_initial_epochs = 50 if dataset_name in ["mnist", "cifar10"] else 1
 
         for algo_name in ["quantile", "fed", "gossip"]:
+            print(f"--- ================== ALGO: {algo_name} ================== ---")
             ### We the dataset naturally splitted or not.
             if dataset_name in ["mnist", "cifar10"]:
                 X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split \
@@ -64,13 +66,13 @@ if __name__ == '__main__':
                     = get_data_from_flamby(DATASET[dataset_name], nb_of_clients, dataset_name,
                                            kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False))
 
-            network = Network(X_train, X_val, X_test, Y_train, Y_val, Y_test, BATCH_SIZE[dataset_name], nb_epochs,
-                              dataset_name, algo_name)
+            network = Network(X_train, X_val, X_test, Y_train, Y_val, Y_test, BATCH_SIZE[dataset_name],
+                              nb_initial_epochs, dataset_name, algo_name)
             network.save()
 
             ### We define three measures : PCA and EM on features, and TV on labels.
-            metrics_TEST_QUANTILE = Metrics(f"{algo_name}_{dataset_name}" , "TEST_QUANTILE", network.nb_clients,
-                                            network.nb_testpoints_by_clients)
+            metrics_TEST_QUANTILE = Metrics(f"{dataset_name}_{algo_name}" , "TEST_QUANTILE",
+                                            network.nb_clients, network.nb_testpoints_by_clients)
 
             for i in range(NB_RUN):
                 print(f"=== RUN {i+1} ===")
@@ -86,9 +88,9 @@ if __name__ == '__main__':
             plot_pvalues(metrics_TEST_QUANTILE, "heter")
 
             if algo_name == "quantile":
-                fedquantile_training(network, metrics_TEST_QUANTILE)
+                fedquantile_training(network)
             if algo_name == "gossip":
-                gossip_training(network, metrics_TEST_QUANTILE)
+                gossip_training(network)
             if algo_name == "fed":
                 federated_training(network)
 
