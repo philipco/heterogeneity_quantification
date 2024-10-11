@@ -72,10 +72,19 @@ class HeartDiseaseRegression(LogisticRegression):
 class LiquidAssetRegression(nn.Module):
     def __init__(self):
         super(LiquidAssetRegression, self).__init__()
-        self.linear = nn.Linear(100, 1)  # One input feature, one output
+        self.l1 = nn.Linear(100, 64)
+        self.l2 = nn.Linear(64, 32)
+        self.last = nn.Linear(32, 1)
 
     def forward(self, x):
-        return self.linear(x)
+        out = F.elu(self.l1(x))
+        out = F.elu(self.l2(out))
+        return self.last(out)
+
+
+class SynthDataRegression(LinearRegression):
+    def __init__(self):
+        super(SynthDataRegression, self).__init__(1)
 
 
 class TcgaRegression(LinearRegression):

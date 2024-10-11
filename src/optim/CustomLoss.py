@@ -55,9 +55,10 @@ class L1WeightedAccuracyLoss(nn.Module):
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         # Compute sign of true and predicted labels
 
+        norm = torch.norm(target, p=1)
         if self.reduction == 'none':
-            return torch.log(1 + torch.exp(output * torch.sign(target)))
-        loss = torch.mean(torch.log(1 + torch.exp(output * torch.sign(target))))
+            return torch.abs(target) * torch.log(1 + torch.exp(output * torch.sign(target))) / norm
+        loss = torch.mean(torch.abs(target) * torch.log(1 + torch.exp(- output * torch.sign(target)))) / norm
 
         return loss
 
