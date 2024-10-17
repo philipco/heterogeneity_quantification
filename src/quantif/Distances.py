@@ -7,6 +7,7 @@ import numpy as np
 import scipy
 from numpy import linalg as LA
 import ot
+from scipy.special import lmbda
 from scipy.stats import ranksums
 import torch
 import torch.nn as nn
@@ -15,7 +16,7 @@ from src.data.Data import Data,  DataCentralized
 from src.data.Network import Network
 from src.optim.PytorchUtilities import aggregate_models
 from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
-from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors
+from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors, RanksumsTest
 from src.quantif.Metrics import Metrics
 
 
@@ -133,7 +134,7 @@ def majoration_proba(spectre, N, u):
         return proba
 
 
-def compute_distance_based_on_quantile_pvalue(criterion, dataloader, local_net, remote_net, n_loc, n_rem):
+def compute_distance_based_on_quantile_pvalue(criterion, dataloader, local_net, remote_net, n_loc, n_rem, lbda: int = 0.5):
     beta0 = 0.8
 
     atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
@@ -142,7 +143,8 @@ def compute_distance_based_on_quantile_pvalue(criterion, dataloader, local_net, 
     test = ProportionTest(beta0, delta=0, loss=criterion)
 
     avg_model = deepcopy(local_net)
-    weights = [n_loc / (n_loc + n_rem), n_rem / (n_loc + n_rem)]
+    # weights = [n_loc / (n_loc + n_rem), n_rem / (n_loc + n_rem)]
+    weights = [lbda, 1 - lbda]
     aggregate_models(0, [avg_model, remote_net], weights,
                                  next(local_net.parameters()).device)
 
@@ -186,23 +188,29 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
     return 0, d_heter
 
 
-def function_to_compute_quantile_pvalue(network: Network, i: int, j: int):
-    d_iid = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
-                                                      network.clients[i].val_loader,
-                                                      network.clients[i].trained_model,
-                                                      network.clients[j].trained_model,
-                                                      len(network.clients[i].train_loader.dataset),
-                                                      len(network.clients[j].train_loader.dataset))
-    # TODO : check that the train/test dataset are different.
-    d_heter = compute_distance_based_on_quantile_pvalue(network.criterion(reduction='none'),
-                                                        network.clients[i].val_loader,
-                                                        network.clients[i].trained_model,
-                                                        network.clients[j].trained_model,
-                                                        len(network.clients[i].train_loader.dataset),
-                                                        len(network.clients[j].train_loader.dataset))
+def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.5):
+    beta0 = 0.8
+    local_net, remote_net = network.clients[i].trained_model, network.clients[j].trained_model
+    dataloader = network.clients[i].val_loader
+    criterion = network.criterion(reduction='none')
+    atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
+    q0 = np.quantile(atomic_errors.cpu(), beta0, method="higher")
+    test = ProportionTest(beta0, delta=0, loss=criterion)
+    avg_model = deepcopy(local_net)
+    weights = [lbda, 1 - lbda]
+    aggregate_models(0, [avg_model, remote_net], weights,
+                     next(local_net.parameters()).device)
 
+    test.evaluate_test(q0, avg_model, dataloader)
+    return test.pvalue
 
-    return d_iid, d_heter
+def rejection_pvalue(network: Network, i: int, j: int):
+    test = RanksumsTest(loss=network.criterion(reduction='none'))
+    p1 = test.evaluate_test(network.clients[i].trained_model, network.clients[i].val_loader,
+                            network.clients[j].val_loader)
+    p2 = test.evaluate_test(network.clients[j].trained_model, network.clients[j].val_loader,
+                            network.clients[i].val_loader)
+    return min(p1, p2)
 
 
 def function_to_compute_LSR_error(network: Network, i: int, j: int):
@@ -234,21 +242,17 @@ def function_to_compute_EM(data: DataCentralized, i: int, j: int):
 
 def compute_matrix_of_distances(fonction_to_compute_distance, data: Data, metrics: Metrics,
                                 symetric_distance: bool = True) -> Metrics:
-
-    distances_iid = np.zeros((data.nb_clients, data.nb_clients))
     distances_heter = np.zeros((data.nb_clients, data.nb_clients))
     for i in range(data.nb_clients):
         start = i if symetric_distance else 0
         for j in range(start, data.nb_clients):
             # Model trained on client i
             # Evaluated on test set from client j
-            d_iid, d_heter = fonction_to_compute_distance(data, i, j)
-            distances_iid[i,j] = d_iid
+            d_heter = fonction_to_compute_distance(data, i, j)
             distances_heter[i, j] = d_heter
 
             if symetric_distance:
-                distances_iid[j, i] = d_iid
                 distances_heter[j, i] = d_heter
 
-    metrics.add_distances(distances_iid, distances_heter)
+    metrics.add_distances(distances_heter)
     return metrics

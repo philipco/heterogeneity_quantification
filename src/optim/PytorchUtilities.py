@@ -15,27 +15,32 @@ def are_identical(model1, model2):
     return True
 
 
-def get_models_of_collaborating_models(network: Network, test_quantile: Metrics, i: int):
-    pvalue_matrix = test_quantile.aggreage_heter()
+def get_models_of_collaborating_models(network: Network, acceptance_test: Metrics, rejection_test: Metrics, i: int):
+    acceptance_pvalue = acceptance_test.aggreage_heter()
+    rejection_pvalue = rejection_test.aggreage_heter()
     models, weights = [], []
     for j in range(network.nb_clients):
         models.append(network.clients[j].trained_model)
-        if pvalue_matrix[i][j] > 0.05 or i == j:
+        if i == j:
             weights.append(len(network.clients[j].train_loader.dataset))
         else:
-            weights.append(0)
+            if acceptance_pvalue[i][j] > 0.1 and rejection_pvalue[i][j] > 0.1:
+                weights.append(len(network.clients[j].train_loader.dataset))
+            else:
+                weights.append(0)
         # We always add the model of the client itself.
 
     return models, weights / np.sum(weights)
 
 
-def print_collaborating_clients(network: Network, test_quantile: Metrics):
-    pvalue_matrix = test_quantile.aggreage_heter()
+def print_collaborating_clients(network: Network, acceptance_test: Metrics, rejection_test: Metrics):
+    acceptance_pvalue = acceptance_test.aggreage_heter()
+    rejection_pvalue = rejection_test.aggreage_heter()
     list_of_collaboration = {}
     for i in range(network.nb_clients):
         list_of_collaboration[i] = []
         for j in range(network.nb_clients):
-            if pvalue_matrix[i][j] > 0.05 or i == j:
+            if (acceptance_pvalue[i][j] > 0.1 and rejection_pvalue[i][j] > 0.1) or i == j:
                 list_of_collaboration[i].append(j)
     print(list_of_collaboration)
 

@@ -1,15 +1,16 @@
 """Created by Constantin Philippenko, 29th September 2022."""
 import sys
 
+import pandas as pd
 import torchvision
 
+from src.data.Dataset import do_prediction_liquid_asset, prepare_liquid_asset, load_liquid_dataset_test
 from src.optim.Algo import fedquantile_training, federated_training, gossip_training
 from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby, get_data_from_csv, get_synth_data
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Metrics import Metrics
-from src.quantif.Distances import compute_matrix_of_distances, function_to_compute_quantile_pvalue
 from src.utils.Utilities import get_project_root, get_path_to_datasets, set_seed
 
 root = get_project_root()
@@ -37,13 +38,14 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
-    for dataset_name in ["mnist"]:
+    for dataset_name in ["heart_disease", "tcga_brca"]:
         print(f"### ================== DATASET: {dataset_name} ================== ###")
         nb_of_clients = NB_CLIENTS[dataset_name]
 
         nb_initial_epochs = 50 if dataset_name in ["mnist", "cifar10"] else 1
 
-        for algo_name in ["quantile", "fed", "gossip"]:
+        for algo_name in ["quantile", "gossip"]:
+            assert algo_name in ["quantile", "gossip", "fed"], "Algorithm not recognized."
             print(f"--- ================== ALGO: {algo_name} ================== ---")
             ### We the dataset naturally splitted or not.
             if dataset_name in ["mnist", "cifar10"]:
@@ -70,23 +72,6 @@ if __name__ == '__main__':
                               nb_initial_epochs, dataset_name, algo_name)
             network.save()
 
-            ### We define three measures : PCA and EM on features, and TV on labels.
-            metrics_TEST_QUANTILE = Metrics(f"{dataset_name}_{algo_name}" , "TEST_QUANTILE",
-                                            network.nb_clients, network.nb_testpoints_by_clients)
-
-            for i in range(NB_RUN):
-                print(f"=== RUN {i+1} ===")
-                ### We compute the distance between clients.
-
-                compute_matrix_of_distances(function_to_compute_quantile_pvalue, network,
-                                            metrics_TEST_QUANTILE, symetric_distance=False)
-
-
-            print(metrics_TEST_QUANTILE.aggreage_heter())
-
-            ### We print the distances in the heterogeneous scenario.
-            plot_pvalues(metrics_TEST_QUANTILE, "heter")
-
             if algo_name == "quantile":
                 fedquantile_training(network)
             if algo_name == "gossip":
@@ -94,5 +79,6 @@ if __name__ == '__main__':
             if algo_name == "fed":
                 federated_training(network)
 
-        # do_prediction("X_test.csv")
-        # federated_training(network)
+        if dataset_name in ["liquid_asset"]:
+            X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())
+            do_prediction_liquid_asset(network, X_raw_train, X_raw_test, numerical_transformer)

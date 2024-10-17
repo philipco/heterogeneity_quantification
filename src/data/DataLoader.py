@@ -135,6 +135,7 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, kwargs_d
 
         # For TCGA_BRCA, there must be enough point to compute the metric, using the train set to create a very small
         # val set do not work.
+        # Therefore, the val and test set are IDENTICAL for TCGA_BRCA.
         if dataset_name not in ["tcga_brca"]:
             data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
                                                                               test_size=0.1, random_state=2023)

@@ -25,7 +25,7 @@ class Network:
         self.clients = []
         for i in range(self.nb_clients):
             net = MODELS[dataset_name]()
-            self.clients.append(Client(f"{algo_name}_{dataset_name}_{i}", X_train[i], X_val[i], X_test[i],
+            self.clients.append(Client(f"{dataset_name}_{algo_name}_{i}", X_train[i], X_val[i], X_test[i],
                                        Y_train[i], Y_val[i], Y_test[i],
                                        copy.deepcopy(net), CRITERION[dataset_name],
                                        METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],

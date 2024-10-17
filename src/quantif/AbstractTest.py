@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-from scipy.stats import norm
-
+from scipy.stats import norm, ranksums
 
 
 class StatisticalTest(ABC):
@@ -15,13 +14,29 @@ class StatisticalTest(ABC):
         pass
 
     @abstractmethod
-    def evaluate_test(self):
+    def evaluate_test(self, **args):
         """Calculate the test statistic."""
         pass
 
     @abstractmethod
     def print(self):
         """Report the results of the statistical test."""
+        pass
+
+
+class RanksumsTest(StatisticalTest):
+
+    def __init__(self, loss):
+        self.loss = loss # Require to have already instantiate the class to make it compatible with loss that are simple function.
+        self.pvalue = None
+
+    def evaluate_test(self, model, local_dataloader, remote_dataloader):
+        local_atomic_errors = compute_atomic_errors(model, local_dataloader, self.loss).cpu()
+        remote_atomic_errors = compute_atomic_errors(model, remote_dataloader, self.loss).cpu()
+        self.pvalue = ranksums(local_atomic_errors, remote_atomic_errors).pvalue
+        return self.pvalue
+
+    def print(self):
         pass
 
 

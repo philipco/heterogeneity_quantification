@@ -78,17 +78,4 @@ class Client:
         log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
                         self.ID, self.writer, self.last_epoch)
 
-        # Compute the test loss aggregated and atomic.
-        # atomic_criterion = self.criterion(reduction='none')
-        # self.test_loss, self.atomic_test_losses = [], []
-        # with torch.no_grad():
-        #     for i in range(0, len(self.X_test), batch_size):
-        #         x_batch = self.X_test[i:i + batch_size]  # .to(device)
-        #         y_batch = self.Y_test[i:i + batch_size]  # .to(device)
-        #         predictions = self.trained_model(x_batch)
-        #
-        #         self.test_loss.append(criterion(predictions, y_batch))
-        #         self.atomic_test_losses.append(atomic_criterion(predictions, y_batch))
-        # self.atomic_test_losses = torch.concat(self.atomic_test_losses)
-        # self.test_loss = torch.mean(torch.stack(self.test_loss))
         torch.cuda.empty_cache()
