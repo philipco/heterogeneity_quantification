@@ -1,3 +1,5 @@
+#python==3.10
+
 scipy>=1.9.0
 numpy
 matplotlib>=3.4
@@ -18,17 +20,18 @@ batchup
 tabulate
 
 batchup
+pot
 
 
 # Required by Flamby
-#albumentations
-#lifelines
+pyyaml
+albumentations
+lifelines
 
 # For TCGA_BRCA
-#formulaic
+formulaic
 
 # For Tiny_IXI
-#monai
-#nibabel
+nibabel==3.2.2
 
 

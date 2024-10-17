@@ -25,9 +25,6 @@ def accuracy(y_true, y_output_net):
     # Get the predicted class (the class with the highest probability)
     predicted_label = torch.argmax(test_probabilities, dim=1)
 
-    if len(predicted_label.unique()) == 1:
-        print(f"The network predict only the single label '{predicted_label[0]}'")
-
     # Ensure both inputs are lists or arrays of the same length
     assert len(y_true) == len(predicted_label), "Length of y_true and y_output_net must be the same"
 
@@ -42,9 +39,10 @@ def accuracy(y_true, y_output_net):
 
 def auc(y_true, y_pred):
     # y_true = y_true.astype("uint8")
+
+    assert len(y_true) == len(y_pred), "Length of y_true and y_pred must be the same"
     # The try except is needed because when the metric is batched some batches
     # have one class only
-    assert len(y_true) == len(y_pred), "Length of y_true and y_pred must be the same"
     try:
         # return roc_auc_score(y_true, y_pred)
         # proposed modification in order to get a metric that calcs on center 2
@@ -70,10 +68,11 @@ def c_index(y_true, y_pred):
     -------
     c-index: float, calculating using the lifelines library
     """
-
+    y_true = y_true.cpu().detach().numpy()
+    y_pred = y_pred.cpu().detach().numpy()
     c_index = lifelines.utils.concordance_index(y_true[:, 1], -y_pred, y_true[:, 0])
-
     return c_index
+
 
 def dice(y_true, y_pred):
     """Soft Dice coefficient."""
@@ -84,3 +83,14 @@ def dice(y_true, y_pred):
     # If both inputs are empty the dice coefficient should be equal 1
     dice[union == 0] = 1
     return np.mean(dice)
+
+
+def l1_accuracy(y_true, y_pred):
+    # y_true = sum(df_true, [])
+    # y_pred = sum(df_pred, [])
+    metric = torch.abs(y_true) * (torch.sign(y_true) == torch.sign(y_pred))
+    return torch.sum(metric) / torch.norm(y_true, p=1)
+
+
+def mse_accuracy(y_true, y_pred):
+    return torch.mean(torch.norm(y_true - y_pred, p=2)**2)

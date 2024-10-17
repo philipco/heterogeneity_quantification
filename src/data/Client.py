@@ -1,51 +1,81 @@
-import numpy as np
 import torch
-from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.tensorboard import SummaryWriter
 
-from src.optim.Train import train_neural_network, evaluate_test_metric
+from src.optim.Train import train_local_neural_network, log_performance
 
 
 class Client:
 
-    def __init__(self, train_features, test_features, train_labels, test_labels, output_dim: int, net: nn.Module, criterion, metric, step_size: int):
+    def __init__(self, ID, X_train, X_val, X_test, Y_train, Y_val, Y_test, net: nn.Module,
+                 criterion, metric, step_size: int, momentum: int, batch_size: int):
         super().__init__()
 
-        self.train_features, self.test_features = train_features, test_features
-        self.train_labels, self.test_labels = train_labels, test_labels
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Training on {self.device}")
 
-        self.input_dim = self.train_features.shape[1]
-        self.output_dim = output_dim
+        self.ID = ID
+
+        # Writer for TensorBoard
+        self.writer = SummaryWriter(
+            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{self.ID}')
+
+        self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
+        self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
+        self.test_loader = DataLoader(TensorDataset(X_test, Y_test), batch_size=batch_size)
 
         # Type of network to use, simply a class
-        self.net = net()
+        self.trained_model = net.to(self.device)
+        self.optimizer, self.scheduler = None, None
         self.criterion = criterion
         self.metric = metric
-        self.step_size = step_size
+        self.step_size, self.momentum = step_size, momentum
+        self.last_epoch = 0
+        self.writer.close()
 
         # self.projecteur = features @ torch.linalg.pinv(features.T @ features) @ features.T
 
     def resplit_train_test(self):
-        self.train_features, self.test_features, self.train_labels, self.test_labels \
-            = train_test_split(torch.concat([self.train_features, self.test_features]),
-                               torch.concat([self.train_labels, self.test_labels]), test_size=self.test_size)
+        self.X_train, self.X_test, self.Y_train, self.Y_test \
+            = train_test_split(torch.concat([self.X_train, self.X_test]),
+                               torch.concat([self.Y_train, self.Y_test]), test_size=self.test_size)
 
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
-        self.trained_model, self.train_loss = train_neural_network(self.net, self.train_features, self.train_labels,
-                                                                   criterion, nb_epochs, self.step_size, batch_size)
-        # plt.plot(self.train_loss)
-        # plt.show()
 
+        # Compute test metrics at initialization
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
+                        self.ID, self.writer, self.last_epoch)
 
-        # Compute test metrics
-        test_metric = evaluate_test_metric(self.trained_model, self.test_features, self.test_labels, self.metric)
-        print(f"\nTest metric:", test_metric)
-        # Compute test loss
-        test_outputs = self.trained_model(self.test_features)
-        self.test_loss = criterion(test_outputs, self.test_labels)
-        atomic_criterion = self.criterion(reduction='none')
-        self.atomic_test_losses = atomic_criterion(test_outputs, self.test_labels)
+        self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
+            = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
+                                         self.train_loader,
+                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
+                                         self.metric, self.last_epoch, self.writer, self.last_epoch)
+        self.last_epoch += nb_epochs
 
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
+                        self.ID, self.writer, self.last_epoch)
 
+    def load_new_model(self, new_model):
+        with torch.no_grad():  # Disable gradient tracking
+            for name, param in self.trained_model.named_parameters():
+                self.trained_model.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
+
+    def continue_training(self, nb_epochs: int, batch_size: int, epoch):
+        criterion = self.criterion()
+
+        self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
+            = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID, self.train_loader,
+                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
+                                         self.metric, self.last_epoch, self.writer, epoch)
+
+        torch.cuda.empty_cache()
+        self.last_epoch += nb_epochs
+
+        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
+                        self.ID, self.writer, self.last_epoch)
+
+        torch.cuda.empty_cache()

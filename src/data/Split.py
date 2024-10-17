@@ -7,9 +7,11 @@ import numpy as np
 from sklearn.manifold import TSNE
 
 
-def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
-              nb_points_by_non_iid_clients: np.array) -> [List[np.ndarray], List[np.ndarray]]:
+def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int) -> [List[np.ndarray], List[np.ndarray]]:
     nb_points = data.shape[0]
+    proportion_sampling = [np.random.uniform(0, 1) for i in range(nb_clients)]
+    proportion_sampling /= np.sum(proportion_sampling)
+    nb_points_by_non_iid_clients = [int(nb_points * p) for p in proportion_sampling]
     X = []
     Y = []
     indices = np.arange(nb_points)
@@ -24,9 +26,14 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int,
 
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
-                         natural_split: bool) -> [List[np.ndarray], List[np.ndarray]]:
-    np.random.seed(45)
-    return dirichlet_split(features, labels, nb_clients)
+                         split_type: str) -> [List[np.ndarray], List[np.ndarray]]:
+    np.random.seed(2024)
+    if split_type == "iid":
+        return iid_split(features, labels, nb_clients)
+    if split_type == "dirichlet":
+        return dirichlet_split(features, labels, nb_clients)
+    if split_type == "partition":
+        return sort_and_partition_split(features, labels, nb_clients)
 
 
 def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: int) \
@@ -60,7 +67,7 @@ def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: i
     return X, Y
 
 
-def dirichlet_split(data: np.ndarray, labels: np.ndarray, nb_clients: int, dirichlet_coef: float = 0.5) \
+def dirichlet_split(data: np.ndarray, labels: np.ndarray, nb_clients: int, dirichlet_coef: float = 1) \
         -> [List[np.ndarray], List[np.ndarray]]:
     nb_labels = len(np.unique(labels)) # Here data is not yet split. Thus nb_labels is correct.
     X = [[] for i in range(nb_clients)]

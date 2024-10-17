@@ -1,27 +1,35 @@
+import copy
+
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, NB_LABELS, MODELS, STEP_SIZE, METRIC
+from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
 from src.utils.PickleHandler import pickle_loader, pickle_saver
-from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing
+from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
 
 
 class Network:
 
-    def __init__(self, X_train, X_test, Y_train, Y_test, batch_size, nb_epochs, dataset_name):
+    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_epochs, dataset_name, algo_name,
+                 seed=0):
         super().__init__()
+        set_seed(seed)
         self.dataset_name = dataset_name
+        self.algo_name = algo_name
         self.nb_clients = len(Y_train)
         self.nb_epochs = nb_epochs
         self.batch_size = batch_size
-        self.nb_testpoints_by_clients = [len(y) for y in Y_test]
+        self.nb_testpoints_by_clients = [len(y) for y in Y_val]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
 
         # Creating clients.
         self.clients = []
         for i in range(self.nb_clients):
-            self.clients.append(Client(X_train[i], X_test[i], Y_train[i], Y_test[i],
-                                       NB_LABELS[dataset_name], MODELS[dataset_name], CRITERION[dataset_name],
-                                       METRIC[dataset_name], STEP_SIZE[dataset_name]))
+            net = MODELS[dataset_name]()
+            self.clients.append(Client(f"{dataset_name}_{algo_name}_{i}", X_train[i], X_val[i], X_test[i],
+                                       Y_train[i], Y_val[i], Y_test[i],
+                                       copy.deepcopy(net), CRITERION[dataset_name],
+                                       METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],
+                                       BATCH_SIZE[dataset_name]))
 
         # Training all clients
         for client in self.clients:
