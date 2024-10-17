@@ -63,7 +63,7 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, weights, writer, 0)
+    loss_accuracy_central_server(network, weights, writer, network.nb_initial_epochs)
 
     for epoch in range(1, nb_of_communication+1):
 
@@ -87,7 +87,7 @@ def gossip_training(network: Network, nb_of_communication: int = 101):
     for epoch in range(1, nb_of_communication + 1):
         for client in network.clients:
             # TODO Collaboration at each batch
-            client.continue_training(1, network.batch_size, epoch)
+            client.continue_training(1, network.batch_size, epoch, single_batch=True)
 
         # Two clients are sampled
         idx1 = sample([i for i in range(network.nb_clients)], 1)[0]
@@ -132,7 +132,7 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, weights, writer, 0)
+    loss_accuracy_central_server(network, weights, writer, network.nb_initial_epochs)
 
     acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
                             "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
@@ -165,7 +165,7 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
         for client in network.clients:
             client.continue_training(nb_of_local_epoch, network.batch_size, epoch)
 
-        loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch )
+        loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch +1)
 
         ### We compute the distance between clients (required at each epoch to decide collaboration or not).
         acceptance_test.reinitialize()

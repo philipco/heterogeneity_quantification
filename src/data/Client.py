@@ -45,9 +45,13 @@ class Client:
     def train(self, nb_epochs: int, batch_size: int):
         criterion = self.criterion()
 
-        # Compute test metrics at initialization
+        # Compute train/val/test metrics at initialization
+        log_performance("train", self.trained_model, self.device, self.train_loader, criterion, self.metric,
+                        self.ID, self.writer, 0)
+        log_performance("val", self.trained_model, self.device, self.val_loader, criterion, self.metric,
+                        self.ID, self.writer, 0)
         log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
-                        self.ID, self.writer, self.last_epoch)
+                        self.ID, self.writer, 0)
 
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
@@ -64,13 +68,14 @@ class Client:
             for name, param in self.trained_model.named_parameters():
                 self.trained_model.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
-    def continue_training(self, nb_epochs: int, batch_size: int, epoch):
+    def continue_training(self, nb_epochs: int, batch_size: int, epoch, single_batch: bool = False):
         criterion = self.criterion()
 
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
-            = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID, self.train_loader,
-                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
-                                         self.metric, self.last_epoch, self.writer, epoch)
+            = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
+                                         self.train_loader, self.val_loader, criterion, nb_epochs, self.step_size,
+                                         self.momentum,self.metric, self.last_epoch, self.writer, epoch,
+                                         epoch % len(self.train_loader) if single_batch else None)
 
         torch.cuda.empty_cache()
         self.last_epoch += nb_epochs

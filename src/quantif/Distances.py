@@ -188,7 +188,7 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
     return 0, d_heter
 
 
-def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.5):
+def acceptance_pvalue(network: Network, i: int, j: int, lbda=0):
     beta0 = 0.8
     local_net, remote_net = network.clients[i].trained_model, network.clients[j].trained_model
     dataloader = network.clients[i].val_loader
