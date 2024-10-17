@@ -26,9 +26,14 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int) -> [List[np
 
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
-                         natural_split: bool) -> [List[np.ndarray], List[np.ndarray]]:
+                         split_type: str) -> [List[np.ndarray], List[np.ndarray]]:
     np.random.seed(2024)
-    return sort_and_partition_split(features, labels, nb_clients)
+    if split_type == "iid":
+        return iid_split(features, labels, nb_clients)
+    if split_type == "dirichlet":
+        return dirichlet_split(features, labels, nb_clients)
+    if split_type == "partition":
+        return sort_and_partition_split(features, labels, nb_clients)
 
 
 def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: int) \
@@ -62,7 +67,7 @@ def sort_and_partition_split(features: np.array, labels: np.array, nb_clients: i
     return X, Y
 
 
-def dirichlet_split(data: np.ndarray, labels: np.ndarray, nb_clients: int, dirichlet_coef: float = 0.5) \
+def dirichlet_split(data: np.ndarray, labels: np.ndarray, nb_clients: int, dirichlet_coef: float = 1) \
         -> [List[np.ndarray], List[np.ndarray]]:
     nb_labels = len(np.unique(labels)) # Here data is not yet split. Thus nb_labels is correct.
     X = [[] for i in range(nb_clients)]

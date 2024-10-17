@@ -137,20 +137,8 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     set_seed(last_epoch)
     for local_epoch in tqdm(range(nb_epochs)):
         net.train()
-        for x_batch, y_batch in train_loader:
-            x_batch = x_batch.to(device)
-            y_batch = y_batch.to(device)
 
-            net.zero_grad()
-
-            # Forward pass
-            outputs = net(x_batch)
-            loss = criterion(outputs, y_batch)
-
-            # Backward pass and optimization
-            loss.backward()
-            optimizer.step()
-        scheduler.step()
+        batch_training(train_loader, device, net, criterion, optimizer, scheduler)
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
@@ -163,8 +151,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
         writer.add_scalar('train_accuracy', epoch_train_accuracy, local_epoch + last_epoch)
 
         # We compute the val loss/performance-metric on the full train set after a full pass on it.
-
-
         log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer,
                         local_epoch + last_epoch)
 
@@ -179,6 +165,21 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
 
     return net, train_loss, writer, optimizer, scheduler
 
+def batch_training(train_loader, device, net, criterion, optimizer, scheduler):
+    for x_batch, y_batch in train_loader:
+        x_batch = x_batch.to(device)
+        y_batch = y_batch.to(device)
+
+        net.zero_grad()
+
+        # Forward pass
+        outputs = net(x_batch)
+        loss = criterion(outputs, y_batch)
+
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+    scheduler.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):
     epoch_loss = 0

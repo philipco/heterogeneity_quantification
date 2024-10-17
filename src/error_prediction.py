@@ -38,19 +38,22 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
-    for dataset_name in ["heart_disease", "tcga_brca"]:
+    for dataset_name in ["mnist"]:
+        assert dataset_name in ["mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset"], \
+            "Dataset not recognized."
         print(f"### ================== DATASET: {dataset_name} ================== ###")
         nb_of_clients = NB_CLIENTS[dataset_name]
 
-        nb_initial_epochs = 50 if dataset_name in ["mnist", "cifar10"] else 1
+        nb_initial_epochs = 1 if dataset_name in ["mnist", "cifar10"] else 1
 
         for algo_name in ["quantile", "gossip"]:
             assert algo_name in ["quantile", "gossip", "fed"], "Algorithm not recognized."
             print(f"--- ================== ALGO: {algo_name} ================== ---")
             ### We the dataset naturally splitted or not.
             if dataset_name in ["mnist", "cifar10"]:
+                split_type = "partition"
                 X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split \
-                    = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients,
+                    = get_data_from_pytorch(DATASET[dataset_name], nb_of_clients, split_type,
                                             kwargs_train_dataset = dict(root=get_path_to_datasets(), download=False,
                                                                   transform=TRANSFORM_TRAIN[dataset_name]),
                                             kwargs_test_dataset=dict(root=get_path_to_datasets(), download=False,

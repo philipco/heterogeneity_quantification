@@ -82,7 +82,7 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch)
 
 
-def gossip_training(network: Network, nb_of_local_epoch: int = 1, nb_of_communication: int = 101):
+def gossip_training(network: Network, nb_of_communication: int = 101):
 
     for epoch in range(1, nb_of_communication + 1):
         for client in network.clients:
@@ -111,7 +111,7 @@ def gossip_training(network: Network, nb_of_local_epoch: int = 1, nb_of_communic
                              weights, network.clients[0].device)
             # print(f"Weight receiver after: {network.clients[receiver].trained_model.state_dict()['linear.bias']}")
 
-        if epoch % 100 == 0:
+        if epoch % 10 == 0:
             ### We compute the distance between clients.
             test_quantile = Metrics(f"{network.dataset_name}_{network.algo_name}", "TEST_QUANTILE", network.nb_clients,
                                     network.nb_testpoints_by_clients)
@@ -176,6 +176,6 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
         compute_matrix_of_distances(rejection_pvalue, network,
                                     rejection_test, symetric_distance=True)
 
-        if epoch%5 == 0:
+        if epoch%10 == 0:
             plot_pvalues(acceptance_test, f"{epoch}")
             plot_pvalues(rejection_test, f"{epoch}")
