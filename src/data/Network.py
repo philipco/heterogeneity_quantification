@@ -16,7 +16,6 @@ class Network:
         self.algo_name = algo_name
         self.nb_clients = len(Y_train)
         self.nb_initial_epochs = nb_initial_epochs
-        self.batch_size = batch_size
         self.nb_testpoints_by_clients = [len(y) for y in Y_val]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
@@ -33,7 +32,7 @@ class Network:
 
         # Training all clients
         for client in self.clients:
-            client.train(self.nb_initial_epochs, self.batch_size)
+            client.train(self.nb_initial_epochs)
 
     @classmethod
     def loader(cls, dataset_name):
@@ -49,5 +48,4 @@ class Network:
 
     def retrain_all_clients(self):
         for client in self.clients:
-            # client.resplit_train_test()
-            client.train(self.nb_initial_epochs, self.batch_size)
+            client.train(self.nb_initial_epochs)

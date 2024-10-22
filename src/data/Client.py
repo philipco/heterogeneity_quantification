@@ -42,7 +42,7 @@ class Client:
             = train_test_split(torch.concat([self.X_train, self.X_test]),
                                torch.concat([self.Y_train, self.Y_test]), test_size=self.test_size)
 
-    def train(self, nb_epochs: int, batch_size: int):
+    def train(self, nb_epochs: int):
         criterion = self.criterion()
 
         # Compute train/val/test metrics at initialization
@@ -68,7 +68,7 @@ class Client:
             for name, param in self.trained_model.named_parameters():
                 self.trained_model.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
-    def continue_training(self, nb_epochs: int, batch_size: int, epoch, single_batch: bool = False):
+    def continue_training(self, nb_epochs: int, epoch, single_batch: bool = False):
         criterion = self.criterion()
 
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \

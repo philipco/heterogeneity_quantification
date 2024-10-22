@@ -77,17 +77,29 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
         # One pass of local training
         for  i in range(network.nb_clients):
             client = network.clients[i]
-            client.continue_training(nb_of_local_epoch, network.batch_size, epoch)
+            client.continue_training(nb_of_local_epoch, epoch)
 
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch)
 
 
 def gossip_training(network: Network, nb_of_communication: int = 101):
+    acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                              "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
+
+    rejection_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                             "rejection_test", network.nb_clients, network.nb_testpoints_by_clients)
+
+    compute_matrix_of_distances(acceptance_pvalue, network,
+                                acceptance_test, symetric_distance=False)
+    compute_matrix_of_distances(rejection_pvalue, network,
+                                rejection_test, symetric_distance=True)
+
+    plot_pvalues(acceptance_test, f"{0}")
+    plot_pvalues(rejection_test, f"{0}")
 
     for epoch in range(1, nb_of_communication + 1):
         for client in network.clients:
-            # TODO Collaboration at each batch
-            client.continue_training(1, network.batch_size, epoch, single_batch=True)
+            client.continue_training(1, epoch, single_batch=False)
 
         # Two clients are sampled
         idx1 = sample([i for i in range(network.nb_clients)], 1)[0]
@@ -111,17 +123,18 @@ def gossip_training(network: Network, nb_of_communication: int = 101):
                              weights, network.clients[0].device)
             # print(f"Weight receiver after: {network.clients[receiver].trained_model.state_dict()['linear.bias']}")
 
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             ### We compute the distance between clients.
-            test_quantile = Metrics(f"{network.dataset_name}_{network.algo_name}", "TEST_QUANTILE", network.nb_clients,
-                                    network.nb_testpoints_by_clients)
+            acceptance_test.reinitialize()
+            rejection_test.reinitialize()
 
             compute_matrix_of_distances(acceptance_pvalue, network,
-                                        test_quantile, symetric_distance=False)
-            ### We compute the distance between clients.
-            compute_matrix_of_distances(acceptance_pvalue, network,
-                                        test_quantile, symetric_distance=False)
-            plot_pvalues(test_quantile, f"{epoch}")
+                                        acceptance_test, symetric_distance=False)
+            compute_matrix_of_distances(rejection_pvalue, network,
+                                        rejection_test, symetric_distance=True)
+
+            plot_pvalues(acceptance_test, f"{epoch}")
+            plot_pvalues(rejection_test, f"{epoch}")
 
 
 def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
@@ -163,7 +176,7 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
 
         # One pass of local training
         for client in network.clients:
-            client.continue_training(nb_of_local_epoch, network.batch_size, epoch)
+            client.continue_training(nb_of_local_epoch, epoch)
 
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch +1)
 

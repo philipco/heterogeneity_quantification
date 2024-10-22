@@ -18,7 +18,8 @@ def log_performance(subset_name: str, net, device, loader, criterion, metric, cl
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
-                               nb_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch):
+                               nb_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch,
+                               single_batch: int = None):
     """
     Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
 
@@ -122,6 +123,10 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     - The training process logs performance on both the training and validation sets after each epoch.
     """
 
+    # When doing a single batch descent between each communication, we must have no more than one local epoch
+    if single_batch is not None:
+        nb_epochs = 1
+
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch)
 
@@ -137,48 +142,50 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     set_seed(last_epoch)
     for local_epoch in tqdm(range(nb_epochs)):
         net.train()
-
-        batch_training(train_loader, device, net, criterion, optimizer, scheduler)
+        batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch)
 
         # We compute the train loss/performance-metric on the full train set after a full pass on it.
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-        epoch_train_loss, epoch_train_accuracy = compute_loss_and_accuracy(net, device, train_loader, criterion, metric,
-                                                                       "tcga_brca" in client_ID)
-        train_loss.append(epoch_train_loss)
+        # epoch_train_loss, epoch_train_accuracy = compute_loss_and_accuracy(net, device, train_loader, criterion, metric,
+        #                                                                "tcga_brca" in client_ID)
+        # train_loss.append(epoch_train_loss)
 
         # Writing logs.
-        writer.add_scalar('train_loss', epoch_train_loss, local_epoch + last_epoch)
-        writer.add_scalar('train_accuracy', epoch_train_accuracy, local_epoch + last_epoch)
-
-        # We compute the val loss/performance-metric on the full train set after a full pass on it.
+        log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer,
+                        local_epoch + last_epoch + 1)
         log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer,
-                        local_epoch + last_epoch)
+                        local_epoch + last_epoch + 1)
 
     for name, param in net.named_parameters():
         writer.add_histogram(f'{name}.weight', param, 2 * epoch + 1)
 
     # Close the writer at the end of training
     writer.close()
-
-    print("Final train loss:", train_loss[-1])
-    print(f"Final train accuracy: {epoch_train_accuracy}")
-
     return net, train_loss, writer, optimizer, scheduler
 
-def batch_training(train_loader, device, net, criterion, optimizer, scheduler):
+
+def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
+    x_batch = x_batch.to(device)
+    y_batch = y_batch.to(device)
+
+    net.zero_grad()
+
+    # Forward pass
+    outputs = net(x_batch)
+    loss = criterion(outputs, y_batch)
+
+    # Backward pass and optimization
+    loss.backward()
+    optimizer.step()
+
+def batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+    # For Gossip, we communicate after every batch, therefore we need to access one.
+    if single_batch_idx is not None:
+        x_batch, y_batch = list(train_loader)[single_batch_idx]
+        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
     for x_batch, y_batch in train_loader:
-        x_batch = x_batch.to(device)
-        y_batch = y_batch.to(device)
+        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
 
-        net.zero_grad()
-
-        # Forward pass
-        outputs = net(x_batch)
-        loss = criterion(outputs, y_batch)
-
-        # Backward pass and optimization
-        loss.backward()
-        optimizer.step()
     scheduler.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):
