@@ -18,9 +18,8 @@ def are_identical(model1, model2):
 def get_models_of_collaborating_models(network: Network, acceptance_test: Metrics, rejection_test: Metrics, i: int):
     acceptance_pvalue = acceptance_test.aggreage_heter()
     rejection_pvalue = rejection_test.aggreage_heter()
-    models, weights = [], []
+    weights = []
     for j in range(network.nb_clients):
-        models.append(network.clients[j].trained_model)
         if i == j:
             weights.append(len(network.clients[j].train_loader.dataset))
         else:
@@ -30,7 +29,7 @@ def get_models_of_collaborating_models(network: Network, acceptance_test: Metric
                 weights.append(0)
         # We always add the model of the client itself.
 
-    return models, weights / np.sum(weights)
+    return [network.clients[j].trained_model for j in range(network.nb_clients)], weights / np.sum(weights)
 
 
 def print_collaborating_clients(network: Network, acceptance_test: Metrics, rejection_test: Metrics):

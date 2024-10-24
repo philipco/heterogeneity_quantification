@@ -18,7 +18,7 @@ def log_performance(subset_name: str, net, device, loader, criterion, metric, cl
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
-                               nb_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch,
+                               nb_local_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch,
                                single_batch: int = None):
     """
     Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
@@ -60,9 +60,9 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
         The loss function used to compute the training loss.
     :type criterion: torch.nn.Module
 
-    :param nb_epochs:
-        Number of epochs to train the model.
-    :type nb_epochs: int
+    :param nb_local_epochs:
+        Number of local epochs to train the model.
+    :type nb_local_epochs: int
 
     :param lr:
         Learning rate used for the optimizer (if it is initialized within the function).
@@ -125,10 +125,7 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
 
     # When doing a single batch descent between each communication, we must have no more than one local epoch
     if single_batch is not None:
-        nb_epochs = 1
-
-    for name, param in net.named_parameters():
-        writer.add_histogram(f'{name}.weight', param, 2 * epoch)
+        nb_local_epochs = 1
 
     # The optimizer should be initialized once at the beginning of the training.
     if optimizer is None:
@@ -140,15 +137,9 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     # Training
     print(f"=== Training the neural network on {client_ID}. ===")
     set_seed(last_epoch)
-    for local_epoch in tqdm(range(nb_epochs)):
+    for local_epoch in tqdm(range(nb_local_epochs)):
         net.train()
         batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch)
-
-        # We compute the train loss/performance-metric on the full train set after a full pass on it.
-        # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-        # epoch_train_loss, epoch_train_accuracy = compute_loss_and_accuracy(net, device, train_loader, criterion, metric,
-        #                                                                "tcga_brca" in client_ID)
-        # train_loss.append(epoch_train_loss)
 
         # Writing logs.
         log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer,
@@ -157,7 +148,7 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
                         local_epoch + last_epoch + 1)
 
     for name, param in net.named_parameters():
-        writer.add_histogram(f'{name}.weight', param, 2 * epoch + 1)
+        writer.add_histogram(f'{name}.weight', param, epoch + 1)
 
     # Close the writer at the end of training
     writer.close()
@@ -183,10 +174,66 @@ def batch_training(train_loader, device, net, criterion, optimizer, scheduler, s
     if single_batch_idx is not None:
         x_batch, y_batch = list(train_loader)[single_batch_idx]
         batch_update(x_batch, y_batch, device, net, criterion, optimizer)
-    for x_batch, y_batch in train_loader:
-        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+    else:
+        for x_batch, y_batch in train_loader:
+            batch_update(x_batch, y_batch, device, net, criterion, optimizer)
 
-    scheduler.step()
+    # scheduler.step()
+
+
+def gradient_step(net, train_loader, single_batch_idx, criterion, optimizer, scheduler, device: str):
+    # For Gossip, we communicate after every batch, therefore we need to access one.
+    net.train()
+    x_batch, y_batch = list(train_loader)[single_batch_idx]
+
+    x_batch = x_batch.to(device)
+    y_batch = y_batch.to(device)
+
+    net.zero_grad()
+
+    # Forward pass
+    outputs = net(x_batch)
+    loss = criterion(outputs, y_batch)
+
+    # Backward pass to compute gradients
+    loss.backward()
+
+    # Collect and return the gradients (without updating the model)
+    gradients = [param.grad.clone() for param in net.parameters() if param.grad is not None]
+
+    return gradients
+
+def aggregate_gradients(gradients_list, weights):
+    """
+        Aggregates gradients by applying weights.
+
+        gradients_list: list of lists of gradients (each sublist is the gradients from one source)
+        weights: list of weights to apply to each set of gradients
+        """
+    # Initialize aggregated gradients with zeroed tensors of the same shape as the first set of gradients
+    aggregated_gradients = [torch.zeros_like(g) for g in gradients_list[0]]
+
+    for i, gradients in enumerate(gradients_list):
+        for j, grad in enumerate(gradients):
+            aggregated_gradients[j] += weights[i] * grad
+
+    return aggregated_gradients
+
+def update_model(net, aggregated_gradients, optimizer, scheduler, device, writer, it):
+    """
+    Updates the model using the aggregated gradients.
+
+    net: the neural network model to update
+    aggregated_gradients: list of aggregated gradients to apply
+    optimizer: the optimizer used for updating the model
+    """
+    with torch.no_grad():
+        for param, grad in zip(net.parameters(), aggregated_gradients):
+            param.grad.copy_(grad)
+
+    # # Perform the update step
+    optimizer.step()
+    # scheduler.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):
     epoch_loss = 0

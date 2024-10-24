@@ -26,10 +26,14 @@ class Client:
         self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
         self.test_loader = DataLoader(TensorDataset(X_test, Y_test), batch_size=batch_size)
 
-        # Type of network to use, simply a class
         self.trained_model = net.to(self.device)
+
+        # Plotting weights of the network at initialization.
+        for name, param in self.trained_model.named_parameters():
+            self.writer.add_histogram(f'{name}.weight', param, 0)
+
         self.optimizer, self.scheduler = None, None
-        self.criterion = criterion
+        self.criterion = criterion()
         self.metric = metric
         self.step_size, self.momentum = step_size, momentum
         self.last_epoch = 0
@@ -43,21 +47,18 @@ class Client:
                                torch.concat([self.Y_train, self.Y_test]), test_size=self.test_size)
 
     def train(self, nb_epochs: int):
-        criterion = self.criterion()
-
         # Compute train/val/test metrics at initialization
-        log_performance("train", self.trained_model, self.device, self.train_loader, criterion, self.metric,
+        log_performance("train", self.trained_model, self.device, self.train_loader, self.criterion,
+                        self.metric, self.ID, self.writer, 0)
+        log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
                         self.ID, self.writer, 0)
-        log_performance("val", self.trained_model, self.device, self.val_loader, criterion, self.metric,
-                        self.ID, self.writer, 0)
-        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
-                        self.ID, self.writer, 0)
+        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion,
+                        self.metric, self.ID, self.writer, 0)
 
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                         self.train_loader,
-                                         self.val_loader, criterion, nb_epochs, self.step_size, self.momentum,
-                                         self.metric, self.last_epoch, self.writer, self.last_epoch)
+                                         self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
+                                         self.momentum, self.metric, self.last_epoch, self.writer, self.last_epoch)
         self.last_epoch += nb_epochs
 
         log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
@@ -69,11 +70,9 @@ class Client:
                 self.trained_model.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
     def continue_training(self, nb_epochs: int, epoch, single_batch: bool = False):
-        criterion = self.criterion()
-
         self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                         self.train_loader, self.val_loader, criterion, nb_epochs, self.step_size,
+                                         self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
                                          self.momentum,self.metric, self.last_epoch, self.writer, epoch,
                                          epoch % len(self.train_loader) if single_batch else None)
 
@@ -84,3 +83,4 @@ class Client:
                         self.ID, self.writer, self.last_epoch)
 
         torch.cuda.empty_cache()
+

@@ -2,12 +2,14 @@ import copy
 from random import sample
 
 import numpy as np
+from sklearn.preprocessing import normalize
 from torch.utils.tensorboard import SummaryWriter
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
     get_models_of_collaborating_models, are_identical
-from src.optim.Train import compute_loss_and_accuracy
+from src.optim.Train import compute_loss_and_accuracy, update_model, aggregate_gradients, gradient_step, \
+    log_performance, batch_training, batch_update
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue, \
     rejection_pvalue
@@ -20,7 +22,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.train_loader,
-                                              client.criterion(), client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, "tcga_brca" in client.ID)
         epoch_train_loss += loss * weights[i]
         epoch_train_accuracy += acc * weights[i]
 
@@ -33,7 +35,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.val_loader,
-                                              client.criterion(), client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, "tcga_brca" in client.ID)
         epoch_val_loss += loss * weights[i]
         epoch_val_accuracy += acc * weights[i]
 
@@ -46,7 +48,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.test_loader,
-                                              client.criterion(), client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, "tcga_brca" in client.ID)
         epoch_test_loss += loss * weights[i]
         epoch_test_accuracy += acc * weights[i]
 
@@ -82,7 +84,7 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch)
 
 
-def gossip_training(network: Network, nb_of_communication: int = 101):
+def gossip_training(network: Network, nb_of_communication: int = 501):
     acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
                               "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
 
@@ -137,7 +139,7 @@ def gossip_training(network: Network, nb_of_communication: int = 101):
             plot_pvalues(rejection_test, f"{epoch}")
 
 
-def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
+def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 51):
     writer = SummaryWriter(
         log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
                 f'central_server')
@@ -170,6 +172,7 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
         for i in range(network.nb_clients):
             models_of_collaborating_clients, weights = get_models_of_collaborating_models(network, acceptance_test,
                                                                                           rejection_test, i)
+            weights = [int(i == j) for j in range(network.nb_clients)]
             print(f"For client {i}, weights are: {weights}.")
             # Aggregate directly into model i.
             aggregate_models(i, models_of_collaborating_clients, weights, network.clients[0].device)
@@ -190,5 +193,84 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
                                     rejection_test, symetric_distance=True)
 
         if epoch%10 == 0:
+            plot_pvalues(acceptance_test, f"{epoch}")
+            plot_pvalues(rejection_test, f"{epoch}")
+
+
+
+def all_for_all_algo(network: Network, nb_of_communication: int = 151):
+    writer = SummaryWriter(
+        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
+                f'central_server')
+
+    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
+
+    fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    loss_accuracy_central_server(network, fed_weights, writer, network.nb_initial_epochs)
+
+    acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                              "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
+
+    rejection_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                             "rejection_test", network.nb_clients, network.nb_testpoints_by_clients)
+
+    compute_matrix_of_distances(acceptance_pvalue, network,
+                                acceptance_test, symetric_distance=False)
+    compute_matrix_of_distances(rejection_pvalue, network,
+                                rejection_test, symetric_distance=True)
+
+    plot_pvalues(acceptance_test, f"{0}")
+    plot_pvalues(rejection_test, f"{0}")
+
+    for epoch in range(1, nb_of_communication + 1):
+
+        # Compute weights
+        weights = [[int(i == j or acceptance_test.aggreage_heter()[i][j] >= 0.05) for j in range(network.nb_clients)]
+                   for i in range(network.nb_clients)]
+        weights = normalize(weights, axis=1, norm='l1')
+        weights = weights @ weights.T
+        print(f"At epoch {epoch}, weights are: \n {weights}.")
+
+        inner_epochs = 10
+        for k in range(inner_epochs):
+            gradients = []
+            for client in network.clients:
+                gradient = gradient_step(client.trained_model, client.train_loader,
+                                          (epoch * inner_epochs + k) % len(client.train_loader), client.criterion,
+                                          client.optimizer, client.scheduler, client.device)
+                gradients.append(gradient)
+
+            # Averaging gradient and updating models.
+            for i in range(network.nb_clients):
+                client = network.clients[i]
+                aggregated_gradients = aggregate_gradients(gradients, weights[i])
+                update_model(client.trained_model, aggregated_gradients, client.optimizer,
+                                                    client.scheduler, client.device, client.writer,
+                                                    epoch * inner_epochs + k)
+        acceptance_test.reinitialize()
+        compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
+
+        for client in network.clients:
+            # Writing logs.
+            for name, param in client.trained_model.named_parameters():
+                client.writer.add_histogram(f'{name}.weight', param, epoch * inner_epochs + k)
+            log_performance("train", client.trained_model, client.device, client.train_loader, client.criterion,
+                            client.metric, client.ID, client.writer,
+                            epoch * inner_epochs)
+            log_performance("val", client.trained_model, client.device, client.val_loader, client.criterion,
+                            client.metric, client.ID, client.writer,
+                            epoch * inner_epochs)
+            log_performance("test", client.trained_model, client.device, client.test_loader, client.criterion,
+                            client.metric, client.ID, client.writer,
+                            epoch * inner_epochs)
+            client.writer.close()
+
+        loss_accuracy_central_server(network, fed_weights, writer, epoch * inner_epochs)
+
+        if epoch % 50 == 0:
+            ### We compute the distance between clients.
+            rejection_test.reinitialize()
+            compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+
             plot_pvalues(acceptance_test, f"{epoch}")
             plot_pvalues(rejection_test, f"{epoch}")

@@ -5,7 +5,7 @@ import pandas as pd
 import torchvision
 
 from src.data.Dataset import do_prediction_liquid_asset, prepare_liquid_asset, load_liquid_dataset_test
-from src.optim.Algo import fedquantile_training, federated_training, gossip_training
+from src.optim.Algo import fedquantile_training, federated_training, gossip_training, all_for_all_algo
 from src.data.Network import Network
 from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
 from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby, get_data_from_csv, get_synth_data
@@ -32,22 +32,18 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.
 
 NB_RUN = 1
 
-
-# algo_name = "quantile" # quantile, fed ou gossip
-# dataset_name = "tcga_brca"
-
 if __name__ == '__main__':
 
-    for dataset_name in ["mnist"]:
-        assert dataset_name in ["mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset"], \
+    for dataset_name in ["mnist"]: #["heart_disease", "tcga_brca", "liquid_asset", "mnist"]:
+        assert dataset_name in ["mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth"], \
             "Dataset not recognized."
         print(f"### ================== DATASET: {dataset_name} ================== ###")
         nb_of_clients = NB_CLIENTS[dataset_name]
 
         nb_initial_epochs = 1 if dataset_name in ["mnist", "cifar10"] else 1
 
-        for algo_name in ["quantile", "gossip"]:
-            assert algo_name in ["quantile", "gossip", "fed"], "Algorithm not recognized."
+        for algo_name in ["all_for_all"]: #["gossip", "quantile", "fed", "all_for_all"]:
+            assert algo_name in ["quantile", "gossip", "fed", "all_for_all"], "Algorithm not recognized."
             print(f"--- ================== ALGO: {algo_name} ================== ---")
             ### We the dataset naturally splitted or not.
             if dataset_name in ["mnist", "cifar10"]:
@@ -81,6 +77,8 @@ if __name__ == '__main__':
                 gossip_training(network)
             if algo_name == "fed":
                 federated_training(network)
+            if algo_name == "all_for_all":
+                all_for_all_algo(network)
 
         if dataset_name in ["liquid_asset"]:
             X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())
