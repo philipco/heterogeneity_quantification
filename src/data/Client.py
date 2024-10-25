@@ -39,8 +39,6 @@ class Client:
         self.last_epoch = 0
         self.writer.close()
 
-        # self.projecteur = features @ torch.linalg.pinv(features.T @ features) @ features.T
-
     def resplit_train_test(self):
         self.X_train, self.X_test, self.Y_train, self.Y_test \
             = train_test_split(torch.concat([self.X_train, self.X_test]),
@@ -61,8 +59,8 @@ class Client:
                                          self.momentum, self.metric, self.last_epoch, self.writer, self.last_epoch)
         self.last_epoch += nb_epochs
 
-        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
-                        self.ID, self.writer, self.last_epoch)
+        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion,
+                        self.metric, self.ID, self.writer, self.last_epoch)
 
     def load_new_model(self, new_model):
         with torch.no_grad():  # Disable gradient tracking
@@ -79,7 +77,7 @@ class Client:
         torch.cuda.empty_cache()
         self.last_epoch += nb_epochs
 
-        log_performance("test", self.trained_model, self.device, self.test_loader, criterion, self.metric,
+        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion, self.metric,
                         self.ID, self.writer, self.last_epoch)
 
         torch.cuda.empty_cache()

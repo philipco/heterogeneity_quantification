@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
-    get_models_of_collaborating_models, are_identical
+    get_models_of_collaborating_models, equal
 from src.optim.Train import compute_loss_and_accuracy, update_model, aggregate_gradients, gradient_step, \
     log_performance, batch_training, batch_update
 from src.plot.PlotDistance import plot_pvalues
@@ -57,7 +57,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     writer.close()
 
 
-def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 101):
+def federated_training(network: Network, nb_of_local_epoch: int = 1, nb_of_communication: int = 501):
     writer = SummaryWriter(
         log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
                 f'central_server')
@@ -75,11 +75,12 @@ def federated_training(network: Network, nb_of_local_epoch: int = 5, nb_of_commu
         # Averaging models
         for i in range(1, network.nb_clients):
             network.clients[i].load_new_model(network.clients[0].trained_model)
+            assert equal(network.clients[i].trained_model, network.clients[0].trained_model), f"Models {client.ID} are not equal."
 
         # One pass of local training
         for  i in range(network.nb_clients):
             client = network.clients[i]
-            client.continue_training(nb_of_local_epoch, epoch)
+            client.continue_training(nb_of_local_epoch, epoch, single_batch=True)
 
         loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch)
 
@@ -198,10 +199,14 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
 
 
 
-def all_for_all_algo(network: Network, nb_of_communication: int = 151):
+def all_for_all_algo(network: Network, nb_of_communication: int = 101):
     writer = SummaryWriter(
         log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
                 f'central_server')
+
+
+    for client in network.clients:
+        assert equal(client.trained_model, network.clients[0].trained_model), f"Models {client.ID} are not equal."
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
 
@@ -225,13 +230,13 @@ def all_for_all_algo(network: Network, nb_of_communication: int = 151):
     for epoch in range(1, nb_of_communication + 1):
 
         # Compute weights
-        weights = [[int(i == j or acceptance_test.aggreage_heter()[i][j] >= 0.05) for j in range(network.nb_clients)]
+        weights = [[ 1 / network.nb_clients for j in range(network.nb_clients)]
                    for i in range(network.nb_clients)]
-        weights = normalize(weights, axis=1, norm='l1')
-        weights = weights @ weights.T
+        # weights = normalize(weights, axis=1, norm='l1')
+        # weights = weights @ weights.T
         print(f"At epoch {epoch}, weights are: \n {weights}.")
 
-        inner_epochs = 10
+        inner_epochs = 5
         for k in range(inner_epochs):
             gradients = []
             for client in network.clients:
@@ -244,30 +249,32 @@ def all_for_all_algo(network: Network, nb_of_communication: int = 151):
             for i in range(network.nb_clients):
                 client = network.clients[i]
                 aggregated_gradients = aggregate_gradients(gradients, weights[i])
-                update_model(client.trained_model, aggregated_gradients, client.optimizer,
-                                                    client.scheduler, client.device, client.writer,
-                                                    epoch * inner_epochs + k)
+                update_model(client.trained_model, aggregated_gradients, client.optimizer)
+
+                assert equal(client.trained_model, network.clients[0].trained_model), f"Models {client.ID} are not equal."
+
+            for client in network.clients:
+                # Writing logs.
+                for name, param in client.trained_model.named_parameters():
+                    client.writer.add_histogram(f'{name}.weight', param, epoch * inner_epochs + k)
+                log_performance("train", client.trained_model, client.device, client.train_loader, client.criterion,
+                                client.metric, client.ID, client.writer,
+                                (epoch - 1) * inner_epochs + k)
+                log_performance("val", client.trained_model, client.device, client.val_loader, client.criterion,
+                                client.metric, client.ID, client.writer,
+                                (epoch - 1) * inner_epochs + k)
+                log_performance("test", client.trained_model, client.device, client.test_loader, client.criterion,
+                                client.metric, client.ID, client.writer,
+                                (epoch - 1) * inner_epochs + k)
+                client.writer.close()
+
+
         acceptance_test.reinitialize()
         compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
 
-        for client in network.clients:
-            # Writing logs.
-            for name, param in client.trained_model.named_parameters():
-                client.writer.add_histogram(f'{name}.weight', param, epoch * inner_epochs + k)
-            log_performance("train", client.trained_model, client.device, client.train_loader, client.criterion,
-                            client.metric, client.ID, client.writer,
-                            epoch * inner_epochs)
-            log_performance("val", client.trained_model, client.device, client.val_loader, client.criterion,
-                            client.metric, client.ID, client.writer,
-                            epoch * inner_epochs)
-            log_performance("test", client.trained_model, client.device, client.test_loader, client.criterion,
-                            client.metric, client.ID, client.writer,
-                            epoch * inner_epochs)
-            client.writer.close()
-
         loss_accuracy_central_server(network, fed_weights, writer, epoch * inner_epochs)
 
-        if epoch % 50 == 0:
+        if epoch % 10 == 0:
             ### We compute the distance between clients.
             rejection_test.reinitialize()
             compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)

@@ -219,7 +219,7 @@ def aggregate_gradients(gradients_list, weights):
 
     return aggregated_gradients
 
-def update_model(net, aggregated_gradients, optimizer, scheduler, device, writer, it):
+def update_model(net, aggregated_gradients, optimizer):
     """
     Updates the model using the aggregated gradients.
 

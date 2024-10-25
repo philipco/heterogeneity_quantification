@@ -7,14 +7,6 @@ import torch
 from src.data.Network import Network
 from src.quantif.Metrics import Metrics
 
-
-def are_identical(model1, model2):
-    for p1, p2 in zip(model1.parameters(), model2.parameters()):
-        if p1.data.ne(p2.data).sum() > 0:
-            return False
-    return True
-
-
 def get_models_of_collaborating_models(network: Network, acceptance_test: Metrics, rejection_test: Metrics, i: int):
     acceptance_pvalue = acceptance_test.aggreage_heter()
     rejection_pvalue = rejection_test.aggreage_heter()
@@ -42,6 +34,13 @@ def print_collaborating_clients(network: Network, acceptance_test: Metrics, reje
             if (acceptance_pvalue[i][j] > 0.1 and rejection_pvalue[i][j] > 0.1) or i == j:
                 list_of_collaboration[i].append(j)
     print(list_of_collaboration)
+
+
+def equal(model1, model2):
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        if p1.data.ne(p2.data).sum() > 0:
+            return False
+    return True
 
 def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights: List[int], device: str) -> torch.nn.Module:
     """Aggregates the parameters of multiple PyTorch models by weighted summation. The resulting aggregated model is
