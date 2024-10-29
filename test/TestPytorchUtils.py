@@ -165,3 +165,63 @@ def test_error_different_architectures():
 
     with pytest.raises(KeyError):
         load_new_model(model_to_update, different_model)
+
+
+import pytest
+import torch
+from src.optim.PytorchUtilities import aggregate_gradients
+
+
+# Test 1: Aggregation with equal weights
+def test_aggregation_equal_weights():
+    gradients_list = [
+        [torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0])],
+        [torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0])],
+        [torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0])]
+    ]
+    weights = [1, 1, 1]
+
+    result = aggregate_gradients(gradients_list, weights)
+
+    # Expected result: sum of each gradient multiplied by its weight
+    expected = [torch.tensor([3.0, 6.0]), torch.tensor([9.0, 12.0])]
+    for res, exp in zip(result, expected):
+        assert torch.all(res == exp), f"Expected {exp}, but got {res}"
+
+
+# Test 2: Aggregation with different weights
+def test_aggregation_different_weights():
+    gradients_list = [
+        [torch.tensor([1.0, 1.0]), torch.tensor([1.0, 1.0, 2.0])],
+        [torch.tensor([2.0, 2.0]), torch.tensor([2.0, 2.0, 3.0])],
+        [torch.tensor([3.0, 3.0]), torch.tensor([3.0, 3.0, 4.0])]
+    ]
+    weights = [0.1, 0.2, 0.7]
+
+    result = aggregate_gradients(gradients_list, weights)
+
+    # Expected result: weighted sum of gradients
+    expected = [torch.tensor([2.6, 2.6]), torch.tensor([2.6, 2.6, 3.6])]
+    for res, exp in zip(result, expected):
+        assert torch.all(res == exp), f"Expected {exp}, but got {res}"
+
+
+# Test 3: Check if aggregation does not modify input gradients
+def test_no_modification_of_input_gradients():
+    gradients_list = [
+        [torch.tensor([1.0, 1.0]), torch.tensor([1.0, 1.0])],
+        [torch.tensor([2.0, 2.0]), torch.tensor([2.0, 2.0])],
+        [torch.tensor([3.0, 3.0]), torch.tensor([3.0, 3.0])]
+    ]
+    weights = [1, 1, 1]
+
+    # Make deep copies of the input gradients
+    original_gradients = [[grad.clone() for grad in grads] for grads in gradients_list]
+
+    # Run the aggregation
+    _ = aggregate_gradients(gradients_list, weights)
+
+    # Verify each original gradient is unchanged
+    for original, current in zip(original_gradients, gradients_list):
+        for orig_grad, curr_grad in zip(original, current):
+            assert torch.equal(orig_grad, curr_grad), "Input gradients should remain unchanged"

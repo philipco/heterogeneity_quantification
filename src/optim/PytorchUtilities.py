@@ -74,15 +74,14 @@ def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module)
             model_to_update.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
 
-def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights: List[int], device: str) -> torch.nn.Module:
+def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: str, idx_main_model: int = 0) \
+        -> torch.nn.Module:
     """Aggregates the parameters of multiple PyTorch models by weighted summation. The resulting aggregated model is
     stored in the main model specified by the index `idx_main_model`.
 
     This function updates the parameters of the main model by summing the weighted parameters of all models provided.
     It assumes all models share the same architecture.
 
-    :param int idx_main_model:
-        Index of the main model in the `models` list. This model will be updated with the aggregated weights.
     :param models:
         List of PyTorch models. All models should have the same architecture and parameters.
     :type models: List[torch.nn.Module]
@@ -92,6 +91,8 @@ def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights
     :param device:
         The device on which the computations should be performed (e.g., 'cpu', 'cuda').
     :type device: str
+    :param int idx_main_model:
+        Index of the main model in the `models` list. This model will be updated with the aggregated weights.
 
     :returns:
         The updated main model with aggregated parameters.
@@ -124,3 +125,20 @@ def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights
                 temp_param += weight * model.state_dict()[name].data.clone()
 
             models[idx_main_model].state_dict()[name].copy_(temp_param)
+
+
+def aggregate_gradients(gradients_list, weights):
+    """
+        Aggregates gradients by applying weights.
+
+        gradients_list: list of lists of gradients (each sublist is the gradients from one source)
+        weights: list of weights to apply to each set of gradients
+        """
+    # Initialize aggregated gradients with zeroed tensors of the same shape as the first set of gradients
+    aggregated_gradients = [torch.zeros_like(g) for g in gradients_list[0]]
+
+    for i, gradients in enumerate(gradients_list):
+        for j, grad in enumerate(gradients):
+            aggregated_gradients[j] += weights[i] * grad
+
+    return aggregated_gradients

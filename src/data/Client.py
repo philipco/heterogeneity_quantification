@@ -4,7 +4,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
-from src.optim.Train import train_local_neural_network, log_performance
+from src.optim.Train import train_local_neural_network, write_train_val_test_performance
 
 
 class Client:
@@ -28,10 +28,6 @@ class Client:
 
         self.trained_model = net.to(self.device)
 
-        # Plotting weights of the network at initialization.
-        for name, param in self.trained_model.named_parameters():
-            self.writer.add_histogram(f'{name}.weight', param, 0)
-
         self.optimizer, self.scheduler = None, None
         self.criterion = criterion()
         self.metric = metric
@@ -46,39 +42,29 @@ class Client:
 
     def train(self, nb_epochs: int):
         # Compute train/val/test metrics at initialization
-        log_performance("train", self.trained_model, self.device, self.train_loader, self.criterion,
-                        self.metric, self.ID, self.writer, 0)
-        log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
-                        self.ID, self.writer, 0)
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion,
-                        self.metric, self.ID, self.writer, 0)
+        write_train_val_test_performance(self.trained_model, self.device, self.train_loader,
+                                         self.val_loader, self.test_loader, self.criterion, self.metric,
+                                         self.ID, self.writer, self.last_epoch)
 
-        self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
+        self.trained_model, self.train_loss, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
                                          self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
-                                         self.momentum, self.metric, self.last_epoch, self.writer, self.last_epoch)
+                                         self.momentum, self.metric, self.last_epoch, self.last_epoch)
         self.last_epoch += nb_epochs
 
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion,
-                        self.metric, self.ID, self.writer, self.last_epoch)
+        write_train_val_test_performance(self.trained_model, self.device, self.train_loader,
+                                         self.val_loader, self.test_loader, self.criterion, self.metric,
+                                         self.ID, self.writer, self.last_epoch)
 
-    def load_new_model(self, new_model):
-        with torch.no_grad():  # Disable gradient tracking
-            for name, param in self.trained_model.named_parameters():
-                self.trained_model.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
-
-    def continue_training(self, nb_epochs: int, epoch, single_batch: bool = False):
-        self.trained_model, self.train_loss, self.writer, self.optimizer, self.scheduler \
+    def continue_training(self, nb_of_local_epoch: int, current_epoch, batch_index: int = None):
+        self.trained_model, self.train_loss, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                         self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
-                                         self.momentum,self.metric, self.last_epoch, self.writer, epoch,
-                                         epoch % len(self.train_loader) if single_batch else None)
+                                         self.train_loader, self.val_loader, self.criterion, nb_of_local_epoch,
+                                         self.step_size, self.momentum, self.metric, self.last_epoch, current_epoch,
+                                         batch_index)
 
-        torch.cuda.empty_cache()
-        self.last_epoch += nb_epochs
-
-        log_performance("test", self.trained_model, self.device, self.test_loader, self.criterion, self.metric,
-                        self.ID, self.writer, self.last_epoch)
-
+        # In the case of single batch training, we start iterating on the dataset from 0 and then use a modulo to iterate
+        # thought the complete set.
+        self.last_epoch += nb_of_local_epoch
         torch.cuda.empty_cache()
 
