@@ -42,6 +42,38 @@ def equal(model1, model2):
             return False
     return True
 
+def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module) -> None:
+    """Updates the parameters of `model_to_update` with the parameters of `new_model`.
+    This function replaces each parameter in `model_to_update` with the corresponding parameter from `new_model`.
+
+    :param model_to_update:
+        The model whose parameters will be updated.
+    :type model_to_update: torch.nn.Module
+    :param new_model:
+        The model from which the parameters will be copied. It should have the same architecture and parameters as `model_to_update`.
+    :type new_model: torch.nn.Module
+
+    :returns:
+        None
+
+    **Example usage:**
+
+    .. code-block:: python
+
+        model_to_update = MyModel()
+        new_model = MyModel()
+        load_new_model(model_to_update, new_model)
+
+    **Note:**
+    - The function disables gradient tracking with `torch.no_grad()` to ensure that parameter updates do not interfere
+      with the training process.
+    - The function assumes that `model_to_update` and `new_model` have identical architectures.
+    """
+    with torch.no_grad():
+        for name, param in model_to_update.named_parameters():
+            model_to_update.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
+
+
 def aggregate_models(idx_main_model: int, models: List[torch.nn.Module], weights: List[int], device: str) -> torch.nn.Module:
     """Aggregates the parameters of multiple PyTorch models by weighted summation. The resulting aggregated model is
     stored in the main model specified by the index `idx_main_model`.

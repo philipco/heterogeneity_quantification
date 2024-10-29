@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from typing import List
 
-from src.optim.PytorchUtilities import aggregate_models
+from src.optim.PytorchUtilities import aggregate_models, load_new_model
 
 
 # Dummy model class for testing
@@ -109,3 +109,59 @@ def test_aggregation_on_cuda():
 
     for param in models[main_model_idx].parameters():
         assert torch.all(param == 3.0), "Parameters should be aggregated correctly on CUDA"
+
+
+# Test 1: Test if parameters are correctly copied
+def test_parameters_copied_correctly():
+    model_to_update = DummyModel()
+    new_model = DummyModel()
+
+    # Set specific parameters in the new_model
+    with torch.no_grad():
+        for param in new_model.parameters():
+            param.fill_(2.0)
+
+    load_new_model(model_to_update, new_model)
+
+    # Verify all parameters in model_to_update match those in new_model
+    for param_to_update, param_new in zip(model_to_update.parameters(), new_model.parameters()):
+        assert torch.all(param_to_update == 2.0), "Parameters should match those of new_model"
+
+
+# Test 2: Test if model_to_update parameters change while new_model stays the same being modified.
+def test_new_model_unchanged():
+    model_to_update = DummyModel()
+    new_model = DummyModel()
+
+    # Set specific parameters in both models
+    with torch.no_grad():
+        for param in model_to_update.parameters():
+            param.fill_(1.0)
+        for param in new_model.parameters():
+            param.fill_(2.0)
+
+
+    load_new_model(model_to_update, new_model)
+
+    # Set specific parameters in both models
+    with torch.no_grad():
+        for param in new_model.parameters():
+            param.fill_(3.0)
+
+
+    # Verify parameters of new_model remain unchanged
+    for param in new_model.parameters():
+        assert torch.all(param == 3.0), "Parameters of new_model should be equal to 3"
+
+    # Verify parameters of new_model remain unchanged
+    for param in model_to_update.parameters():
+        assert torch.all(param == 2.0), "Parameters of new_model should remain unchanged"
+
+
+# Test 3: Test error when models have different architectures
+def test_error_different_architectures():
+    model_to_update = DummyModel()
+    different_model = nn.Linear(5, 2)  # Different architecture
+
+    with pytest.raises(KeyError):
+        load_new_model(model_to_update, different_model)
