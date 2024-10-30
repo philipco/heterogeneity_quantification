@@ -16,7 +16,7 @@ from src.data.Data import Data,  DataCentralized
 from src.data.Network import Network
 from src.optim.PytorchUtilities import aggregate_models
 from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
-from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors, RanksumsTest
+from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors, Mannwhitneyu, RanksumsTest
 from src.quantif.Metrics import Metrics
 
 
@@ -142,10 +142,9 @@ def compute_distance_based_on_quantile_pvalue(criterion, dataloader, local_net, 
 
     test = ProportionTest(beta0, delta=0, loss=criterion)
 
-    avg_model = deepcopy(local_net)
     # weights = [n_loc / (n_loc + n_rem), n_rem / (n_loc + n_rem)]
     weights = [lbda, 1 - lbda]
-    aggregate_models(0, [avg_model, remote_net], weights,
+    avg_model = aggregate_models([local_net, remote_net], weights,
                                  next(local_net.parameters()).device)
 
     test.evaluate_test(q0, avg_model, dataloader)
@@ -188,21 +187,30 @@ def function_to_compute_cond_var_pvalue(network: Network, i: int, j: int):
     return 0, d_heter
 
 
-def acceptance_pvalue(network: Network, i: int, j: int, lbda=0):
-    beta0 = 0.8
-    local_net, remote_net = network.clients[i].trained_model, network.clients[j].trained_model
-    dataloader = network.clients[i].val_loader
-    criterion = network.criterion(reduction='none')
-    atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
-    q0 = np.quantile(atomic_errors.cpu(), beta0, method="higher")
-    test = ProportionTest(beta0, delta=0, loss=criterion)
-    avg_model = deepcopy(local_net)
+def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.0):
+    test = Mannwhitneyu(loss=network.criterion(reduction='none'))
     weights = [lbda, 1 - lbda]
-    aggregate_models(0, [avg_model, remote_net], weights,
-                     next(local_net.parameters()).device)
+    avg_model = aggregate_models([network.clients[i].trained_model, network.clients[j].trained_model], weights,
+                     next(network.clients[i].trained_model.parameters()).device)
+    p = test.evaluate_test(network.clients[i].trained_model, avg_model,
+                           network.clients[i].val_loader, alternative="less")
+    return p
 
-    test.evaluate_test(q0, avg_model, dataloader)
-    return test.pvalue
+# def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.5):
+#     beta0 = 0.8
+#     local_net, remote_net = network.clients[i].trained_model, network.clients[j].trained_model
+#     dataloader = network.clients[i].val_loader
+#     criterion = network.criterion(reduction='none')
+#     atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
+#     q0 = np.quantile(atomic_errors.cpu(), beta0, method="higher")
+#     test = ProportionTest(beta0, delta=0, loss=criterion)
+#     avg_model = deepcopy(local_net)
+#     weights = [lbda, 1 - lbda]
+#     aggregate_models(0, [avg_model, remote_net], weights,
+#                      next(local_net.parameters()).device)
+#
+#     test.evaluate_test(q0, avg_model, dataloader)
+#     return test.pvalue
 
 def rejection_pvalue(network: Network, i: int, j: int):
     test = RanksumsTest(loss=network.criterion(reduction='none'))

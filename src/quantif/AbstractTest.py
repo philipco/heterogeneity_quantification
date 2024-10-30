@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-from scipy.stats import norm, ranksums
+from scipy.stats import norm, ranksums, mannwhitneyu
 
 
 class StatisticalTest(ABC):
@@ -38,6 +38,26 @@ class RanksumsTest(StatisticalTest):
             local_atomic_errors = compute_atomic_errors(model, local_dataloader, self.loss)
             remote_atomic_errors = compute_atomic_errors(model, remote_dataloader, self.loss)
         self.pvalue = ranksums(local_atomic_errors, remote_atomic_errors).pvalue
+        return self.pvalue
+
+    def print(self):
+        pass
+
+
+class Mannwhitneyu(StatisticalTest):
+
+    def __init__(self, loss):
+        self.loss = loss # Require to have already instantiate the class to make it compatible with loss that are simple function.
+        self.pvalue = None
+
+    def evaluate_test(self, local_model, remote_model, local_dataloader, alternative="two-sided"):
+        try:
+            local_atomic_errors = compute_atomic_errors(local_model, local_dataloader, self.loss).cpu()
+            remote_atomic_errors = compute_atomic_errors(remote_model, local_dataloader, self.loss).cpu()
+        except AttributeError:
+            local_atomic_errors = compute_atomic_errors(local_model, local_dataloader, self.loss)
+            remote_atomic_errors = compute_atomic_errors(remote_model, local_dataloader, self.loss)
+        self.pvalue = mannwhitneyu(local_atomic_errors, remote_atomic_errors, alternative=alternative).pvalue
         return self.pvalue
 
     def print(self):
