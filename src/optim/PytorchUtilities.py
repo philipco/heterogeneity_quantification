@@ -1,4 +1,5 @@
 import copy
+from copy import deepcopy
 from typing import List
 
 import numpy as np
@@ -42,6 +43,14 @@ def equal(model1, model2):
             return False
     return True
 
+
+def scalar_multiplication(model, scalar):
+    new_model = deepcopy(model)
+    for name, param in model.named_parameters():
+        new_model.state_dict()[name].copy_(scalar * param)
+    return new_model
+
+
 def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module) -> None:
     """Updates the parameters of `model_to_update` with the parameters of `new_model`.
     This function replaces each parameter in `model_to_update` with the corresponding parameter from `new_model`.
@@ -74,10 +83,9 @@ def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module)
             model_to_update.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
 
-def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: str, idx_main_model: int = 0) \
+def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: str) \
         -> torch.nn.Module:
-    """Aggregates the parameters of multiple PyTorch models by weighted summation. The resulting aggregated model is
-    stored in the main model specified by the index `idx_main_model`.
+    """Aggregates the parameters of multiple PyTorch models by weighted summation and return it.
 
     This function updates the parameters of the main model by summing the weighted parameters of all models provided.
     It assumes all models share the same architecture.
@@ -91,8 +99,6 @@ def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: 
     :param device:
         The device on which the computations should be performed (e.g., 'cpu', 'cuda').
     :type device: str
-    :param int idx_main_model:
-        Index of the main model in the `models` list. This model will be updated with the aggregated weights.
 
     :returns:
         The updated main model with aggregated parameters.
@@ -104,10 +110,9 @@ def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: 
 
         models = [model1, model2, model3]
         weights = [0.2, 0.3, 0.5]
-        idx_main_model = 0
         device = 'cuda'
 
-        aggregated_model = aggregate_models(idx_main_model, models, weights, device)
+        aggregated_model = aggregate_models(models, weights, device)
 
     **Note:**
     - The function disables gradient tracking with `torch.no_grad()` to ensure that the updates to the parameters do not
@@ -116,15 +121,17 @@ def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: 
 """
 
     # Assume models is a list of PyTorch models of the same architecture
-    # The main model is the running sum
+    # model_copy save the running sum
     # Loop through the other models and add their parameters to the running model
+    model_copy = copy.deepcopy(models[0])
     with torch.no_grad():  # Disable gradient tracking
-        for name, param in models[idx_main_model].named_parameters():
+        for name, param in model_copy.named_parameters():
             temp_param = torch.zeros(param.shape).to(device)
             for weight, model in zip(weights, models):
                 temp_param += weight * model.state_dict()[name].data.clone()
 
-            models[idx_main_model].state_dict()[name].copy_(temp_param)
+            model_copy.state_dict()[name].copy_(temp_param)
+    return model_copy
 
 
 def aggregate_gradients(gradients_list, weights):

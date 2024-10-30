@@ -33,9 +33,9 @@ def test_aggregation_equal_weights():
             for param in model.parameters():
                 param.fill_(1.0)
 
-    aggregate_models(main_model_idx, models, weights, device)
+    new_model = aggregate_models(models, weights, device)
 
-    for param in models[main_model_idx].parameters():
+    for param in new_model.parameters():
         assert torch.all(param == 3.0), "Parameters should be sum of the 3 models with equal weights"
 
 
@@ -56,10 +56,10 @@ def test_aggregation_different_weights():
             for param in model.parameters():
                 param.fill_(1.0)
 
-    aggregate_models(main_model_idx, models, weights, device)
+    new_model = aggregate_models(models, weights, device)
 
     # With weights 2, 3, and 1, the total sum should be 6
-    for param in models[main_model_idx].parameters():
+    for param in new_model.parameters():
         assert torch.all(param == 6.0), "Parameters should be weighted sum (2+3+1) of models"
 
 
@@ -75,12 +75,15 @@ def test_no_change_to_other_models():
     weights = [1, 1, 1]
 
     # Save original parameters for non-main models
+    model1_params_before = [param.clone() for param in model1.parameters()]
     model2_params_before = [param.clone() for param in model2.parameters()]
     model3_params_before = [param.clone() for param in model3.parameters()]
 
-    aggregate_models(main_model_idx, models, weights, device)
+    new_model = aggregate_models(models, weights, device)
 
-    # Ensure model2 and model3 parameters are unchanged
+    # Ensure models parameters are unchanged
+    for param_before, param_after in zip(model1_params_before, model1.parameters()):
+        assert torch.equal(param_before, param_after), "Parameters of model1 should remain unchanged"
     for param_before, param_after in zip(model2_params_before, model2.parameters()):
         assert torch.equal(param_before, param_after), "Parameters of model2 should remain unchanged"
     for param_before, param_after in zip(model3_params_before, model3.parameters()):
@@ -105,9 +108,9 @@ def test_aggregation_on_cuda():
             for param in model.parameters():
                 param.fill_(1.0)
 
-    aggregate_models(main_model_idx, models, weights, device)
+    new_model = aggregate_models(models, weights, device)
 
-    for param in models[main_model_idx].parameters():
+    for param in new_model.parameters():
         assert torch.all(param == 3.0), "Parameters should be aggregated correctly on CUDA"
 
 

@@ -1,10 +1,17 @@
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils.Utilities import set_seed
+
+
+def write_grad(trained_model, writer, last_epoch):
+    # We plot the computed gradient on each client before their aggregation.
+    for name, param in trained_model.named_parameters():
+        if param.grad is not None:
+            writer.add_histogram(f'{name}.grad', param.grad, last_epoch)
+
 
 def write_train_val_test_performance(net, device, train_loader, val_loader, test_loader, criterion, metric, client_ID,
                                      writer, last_epoch):
@@ -28,7 +35,7 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
                                nb_local_epochs, lr, momentum, metric, last_epoch: int, epoch,
-                               batch_index: int = None):
+                               single_batch: int = None):
     """
     Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
 
@@ -124,10 +131,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     - This function uses the `torch.no_grad()` context to disable gradient tracking when logging model parameters.
     - It initializes the optimizer and scheduler if they are not provided.
     """
-    # When doing a single batch descent between each communication, we must have no more than one local epoch
-    if batch_index is not None:
-        nb_local_epochs = 1
-
     # The optimizer should be initialized once at the beginning of the training.
     if optimizer is None:
         optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
@@ -139,7 +142,11 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     print(f"=== Training the neural network on {client_ID}. ===")
     set_seed(last_epoch)
     for local_epoch in tqdm(range(nb_local_epochs)):
-        batch_training(train_loader, device, net, criterion, optimizer, scheduler, batch_index)
+        if single_batch:
+            idx = (last_epoch + local_epoch) % len(train_loader)
+            batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
+        else:
+            batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
     return net, train_loss, optimizer, scheduler
 
 
@@ -206,7 +213,8 @@ def update_model(net, aggregated_gradients, optimizer):
     with torch.no_grad():
         for param, grad in zip(net.parameters(), aggregated_gradients):
             # Copy the aggregated gradient to param.grad
-            param.grad = grad.clone()
+            if param.requires_grad:
+                param.grad = grad.clone()
 
     # # Perform the update step
     optimizer.step()
