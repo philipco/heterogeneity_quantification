@@ -133,6 +133,15 @@ def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: 
             model_copy.state_dict()[name].copy_(temp_param)
     return model_copy
 
+def fednova_aggregation(old_model, new_models, tau_i, weights, device):
+    tau_eff = np.sum([w * tau for w, tau in zip(weights, tau_i)])
+
+    aggreg_new = aggregate_models(new_models, [tau_eff * w / tau for w, tau in zip(weights, tau_i)], device)
+    aggreg_old = aggregate_models([old_model for m in new_models],
+                                  [tau_eff * w / tau for w, tau in zip(weights, tau_i)], device)
+    final_aggreg = aggregate_models([old_model, aggreg_new, aggreg_old],[1,1,-1], device)
+    return final_aggreg
+
 
 def aggregate_gradients(gradients_list, weights):
     """

@@ -20,7 +20,7 @@ class Client:
 
         # Writer for TensorBoard
         self.writer = SummaryWriter(
-            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{self.ID}')
+            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/test/{self.ID}')
 
         self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
         self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
@@ -49,19 +49,19 @@ class Client:
         self.trained_model, self.train_loss, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
                                          self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
-                                         self.momentum, self.metric, self.last_epoch, self.last_epoch)
+                                         self.momentum, self.metric, 0, 0)
         self.last_epoch += nb_epochs
 
         write_train_val_test_performance(self.trained_model, self.device, self.train_loader,
                                          self.val_loader, self.test_loader, self.criterion, self.metric,
                                          self.ID, self.writer, self.last_epoch)
 
-    def continue_training(self, nb_of_local_epoch: int, current_epoch, batch_index: int = None):
+    def continue_training(self, nb_of_local_epoch: int, current_epoch: int, single_batch: bool = False):
         self.trained_model, self.train_loss, self.optimizer, self.scheduler \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
                                          self.train_loader, self.val_loader, self.criterion, nb_of_local_epoch,
                                          self.step_size, self.momentum, self.metric, self.last_epoch, current_epoch,
-                                         batch_index)
+                                         single_batch)
 
         # In the case of single batch training, we start iterating on the dataset from 0 and then use a modulo to iterate
         # thought the complete set.
