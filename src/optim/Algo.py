@@ -1,11 +1,9 @@
 import copy
-import math
 from copy import deepcopy
 from random import sample
 
 import numpy as np
 from sklearn.preprocessing import normalize
-from torch.utils.tensorboard import SummaryWriter
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
@@ -62,13 +60,10 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
 
 
 def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1):
-    writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/test/{network.dataset_name}_{network.algo_name}_'
-                f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
-    loss_accuracy_central_server(network, weights, writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
 
     # Averaging models
     new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -96,18 +91,15 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
-        loss_accuracy_central_server(network, weights, writer, client.last_epoch)
+        loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
 
 
 
 def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1):
-    writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/test/{network.dataset_name}_{network.algo_name}_'
-                f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
-    loss_accuracy_central_server(network, weights, writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
 
     # Number of local epoch * number of samples / batch size
     tau_i = [np.floor(nb_of_local_epoch * len(client.train_loader.dataset)
@@ -141,20 +133,16 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
-        loss_accuracy_central_server(network, weights, writer, client.last_epoch)
+        loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
 
 
-def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 5):
+def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50):
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
-    writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/test/{network.dataset_name}_{network.algo_name}_'
-                f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
-
-    loss_accuracy_central_server(network, fed_weights, writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
 
     acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
                               "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
@@ -170,6 +158,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     plot_pvalues(acceptance_test, f"{0}")
     plot_pvalues(rejection_test, f"{0}")
 
+    nb_collaborations = [0 for client in network.clients]
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"===============\tEpoch {synchronization_idx}\t===============")
@@ -184,6 +173,11 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         print(f"At epoch {synchronization_idx}, weights are: \n {weights}.")
 
         for k in range(inner_iterations):
+
+            nb_collaborations = [nb_collaborations[i] + sum(weights[i]) for i in range(network.nb_clients)]
+            for (client, c) in zip(network.clients, nb_collaborations):
+                client.writer.add_scalar('nb_collaborations', c, client.last_epoch)
+
             gradients = []
 
             # Computing gradients on each clients.
@@ -211,19 +205,20 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                                  client.val_loader, client.test_loader, client.criterion, client.metric,
                                                  client.ID, client.writer, client.last_epoch)
-
+        for client in network.clients:
+            client.scheduler.step()
         rejection_test.reinitialize()
         compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
 
-        loss_accuracy_central_server(network, fed_weights, writer, client.last_epoch)
+        loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
 
-        if synchronization_idx % 5 == 0:
+        if synchronization_idx % 2 == 0:
             ### We compute the distance between clients.
             acceptance_test.reinitialize()
             compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
 
-            rejection_test.reinitialize()
-            compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+            # rejection_test.reinitialize()
+            # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
 
             plot_pvalues(acceptance_test, f"{synchronization_idx}")
             plot_pvalues(rejection_test, f"{synchronization_idx}")
@@ -285,14 +280,11 @@ def gossip_training(network: Network, nb_of_communication: int = 501):
 
 
 def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 51):
-    writer = SummaryWriter(
-        log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{network.dataset_name}_{network.algo_name}_'
-                f'central_server')
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, weights, writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
 
     acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
                             "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
@@ -326,7 +318,7 @@ def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_com
         for client in network.clients:
             client.continue_training(nb_of_local_epoch, epoch)
 
-        loss_accuracy_central_server(network, weights, writer, epoch * nb_of_local_epoch +1)
+        loss_accuracy_central_server(network, weights, network.writer, epoch * nb_of_local_epoch +1)
 
         ### We compute the distance between clients (required at each epoch to decide collaboration or not).
         acceptance_test.reinitialize()

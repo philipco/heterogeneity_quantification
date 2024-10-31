@@ -122,7 +122,7 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
         metric = accuracy_function
         last_epoch = 0
 
-        trained_model, train_loss, writer, optimizer, scheduler = train_local_neural_network(
+        trained_model, train_loss, writer = train_local_neural_network(
             net, optimizer, scheduler, device, 'client_1', train_loader, val_loader,
             criterion, nb_epochs, lr, momentum, metric, last_epoch, epoch=0
         )
@@ -132,10 +132,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     - It initializes the optimizer and scheduler if they are not provided.
     """
     # The optimizer should be initialized once at the beginning of the training.
-    if optimizer is None:
-        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-        scheduler = StepLR(optimizer, step_size=50, gamma=0.5)
-
     train_loss = []
 
     # Training
@@ -147,7 +143,8 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
         else:
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
-    return net, train_loss, optimizer, scheduler
+    scheduler.step()
+    return train_loss
 
 
 def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
@@ -174,8 +171,6 @@ def batch_training(train_loader, device, net, criterion, optimizer, scheduler, s
     else:
         for x_batch, y_batch in train_loader:
             batch_update(x_batch, y_batch, device, net, criterion, optimizer)
-
-    # scheduler.step()
 
 def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
     net.train()
@@ -216,7 +211,7 @@ def update_model(net, aggregated_gradients, optimizer):
             if param.requires_grad:
                 param.grad = grad.clone()
 
-    # # Perform the update step
+    # Perform the update step
     optimizer.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):

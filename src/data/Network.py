@@ -1,18 +1,21 @@
 import copy
 
+from torch.utils.tensorboard import SummaryWriter
+
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE
+from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
 
 
 class Network:
 
-    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_initial_epochs, dataset_name, algo_name,
-                 seed=0):
+    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_initial_epochs, dataset_name,
+                 algo_name, split_type, seed=0):
         super().__init__()
         set_seed(seed)
         self.dataset_name = dataset_name
+        self.split_type = split_type
         self.algo_name = algo_name
         self.nb_clients = len(Y_train)
         self.nb_initial_epochs = nb_initial_epochs
@@ -24,15 +27,21 @@ class Network:
         self.clients = []
         net = MODELS[dataset_name]()
         for i in range(self.nb_clients):
-            self.clients.append(Client(f"{dataset_name}_{algo_name}_{i}", X_train[i], X_val[i], X_test[i],
-                                       Y_train[i], Y_val[i], Y_test[i],
-                                       copy.deepcopy(net), CRITERION[dataset_name],
-                                       METRIC[dataset_name], STEP_SIZE[dataset_name], MOMENTUM[dataset_name],
-                                       BATCH_SIZE[dataset_name]))
+            ID = f"{dataset_name}_{algo_name}_{i}" if split_type is None \
+                else f"{dataset_name}_{split_type}_{algo_name}_{i}"
+            self.clients.append(Client(ID, f"{dataset_name}", X_train[i],
+                                       X_val[i], X_test[i],  Y_train[i], Y_val[i], Y_test[i], copy.deepcopy(net),
+                                       CRITERION[dataset_name], METRIC[dataset_name], STEP_SIZE[dataset_name],
+                                       MOMENTUM[dataset_name], BATCH_SIZE[dataset_name], SCHEDULER_PARAMS[dataset_name]))
 
         # Training all clients
         for client in self.clients:
             client.train(self.nb_initial_epochs)
+
+        ID = f"{dataset_name}_{algo_name}_central_server" if split_type is None \
+            else f"{dataset_name}_{split_type}_{algo_name}_central_server"
+        self.writer = SummaryWriter(
+            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{dataset_name}/{ID}')
 
     @classmethod
     def loader(cls, dataset_name):

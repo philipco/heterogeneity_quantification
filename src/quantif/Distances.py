@@ -196,7 +196,7 @@ def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.0):
                            network.clients[i].val_loader, alternative="less")
     return p
 
-# def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.5):
+# def acceptance_pvalue(network: Network, i: int, j: int, lbda=0):
 #     beta0 = 0.8
 #     local_net, remote_net = network.clients[i].trained_model, network.clients[j].trained_model
 #     dataloader = network.clients[i].val_loader
@@ -204,9 +204,8 @@ def acceptance_pvalue(network: Network, i: int, j: int, lbda=0.0):
 #     atomic_errors = compute_atomic_errors(local_net, dataloader, criterion)
 #     q0 = np.quantile(atomic_errors.cpu(), beta0, method="higher")
 #     test = ProportionTest(beta0, delta=0, loss=criterion)
-#     avg_model = deepcopy(local_net)
 #     weights = [lbda, 1 - lbda]
-#     aggregate_models(0, [avg_model, remote_net], weights,
+#     avg_model = aggregate_models([local_net, remote_net], weights,
 #                      next(local_net.parameters()).device)
 #
 #     test.evaluate_test(q0, avg_model, dataloader)

@@ -1,6 +1,7 @@
 import torch
 from sklearn.model_selection import train_test_split
-from torch import nn
+from torch import nn, optim
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -9,8 +10,8 @@ from src.optim.Train import train_local_neural_network, write_train_val_test_per
 
 class Client:
 
-    def __init__(self, ID, X_train, X_val, X_test, Y_train, Y_val, Y_test, net: nn.Module,
-                 criterion, metric, step_size: int, momentum: int, batch_size: int):
+    def __init__(self, ID, tensorboard_dir: str, X_train, X_val, X_test, Y_train, Y_val, Y_test, net: nn.Module,
+                 criterion, metric, step_size: int, momentum: int, batch_size: int, scheduler_params: (int, int)):
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,7 +21,7 @@ class Client:
 
         # Writer for TensorBoard
         self.writer = SummaryWriter(
-            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/test/{self.ID}')
+            log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{tensorboard_dir}/{self.ID}')
 
         self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
         self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
@@ -28,7 +29,8 @@ class Client:
 
         self.trained_model = net.to(self.device)
 
-        self.optimizer, self.scheduler = None, None
+        self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum)
+        self.scheduler = StepLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
         self.criterion = criterion()
         self.metric = metric
         self.step_size, self.momentum = step_size, momentum
@@ -46,7 +48,7 @@ class Client:
                                          self.val_loader, self.test_loader, self.criterion, self.metric,
                                          self.ID, self.writer, self.last_epoch)
 
-        self.trained_model, self.train_loss, self.optimizer, self.scheduler \
+        self.train_loss \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
                                          self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
                                          self.momentum, self.metric, 0, 0)
@@ -57,7 +59,7 @@ class Client:
                                          self.ID, self.writer, self.last_epoch)
 
     def continue_training(self, nb_of_local_epoch: int, current_epoch: int, single_batch: bool = False):
-        self.trained_model, self.train_loss, self.optimizer, self.scheduler \
+        self.train_loss \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
                                          self.train_loader, self.val_loader, self.criterion, nb_of_local_epoch,
                                          self.step_size, self.momentum, self.metric, self.last_epoch, current_epoch,
