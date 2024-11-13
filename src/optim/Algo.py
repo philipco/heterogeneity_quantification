@@ -172,6 +172,8 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         weights = weights @ weights.T
         print(f"At epoch {synchronization_idx}, weights are: \n {weights}.")
 
+        inner_iterations = max([len(c.train_loader) for c in network.clients])
+        print(inner_iterations)
         for k in range(inner_iterations):
 
             nb_collaborations = [nb_collaborations[i] + sum(weights[i]) for i in range(network.nb_clients)]
@@ -200,11 +202,11 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 aggregated_gradients = aggregate_gradients(gradients, weights[i])
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
 
-            for client in network.clients:
-                client.last_epoch += 1
-                write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                                 client.val_loader, client.test_loader, client.criterion, client.metric,
-                                                 client.ID, client.writer, client.last_epoch)
+        for client in network.clients:
+            client.last_epoch += 1
+            write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
+                                             client.val_loader, client.test_loader, client.criterion, client.metric,
+                                             client.ID, client.writer, client.last_epoch)
         for client in network.clients:
             client.scheduler.step()
         rejection_test.reinitialize()

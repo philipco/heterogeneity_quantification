@@ -46,7 +46,7 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-NB_CLIENTS = {"mnist": 6, "fashion_mnist": 10, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+NB_CLIENTS = {"mnist": 6, "fashion_mnist": 10, "cifar10": 6, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 2}
 
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}
