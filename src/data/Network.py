@@ -1,7 +1,8 @@
 import copy
 
 from src.data.Client import Client
-from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS
+from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS, \
+    WEIGHT_DECAY
 from src.utils.LoggingWriter import LoggingWriter
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
@@ -32,7 +33,8 @@ class Network:
             self.clients.append(Client(ID, f"{dataset_name}", X_train[i],
                                        X_val[i], X_test[i],  Y_train[i], Y_val[i], Y_test[i], copy.deepcopy(net),
                                        CRITERION[dataset_name], METRIC[dataset_name], STEP_SIZE[dataset_name],
-                                       MOMENTUM[dataset_name], BATCH_SIZE[dataset_name], SCHEDULER_PARAMS[dataset_name]))
+                                       MOMENTUM[dataset_name], WEIGHT_DECAY[dataset_name], BATCH_SIZE[dataset_name],
+                                       SCHEDULER_PARAMS[dataset_name]))
 
         # Training all clients
         for client in self.clients:

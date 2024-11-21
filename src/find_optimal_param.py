@@ -4,6 +4,7 @@ import optuna
 from functools import partial
 import argparse
 
+from sympy.physics.units import momentum
 
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import all_for_all_algo
@@ -17,10 +18,11 @@ def objective(trial, network):
     weight_decay = trial.suggest_categorical("weight_decay", [0, 10**-4, 10**-3, 10**-2, 10**-1, 1])
     # scheduler_steps = trial.suggest_int("scheduler_steps", 1, 15)
     scheduler_gamma = trial.suggest_float("scheduler_gamma", 0.5, 1)
-    if network.dataset_name in ["heart_disease", "tcga_brca", "mnist"]:
+    if network.dataset_name in ["heart_disease", "tcga_brca", "mnist", "liquid_asset"]:
         momentum = 0
     else:
-        momentum = trial.suggest_categorical("momentum", [0, 0.9, 0.95, 0.99])
+        momentum = 0.95
+        # momentum = trial.suggest_categorical("momentum", [0, 0.9, 0.95, 0.99])
     net = MODELS[network.dataset_name]()
     for client in network.clients:
         client.reset_hyperparameters(net, step_size, momentum, weight_decay, 15, scheduler_gamma)

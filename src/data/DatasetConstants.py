@@ -65,15 +65,22 @@ TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
                    "liquid_asset": None}
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
+# Heart disease
+# 0.7575019001960754 and parameters: {'step_size': 0.0030825079555064244, 'weight_decay': 0.01, 'scheduler_gamma': 0.7748947717692919}. Best is trial 6 with value: 0.7575019001960754.
+# --- nb_of_communication: 25 - inner_epochs 50 ---
+# TCGA BRCA
+# {'step_size': 0.09905335662224482, 'weight_decay': 0.0001, 'scheduler_gamma': 0.99720911830093}. Best is trial 14 with value: 0.7716109471962976.
+# --- nb_of_communication: 25 - inner_epochs 50 ---
 
-
-STEP_SIZE = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .01, "heart_disease": 0.01, "ixi": 0.001,
+STEP_SIZE = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .01, "heart_disease": 0.0030825079555064244, "ixi": 0.001,
+             "liquid_asset": 0.1, "synth": 0.1}
+WEIGHT_DECAY = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .01, "heart_disease": 0.01, "ixi": 0.001,
              "liquid_asset": 0.1, "synth": 0.1}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
               "synth": 64}
 MOMENTUM = {"mnist": 0., "cifar10": 0., "tcga_brca": 0.95, "heart_disease": 0, "ixi": 0.95, "liquid_asset": 0.,
             "synth": 0}
-SCHEDULER_PARAMS = {"mnist": (10, 2/3), "cifar10": (10, 2/3), "tcga_brca": (5, 1/3), "heart_disease": (100, 1),
+SCHEDULER_PARAMS = {"mnist": (10, 2/3), "cifar10": (10, 2/3), "tcga_brca": (5, 1/3), "heart_disease": (15, 0.7748947717692919),
                     "ixi": (10, 2/3), "liquid_asset": (10, 2/3), "synth": (5, 2/3)}
 
 

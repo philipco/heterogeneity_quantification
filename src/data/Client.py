@@ -11,7 +11,8 @@ from src.utils.LoggingWriter import LoggingWriter
 class Client:
 
     def __init__(self, ID, tensorboard_dir: str, X_train, X_val, X_test, Y_train, Y_val, Y_test, net: nn.Module,
-                 criterion, metric, step_size: int, momentum: int, batch_size: int, scheduler_params: (int, int)):
+                 criterion, metric, step_size: int, momentum: int, weight_decay: int, batch_size: int,
+                 scheduler_params: (int, int)):
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,9 +30,9 @@ class Client:
 
         self.trained_model = net.to(self.device)
 
-        self.step_size, self.momentum = step_size, momentum
-        self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum)
-        self.scheduler = ConstantLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
+        self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
+        self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+        self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_params[0], factor=scheduler_params[1])
         self.criterion = criterion()
         self.metric = metric
         self.last_epoch = 0
