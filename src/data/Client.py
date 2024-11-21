@@ -1,11 +1,11 @@
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import ConstantLR
 from torch.utils.data import DataLoader, TensorDataset
-from torch.utils.tensorboard import SummaryWriter
 
 from src.optim.Train import train_local_neural_network, write_train_val_test_performance
+from src.utils.LoggingWriter import LoggingWriter
 
 
 class Client:
@@ -20,7 +20,7 @@ class Client:
         self.ID = ID
 
         # Writer for TensorBoard
-        self.writer = SummaryWriter(
+        self.writer = LoggingWriter(
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{tensorboard_dir}/{self.ID}')
 
         self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
@@ -29,13 +29,20 @@ class Client:
 
         self.trained_model = net.to(self.device)
 
+        self.step_size, self.momentum = step_size, momentum
         self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum)
-        self.scheduler = StepLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
+        self.scheduler = ConstantLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
         self.criterion = criterion()
         self.metric = metric
-        self.step_size, self.momentum = step_size, momentum
         self.last_epoch = 0
         self.writer.close()
+
+    def reset_hyperparameters(self, net, step_size, momentum, weight_decay, scheduler_steps, scheduler_gamma):
+        self.last_epoch = 0
+        self.trained_model = net.to(self.device)
+        self.step_size, self.momentum = step_size, momentum
+        self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+        self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_steps, factor=scheduler_gamma)
 
     def resplit_train_test(self):
         self.X_train, self.X_test, self.Y_train, self.Y_test \

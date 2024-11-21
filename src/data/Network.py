@@ -1,9 +1,8 @@
 import copy
 
-from torch.utils.tensorboard import SummaryWriter
-
 from src.data.Client import Client
 from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS
+from src.utils.LoggingWriter import LoggingWriter
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
 
@@ -13,6 +12,7 @@ class Network:
     def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_initial_epochs, dataset_name,
                  algo_name, split_type, seed=0):
         super().__init__()
+        self.trial = None
         set_seed(seed)
         self.dataset_name = dataset_name
         self.split_type = split_type
@@ -40,7 +40,7 @@ class Network:
 
         ID = f"{dataset_name}_{algo_name}_central_server" if split_type is None \
             else f"{dataset_name}_{split_type}_{algo_name}_central_server"
-        self.writer = SummaryWriter(
+        self.writer = LoggingWriter(
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{dataset_name}/{ID}')
 
     @classmethod

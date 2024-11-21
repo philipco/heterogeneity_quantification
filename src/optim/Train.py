@@ -1,6 +1,4 @@
 import torch
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from tqdm import tqdm
 
 from src.utils.Utilities import set_seed
@@ -131,7 +129,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     - This function uses the `torch.no_grad()` context to disable gradient tracking when logging model parameters.
     - It initializes the optimizer and scheduler if they are not provided.
     """
-    # The optimizer should be initialized once at the beginning of the training.
     train_loss = []
 
     # Training
