@@ -51,7 +51,7 @@ if __name__ == '__main__':
     network = get_network(dataset_name, algo_name="all_for_all", nb_initial_epochs=0)
 
     # Create a study object and optimize the objective function.
-    study = optuna.create_study(direction="maximize", pruner=optuna.pruners.MedianPruner())
+    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.MedianPruner())
 
     study.optimize(partial(objective, network=network), n_trials=NB_TRIALS)
 
