@@ -46,7 +46,8 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-NB_CLIENTS = {"mnist": 6, "fashion_mnist": 10, "cifar10": 6, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+### Cifar10 with 6 clients, does not converge witht this hyperparameters.
+NB_CLIENTS = {"mnist": 6, "fashion_mnist": 12, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 2}
 
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}
@@ -71,17 +72,26 @@ TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
 # TCGA BRCA
 # {'step_size': 0.09905335662224482, 'weight_decay': 0.0001, 'scheduler_gamma': 0.99720911830093}. Best is trial 14 with value: 0.7716109471962976.
 # --- nb_of_communication: 25 - inner_epochs 50 ---
+# Mnist
+# [I 2024-11-21 23:37:40,644] Trial 21 finished with value: 0.979378342628479 and parameters:
+# {'step_size': 0.05705203797148252, 'weight_decay': 0.0001, 'scheduler_gamma': 0.9942542948867448}.
+# Best is trial 21 with value: 0.979378342628479.
+# IXI
+# [I 2024-11-21 18:55:13,867] Trial 16 finished with value: 0.9778929096474989 and parameters:
+# {'step_size': 0.010969885923262902, 'weight_decay': 0.0001, 'scheduler_gamma': 0.7553949094041645}.
+# Best is trial 16 with value: 0.9778929096474989.
 
-STEP_SIZE = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .09905335662224482, "heart_disease": 0.0030825079555064244, "ixi": 0.001,
-             "liquid_asset": 0.1, "synth": 0.1}
-WEIGHT_DECAY = {"mnist": 0.01, "cifar10": 0.001, "tcga_brca": .0001, "heart_disease": 0.01, "ixi": 0.001,
-             "liquid_asset": 0.1, "synth": 0.1}
+
+STEP_SIZE = {"mnist": 0.05, "cifar10": 0.001, "tcga_brca": .09, "heart_disease": 0.0030825079555064244,
+             "ixi": 0.01, "liquid_asset": 0.1, "synth": 0.1}
+WEIGHT_DECAY = {"mnist": 0.0001, "cifar10": 0.001, "tcga_brca": .0001, "heart_disease": 0.01,
+                "ixi": 0.0001, "liquid_asset": 0.1, "synth": 0.1}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
               "synth": 64}
-MOMENTUM = {"mnist": 0., "cifar10": 0.9, "tcga_brca": 0.95, "heart_disease": 0, "ixi": 0.95, "liquid_asset": 0.,
-            "synth": 0}
-SCHEDULER_PARAMS = {"mnist": (10, 2/3), "cifar10": (10, 2/3), "tcga_brca": (15, 0.99720911830093), "heart_disease": (15, 0.7748947717692919),
-                    "ixi": (10, 2/3), "liquid_asset": (10, 2/3), "synth": (5, 2/3)}
+MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
+            "liquid_asset": 0., "synth": 0}
+SCHEDULER_PARAMS = {"mnist": (15, 0.99), "cifar10": (15, 1), "tcga_brca": (75, 0.9), "heart_disease": (15, 0.7748947717692919),
+                    "ixi": (15, 0.75), "liquid_asset": (15, 2/3), "synth": (15, 2/3)}
 
 
 

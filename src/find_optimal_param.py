@@ -1,5 +1,5 @@
 """Created by Constantin Philippenko, 29th September 2022."""
-
+import numpy as np
 import optuna
 from functools import partial
 import argparse
@@ -22,13 +22,15 @@ def objective(trial, network):
         momentum = 0
     else:
         momentum = 0.95
+    scheduler_step = 50 if network.dataset_name in ["tcga_brca"] else 15
         # momentum = trial.suggest_categorical("momentum", [0, 0.9, 0.95, 0.99])
     net = MODELS[network.dataset_name]()
     for client in network.clients:
-        client.reset_hyperparameters(net, step_size, momentum, weight_decay, 15, scheduler_gamma)
+        client.reset_hyperparameters(net, step_size, momentum, weight_decay, scheduler_step, scheduler_gamma)
         network.trial = trial
     all_for_all_algo(network, nb_of_synchronization=25, pruning=True)
-    return network.writer.get_scalar(f'test_accuracy', network.clients[0].last_epoch)
+    ### We want to minimize the loss of the last 5 iterate (to reduce oscillation if case of).
+    return np.mean([network.writer.get_scalar(f'val_accuracy', network.clients[0].last_epoch-i) for i in range(5)])
 
 NB_TRIALS = 50
 

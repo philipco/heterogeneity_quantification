@@ -118,6 +118,7 @@ def save_plot(matrix_to_plot, metrics, scenario):
     # print_latex_matrix(root, metrics, scenario, matrix_to_plot)
     np.savetxt('{0}/pictures/{1}/{2}-{3}.txt'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
                matrix_to_plot, delimiter=',', fmt='%.2e')
+    plt.close()
 
 
 def plot_distance(metrics: Metrics, scenario: str) -> None:
