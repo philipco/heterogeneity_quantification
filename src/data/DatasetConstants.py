@@ -8,7 +8,7 @@ from torchvision.transforms import transforms
 from src.optim.CustomLoss import DiceLoss, CoxLoss, L1WeightedAccuracyLoss
 from src.optim.Metric import dice, auc, c_index, accuracy, l1_accuracy, mse_accuracy
 from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
-    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression
+    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression, LR_CIFAR10
 from src.optim.nn.Unet import UNet
 
 PCA_NB_COMPONENTS = 16
@@ -46,8 +46,7 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-### Cifar10 with 6 clients, does not converge witht this hyperparameters.
-NB_CLIENTS = {"mnist": 6, "fashion_mnist": 12, "cifar10": 7, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+NB_CLIENTS = {"mnist": 6, "fashion_mnist": 8, "cifar10": 8, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 2}
 
 # MODELS = {"mnist": CNN_MNIST, "cifar10": CNN_CIFAR10}

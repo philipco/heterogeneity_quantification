@@ -92,6 +92,14 @@ class TcgaRegression(LinearRegression):
         super(TcgaRegression, self).__init__(39)
 
 
+class LR_CIFAR10(nn.Module):
+    def __init__(self):
+        super(LR_CIFAR10, self).__init__()
+        self.linear = nn.Linear(3072, 1)
+
+    def forward(self, x):
+        return self.linear(x.flatten(start_dim=1))
+
 class CNN_CIFAR10(nn.Module):
     def __init__(self):
         super().__init__()

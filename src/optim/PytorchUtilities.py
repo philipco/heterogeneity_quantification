@@ -143,7 +143,7 @@ def fednova_aggregation(old_model, new_models, tau_i, weights, device):
     return final_aggreg
 
 
-def aggregate_gradients(gradients_list, weights):
+def aggregate_gradients(gradients_list, weights, device):
     """
         Aggregates gradients by applying weights.
 
@@ -151,10 +151,12 @@ def aggregate_gradients(gradients_list, weights):
         weights: list of weights to apply to each set of gradients
         """
     # Initialize aggregated gradients with zeroed tensors of the same shape as the first set of gradients
-    aggregated_gradients = [torch.zeros_like(g).to(gradients_list[0][0].device) for g in gradients_list[0]]
+    aggregated_gradients = [torch.zeros_like(g).to(device) if (g is not None) else None
+                            for g in gradients_list[0]]
 
     for i, gradients in enumerate(gradients_list):
         for j, grad in enumerate(gradients):
-            aggregated_gradients[j] += weights[i] * grad.to(aggregated_gradients[j].device)
+            if grad is not None:
+                aggregated_gradients[j] += weights[i] * grad.to(aggregated_gradients[j].device)
 
     return aggregated_gradients

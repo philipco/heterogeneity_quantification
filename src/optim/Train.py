@@ -140,7 +140,7 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
         else:
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
-    # scheduler.step()
+    scheduler.step()
     return train_loss
 
 
@@ -181,7 +181,7 @@ def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, si
             loss.backward()
             break
 
-    return [param.grad.detach() for param in net.parameters() if param.grad is not None]
+    return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
 
 
 
@@ -196,10 +196,9 @@ def update_model(net, aggregated_gradients, optimizer):
     """
     net.train()
     optimizer.zero_grad()  # Clears any lingering gradients
-    with torch.no_grad():
-        for param, grad in zip(net.parameters(), aggregated_gradients):
-            if param.requires_grad:
-                param.grad = grad
+
+    for param, grad in zip(net.parameters(), aggregated_gradients):
+        param.grad = grad
 
     optimizer.step()
 

@@ -176,7 +176,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         print(f"At epoch {synchronization_idx}, weights are: \n {weights}.")
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
-        print("Number of inner iterations:", inner_iterations)
         for k in range(inner_iterations):
 
             nb_collaborations = [nb_collaborations[i] + sum(weights[i]) for i in range(network.nb_clients)]
@@ -202,7 +201,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                     if param.grad is not None:
                         client.writer.add_histogram(f'{name}.grad', param.grad, client.last_epoch)
 
-                aggregated_gradients = aggregate_gradients(gradients, weights[i])
+                aggregated_gradients = aggregate_gradients(gradients, weights[i], client.device)
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
 
         for client in network.clients:
@@ -210,10 +209,10 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
-        # for client in network.clients:
-            # client.scheduler.step()
-        # rejection_test.reinitialize()
-        # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+        for client in network.clients:
+            client.scheduler.step()
+        rejection_test.reinitialize()
+        compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
 
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
 
@@ -222,16 +221,17 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
-        # if synchronization_idx % 2 == 0:
-        #     ### We compute the distance between clients.
-        #     acceptance_test.reinitialize()
-        #     compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
-        #
-        #     # rejection_test.reinitialize()
-        #     # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
-        #
-        #     plot_pvalues(acceptance_test, f"{synchronization_idx}")
-        #     plot_pvalues(rejection_test, f"{synchronization_idx}")
+
+        if synchronization_idx % 2 == 0:
+            ### We compute the distance between clients.
+            acceptance_test.reinitialize()
+            compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
+
+            # rejection_test.reinitialize()
+            # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+
+            plot_pvalues(acceptance_test, f"{synchronization_idx}")
+            plot_pvalues(rejection_test, f"{synchronization_idx}")
 
 
 def gossip_training(network: Network, nb_of_communication: int = 501):
