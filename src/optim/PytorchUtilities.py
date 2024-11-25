@@ -151,10 +151,10 @@ def aggregate_gradients(gradients_list, weights):
         weights: list of weights to apply to each set of gradients
         """
     # Initialize aggregated gradients with zeroed tensors of the same shape as the first set of gradients
-    aggregated_gradients = [torch.zeros_like(g) for g in gradients_list[0]]
+    aggregated_gradients = [torch.zeros_like(g).to(gradients_list[0][0].device) for g in gradients_list[0]]
 
     for i, gradients in enumerate(gradients_list):
         for j, grad in enumerate(gradients):
-            aggregated_gradients[j] += weights[i] * grad
+            aggregated_gradients[j] += weights[i] * grad.to(aggregated_gradients[j].device)
 
     return aggregated_gradients

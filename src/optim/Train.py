@@ -140,7 +140,7 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
         else:
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
-    scheduler.step()
+    # scheduler.step()
     return train_loss
 
 
@@ -171,23 +171,18 @@ def batch_training(train_loader, device, net, criterion, optimizer, scheduler, s
 
 def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
     net.train()
-    net.zero_grad()
+    optimizer.zero_grad()
 
-    x_batch, y_batch = list(train_loader)[single_batch_idx]
-    x_batch = x_batch.to(device)
-    y_batch = y_batch.to(device)
+    for i, (x_batch, y_batch) in enumerate(train_loader):
+        if i == single_batch_idx:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            outputs = net(x_batch)
+            loss = criterion(outputs, y_batch)
+            loss.backward()
+            break
 
-    # Forward pass
-    outputs = net(x_batch)
-    loss = criterion(outputs, y_batch)
+    return [param.grad.detach() for param in net.parameters() if param.grad is not None]
 
-    # Backward pass to compute gradients
-    loss.backward()
-
-    # Collect and return the gradients (without updating the model)
-    gradients = [param.grad.clone() for param in net.parameters() if param.grad is not None]
-
-    return gradients
 
 
 
@@ -200,15 +195,12 @@ def update_model(net, aggregated_gradients, optimizer):
     optimizer: the optimizer used for updating the model
     """
     net.train()
-    # Reset the gradients
-    optimizer.zero_grad()
+    optimizer.zero_grad()  # Clears any lingering gradients
     with torch.no_grad():
         for param, grad in zip(net.parameters(), aggregated_gradients):
-            # Copy the aggregated gradient to param.grad
             if param.requires_grad:
-                param.grad = grad.clone()
+                param.grad = grad
 
-    # Perform the update step
     optimizer.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):

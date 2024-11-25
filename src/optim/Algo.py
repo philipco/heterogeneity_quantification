@@ -169,7 +169,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         # Compute weights len(client.train_loader.dataset) / total_nb_points
         weights = [[int(i == j or rejection_test.aggreage_heter()[i][j] > 0.05) for j in range(network.nb_clients)]
                              for i in range(network.nb_clients)]
-        # weights = [[len(network.clients[j].train_loader.dataset) / total_nb_points for j in range(network.nb_clients)]
+        # weights = [[1 for j in range(network.nb_clients)]
         #                                 for i in range(network.nb_clients)]
         weights = normalize(weights, axis=1, norm='l1')
         weights = weights @ weights.T
@@ -187,11 +187,11 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
             # Computing gradients on each clients.
             for client in network.clients:
-                set_seed(client.last_epoch)
+                set_seed(client.last_epoch * inner_iterations + k)
                 # Single batch update before aggregation.
                 gradient = gradient_step(client.train_loader, client.device, client.trained_model,
                                       client.criterion, client.optimizer, client.scheduler,
-                                      client.last_epoch % len(client.train_loader))
+                                         (client.last_epoch * inner_iterations + k) % len(client.train_loader))
                 gradients.append(gradient)
 
             # Averaging gradient and updating models.
@@ -210,10 +210,10 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
-        for client in network.clients:
-            client.scheduler.step()
-        rejection_test.reinitialize()
-        compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+        # for client in network.clients:
+            # client.scheduler.step()
+        # rejection_test.reinitialize()
+        # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
 
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
 
@@ -222,16 +222,16 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
-        if synchronization_idx % 2 == 0 and plot_matrix:
-            ### We compute the distance between clients.
-            acceptance_test.reinitialize()
-            compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
-
-            # rejection_test.reinitialize()
-            # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
-
-            plot_pvalues(acceptance_test, f"{synchronization_idx}")
-            plot_pvalues(rejection_test, f"{synchronization_idx}")
+        # if synchronization_idx % 2 == 0:
+        #     ### We compute the distance between clients.
+        #     acceptance_test.reinitialize()
+        #     compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
+        #
+        #     # rejection_test.reinitialize()
+        #     # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
+        #
+        #     plot_pvalues(acceptance_test, f"{synchronization_idx}")
+        #     plot_pvalues(rejection_test, f"{synchronization_idx}")
 
 
 def gossip_training(network: Network, nb_of_communication: int = 501):
