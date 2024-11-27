@@ -30,7 +30,7 @@ def objective(trial, network):
         network.trial = trial
     all_for_all_algo(network, nb_of_synchronization=25, pruning=True)
     ### We want to minimize the loss of the last 5 iterate (to reduce oscillation if case of).
-    return np.mean([network.writer.get_scalar(f'val_accuracy', network.clients[0].last_epoch-i) for i in range(5)])
+    return np.mean([network.writer.get_scalar(f'val_accuracy', network.clients[0].last_epoch - i) for i in range(5)])
 
 NB_TRIALS = 50
 

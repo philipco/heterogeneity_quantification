@@ -12,9 +12,10 @@ def write_grad(trained_model, writer, last_epoch):
 
 
 def write_train_val_test_performance(net, device, train_loader, val_loader, test_loader, criterion, metric, client_ID,
-                                     writer, last_epoch):
-    for name, param in net.named_parameters():
-        writer.add_histogram(f'{name}.weight', param, last_epoch)
+                                     writer, last_epoch, logs="light"):
+    if logs=="full":
+        for name, param in net.named_parameters():
+            writer.add_histogram(f'{name}.weight', param, last_epoch)
     log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
     log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
     log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
@@ -184,9 +185,8 @@ def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, si
     return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
 
 
-
-
 def update_model(net, aggregated_gradients, optimizer):
+    ### Check that I am not updating with the preivous grad.
     """
     Updates the model using the aggregated gradients.
 
@@ -214,7 +214,7 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             outputs = net(x_batch).float()
             epoch_loss = criterion(outputs, y_batch)
             epoch_accuracy = metric(y_batch, outputs)
-        return epoch_loss, epoch_accuracy
+        return epoch_loss.to("cpu"), epoch_accuracy.to("cpu")
     with torch.no_grad():
         for x_batch, y_batch in data_loader:
             x_batch = x_batch.to(device)
@@ -222,4 +222,4 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             outputs = net(x_batch).float()
             epoch_loss += criterion(outputs, y_batch)
             epoch_accuracy += metric(y_batch, outputs)
-    return epoch_loss / len(data_loader), epoch_accuracy / len(data_loader)
+    return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")

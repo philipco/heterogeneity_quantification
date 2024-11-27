@@ -10,7 +10,7 @@ from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
     get_models_of_collaborating_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
 from src.optim.Train import compute_loss_and_accuracy, update_model, gradient_step, \
-    write_train_val_test_performance
+    write_train_val_test_performance, write_grad
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue, \
     rejection_pvalue
@@ -138,7 +138,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
 
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
-                     plot_matrix: bool = True, pruning: bool = False):
+                     plot_matrix: bool = True, pruning: bool = False, logs="light"):
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
@@ -173,7 +173,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         #                                 for i in range(network.nb_clients)]
         weights = normalize(weights, axis=1, norm='l1')
         weights = weights @ weights.T
-        print(f"At epoch {synchronization_idx}, weights are: \n {weights}.")
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
         for k in range(inner_iterations):
@@ -197,9 +196,8 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             for i in range(network.nb_clients):
                 client = network.clients[i]
                 # We plot the computed gradient on each client before their aggregation.
-                for name, param in client.trained_model.named_parameters():
-                    if param.grad is not None:
-                        client.writer.add_histogram(f'{name}.grad', param.grad, client.last_epoch)
+                if logs=="full":
+                    write_grad(client.trained_model, client.writer, client.writer)
 
                 aggregated_gradients = aggregate_gradients(gradients, weights[i], client.device)
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
@@ -222,7 +220,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 raise optuna.TrialPruned()
 
 
-        if synchronization_idx % 2 == 0:
+        if synchronization_idx % 10 == 0:
             ### We compute the distance between clients.
             acceptance_test.reinitialize()
             compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
