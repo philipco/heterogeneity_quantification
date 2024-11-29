@@ -1,19 +1,11 @@
 """Created by Constantin Philippenko, 29th September 2022."""
-import sys
 
 import argparse
-import torchvision
 
 from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import fedquantile_training, federated_training, gossip_training, all_for_all_algo, fednova_training
-from src.data.Network import Network
-from src.data.DatasetConstants import NB_CLIENTS, BATCH_SIZE, TRANSFORM_TRAIN, TRANSFORM_TEST
-from src.data.DataLoader import get_data_from_pytorch, get_data_from_flamby, get_data_from_csv, get_synth_data
-from src.utils.Utilities import get_project_root, get_path_to_datasets
-
-# from datasets.fed_isic2019.dataset import FedIsic2019
-# from datasets.fed_tcga_brca.dataset import FedTcgaBrca
+from src.utils.Utilities import get_path_to_datasets
 
 NB_RUN = 1
 
@@ -35,8 +27,8 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0 #1 if dataset_name in ["mnist", "cifar10"] else 1
 
-    for algo_name in ["all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
-        assert algo_name in ["quantile", "gossip", "fed", "all_for_all", "fednova"], "Algorithm not recognized."
+    for algo_name in ["local", "all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
+        assert algo_name in ["quantile", "gossip", "fed", "all_for_all", "fednova", "local"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
@@ -49,6 +41,8 @@ if __name__ == '__main__':
             federated_training(network, nb_of_synchronization=150)
         if algo_name == "all_for_all":
             all_for_all_algo(network, nb_of_synchronization=150)
+        if algo_name == "local":
+            all_for_all_algo(network, nb_of_synchronization=150, local=True)
         if algo_name == "fednova":
             fednova_training(network, nb_of_synchronization=150)
 
