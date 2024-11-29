@@ -214,7 +214,7 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             outputs = net(x_batch).float()
             epoch_loss = criterion(outputs, y_batch)
             epoch_accuracy = metric(y_batch, outputs)
-        return epoch_loss.to("cpu"), epoch_accuracy.to("cpu")
+        return epoch_loss, epoch_accuracy
     with torch.no_grad():
         for x_batch, y_batch in data_loader:
             x_batch = x_batch.to(device)

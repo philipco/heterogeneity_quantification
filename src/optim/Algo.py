@@ -138,7 +138,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
 
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
-                     plot_matrix: bool = True, pruning: bool = False, logs="light"):
+                     plot_matrix: bool = True, pruning: bool = False, logs="light", local: bool=False):
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
@@ -167,17 +167,18 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         print(f"===============\tEpoch {synchronization_idx}\t===============")
 
         # Compute weights len(client.train_loader.dataset) / total_nb_points
-        weights = [[int(i == j or rejection_test.aggreage_heter()[i][j] > 0.05) for j in range(network.nb_clients)]
-                             for i in range(network.nb_clients)]
-        # weights = [[1 for j in range(network.nb_clients)]
-        #                                 for i in range(network.nb_clients)]
-        weights = normalize(weights, axis=1, norm='l1')
-        weights = weights @ weights.T
+        if local:
+            weights = [[int(i == j) for j in range(network.nb_clients)] for i in range(network.nb_clients)]
+        else:
+            weights = [[int(i == j or rejection_test.aggreage_heter()[i][j] > 0.05) for j in range(network.nb_clients)]
+                                 for i in range(network.nb_clients)]
+            weights = normalize(weights, axis=1, norm='l1')
+            weights = weights @ weights.T
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
         for k in range(inner_iterations):
 
-            nb_collaborations = [nb_collaborations[i] + sum(weights[i]) for i in range(network.nb_clients)]
+            nb_collaborations = [nb_collaborations[i] + np.sum(weights[i] != 0) for i in range(network.nb_clients)]
             for (client, c) in zip(network.clients, nb_collaborations):
                 client.writer.add_scalar('nb_collaborations', c, client.last_epoch)
 
