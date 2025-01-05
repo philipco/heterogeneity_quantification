@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-from scipy.stats import norm, ranksums
+from scipy.stats import norm, ranksums, mannwhitneyu
 
 
 class StatisticalTest(ABC):
@@ -31,9 +31,33 @@ class RanksumsTest(StatisticalTest):
         self.pvalue = None
 
     def evaluate_test(self, model, local_dataloader, remote_dataloader):
-        local_atomic_errors = compute_atomic_errors(model, local_dataloader, self.loss).cpu()
-        remote_atomic_errors = compute_atomic_errors(model, remote_dataloader, self.loss).cpu()
+        try:
+            local_atomic_errors = compute_atomic_errors(model, local_dataloader, self.loss).cpu()
+            remote_atomic_errors = compute_atomic_errors(model, remote_dataloader, self.loss).cpu()
+        except AttributeError:
+            local_atomic_errors = compute_atomic_errors(model, local_dataloader, self.loss)
+            remote_atomic_errors = compute_atomic_errors(model, remote_dataloader, self.loss)
         self.pvalue = ranksums(local_atomic_errors, remote_atomic_errors).pvalue
+        return self.pvalue
+
+    def print(self):
+        pass
+
+
+class Mannwhitneyu(StatisticalTest):
+
+    def __init__(self, loss):
+        self.loss = loss # Require to have already instantiate the class to make it compatible with loss that are simple function.
+        self.pvalue = None
+
+    def evaluate_test(self, local_model, remote_model, local_dataloader, alternative="two-sided"):
+        try:
+            local_atomic_errors = compute_atomic_errors(local_model, local_dataloader, self.loss).cpu()
+            remote_atomic_errors = compute_atomic_errors(remote_model, local_dataloader, self.loss).cpu()
+        except AttributeError:
+            local_atomic_errors = compute_atomic_errors(local_model, local_dataloader, self.loss)
+            remote_atomic_errors = compute_atomic_errors(remote_model, local_dataloader, self.loss)
+        self.pvalue = mannwhitneyu(local_atomic_errors, remote_atomic_errors, alternative=alternative).pvalue
         return self.pvalue
 
     def print(self):
@@ -52,8 +76,17 @@ class ProportionTest(StatisticalTest):
         self.beta_critique = None
 
     def evaluate_test(self, q0, remote_model, dataloader):
-        n = len(dataloader.dataset)
-        self.atomic_errors = compute_atomic_errors(remote_model, dataloader, self.loss).cpu()
+        if isinstance(remote_model, torch.nn.Module):
+            n = len(dataloader.dataset)
+        elif hasattr(remote_model, 'predict'):
+            n = len(dataloader[1])
+        else:
+            raise ValueError("Unsupported regressor type.")
+
+        try:
+            self.atomic_errors = compute_atomic_errors(remote_model, dataloader, self.loss).cpu()
+        except AttributeError:
+            self.atomic_errors = compute_atomic_errors(remote_model, dataloader, self.loss)
         if len(self.atomic_errors) != n:
             raise ValueError("The number of atomic errors is not equal to the number of labels.")
         self.beta_estimator = np.sum([1 if e <= q0 else 0 for e in self.atomic_errors]) / n

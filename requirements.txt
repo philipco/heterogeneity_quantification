@@ -4,7 +4,7 @@ scipy>=1.9.0
 numpy
 matplotlib>=3.4
 tqdm
-pytorch  # >=1.10.2
+torch  # >=1.10.2
 torchvision # Otherwise issue with Pillow
 Pillow
 tensorflow
@@ -15,12 +15,10 @@ scikit-learn
 seaborn
 psutil
 pandas
-batchup
 
 tabulate
 
 batchup
-pot
 
 
 # Required by Flamby
@@ -33,5 +31,6 @@ formulaic
 
 # For Tiny_IXI
 nibabel==3.2.2
+monai==1.2.0
 
 

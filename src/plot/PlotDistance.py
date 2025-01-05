@@ -74,8 +74,8 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
             size_y = metrics.nb_of_points_by_clients[clients_order[y]] / total_nb_of_points * metrics.nb_of_clients
 
             # Plot the p-value.
-            axes.text(x_non_iid + size_x/2, y_non_iid + size_y / 2, '{:.0e}'.format(data0[0,0]), ha='center',
-                      va='center', color='black') #(2.5 if x % 2 == 0 else 1.5)
+            # axes.text(x_non_iid + size_x/2, y_non_iid + size_y / 2, '{:.0e}'.format(data0[0,0]), ha='center',
+            #           va='center', color='black') #(2.5 if x % 2 == 0 else 1.5)
 
             im = axes.imshow(data0, extent=[x_non_iid, x_non_iid + size_x, y_non_iid, y_non_iid + size_y],
                              **kwargs)
@@ -115,9 +115,10 @@ def save_plot(matrix_to_plot, metrics, scenario):
     create_folder_if_not_existing('{0}/pictures/{1}'.format(root, metrics.dataset_name))
     plt.savefig('{0}/pictures/{1}/{1}-{2}-{3}.pdf'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
                 bbox_inches='tight', dpi=600)
-    print_latex_matrix(root, metrics, scenario, matrix_to_plot)
+    # print_latex_matrix(root, metrics, scenario, matrix_to_plot)
     np.savetxt('{0}/pictures/{1}/{2}-{3}.txt'.format(root, metrics.dataset_name, metrics.distance_name, scenario),
                matrix_to_plot, delimiter=',', fmt='%.2e')
+    plt.close()
 
 
 def plot_distance(metrics: Metrics, scenario: str) -> None:

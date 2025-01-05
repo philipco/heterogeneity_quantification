@@ -1,24 +1,40 @@
 import torch
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils.Utilities import set_seed
 
 
-def log_performance(subset_name: str, net, device, loader, criterion, metric, client_ID, writer, epoch):
+def write_grad(trained_model, writer, last_epoch):
+    # We plot the computed gradient on each client before their aggregation.
+    for name, param in trained_model.named_parameters():
+        if param.grad is not None:
+            writer.add_histogram(f'{name}.grad', param.grad, last_epoch)
+
+
+def write_train_val_test_performance(net, device, train_loader, val_loader, test_loader, criterion, metric, client_ID,
+                                     writer, last_epoch, logs="light"):
+    if logs=="full":
+        for name, param in net.named_parameters():
+            writer.add_histogram(f'{name}.weight', param, last_epoch)
+    log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
+    log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
+    log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
+    writer.close()
+
+
+def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch):
     # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
     epoch_test_loss, epoch_test_accuracy = compute_loss_and_accuracy(net, device, loader,
                                                                      criterion, metric, "tcga_brca" in client_ID)
     # Writing logs.
-    writer.add_scalar(f'{subset_name}_loss', epoch_test_loss, epoch)
-    writer.add_scalar(f'{subset_name}_accuracy', epoch_test_accuracy, epoch)
+    writer.add_scalar(f'{name}_loss', epoch_test_loss, epoch)
+    writer.add_scalar(f'{name}_accuracy', epoch_test_accuracy, epoch)
     writer.close()
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
-                               nb_epochs, lr, momentum, metric, last_epoch: int, writer: SummaryWriter, epoch):
+                               nb_local_epochs, lr, momentum, metric, last_epoch: int, epoch,
+                               single_batch: int = None):
     """
     Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
 
@@ -59,9 +75,9 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
         The loss function used to compute the training loss.
     :type criterion: torch.nn.Module
 
-    :param nb_epochs:
-        Number of epochs to train the model.
-    :type nb_epochs: int
+    :param nb_local_epochs:
+        Number of local epochs to train the model.
+    :type nb_local_epochs: int
 
     :param lr:
         Learning rate used for the optimizer (if it is initialized within the function).
@@ -78,10 +94,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     :param last_epoch:
         The last completed epoch number, used for seeding and TensorBoard logging.
     :type last_epoch: int
-
-    :param writer:
-        TensorBoard SummaryWriter object for logging training statistics (loss, accuracy, histograms).
-    :type writer: torch.utils.tensorboard.SummaryWriter
 
     :param epoch:
         Current global epoch used for logging histograms of model parameters.
@@ -108,78 +120,87 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
         momentum = 0.9
         metric = accuracy_function
         last_epoch = 0
-        writer = SummaryWriter()
 
-        trained_model, train_loss, writer, optimizer, scheduler = train_local_neural_network(
+        trained_model, train_loss, writer = train_local_neural_network(
             net, optimizer, scheduler, device, 'client_1', train_loader, val_loader,
-            criterion, nb_epochs, lr, momentum, metric, last_epoch, writer, epoch=0
+            criterion, nb_epochs, lr, momentum, metric, last_epoch, epoch=0
         )
 
     **Notes:**
     - This function uses the `torch.no_grad()` context to disable gradient tracking when logging model parameters.
     - It initializes the optimizer and scheduler if they are not provided.
-    - The function writes training/validation statistics to TensorBoard for each epoch, including histograms of model weights.
-    - The training process logs performance on both the training and validation sets after each epoch.
     """
-
-    for name, param in net.named_parameters():
-        writer.add_histogram(f'{name}.weight', param, 2 * epoch)
-
-    # The optimizer should be initialized once at the beginning of the training.
-    if optimizer is None:
-        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-        scheduler = StepLR(optimizer, step_size=50, gamma=0.5)
-
     train_loss = []
 
     # Training
     print(f"=== Training the neural network on {client_ID}. ===")
     set_seed(last_epoch)
-    for local_epoch in tqdm(range(nb_epochs)):
-        net.train()
-
-        batch_training(train_loader, device, net, criterion, optimizer, scheduler)
-
-        # We compute the train loss/performance-metric on the full train set after a full pass on it.
-        # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-        epoch_train_loss, epoch_train_accuracy = compute_loss_and_accuracy(net, device, train_loader, criterion, metric,
-                                                                       "tcga_brca" in client_ID)
-        train_loss.append(epoch_train_loss)
-
-        # Writing logs.
-        writer.add_scalar('train_loss', epoch_train_loss, local_epoch + last_epoch)
-        writer.add_scalar('train_accuracy', epoch_train_accuracy, local_epoch + last_epoch)
-
-        # We compute the val loss/performance-metric on the full train set after a full pass on it.
-        log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer,
-                        local_epoch + last_epoch)
-
-    for name, param in net.named_parameters():
-        writer.add_histogram(f'{name}.weight', param, 2 * epoch + 1)
-
-    # Close the writer at the end of training
-    writer.close()
-
-    print("Final train loss:", train_loss[-1])
-    print(f"Final train accuracy: {epoch_train_accuracy}")
-
-    return net, train_loss, writer, optimizer, scheduler
-
-def batch_training(train_loader, device, net, criterion, optimizer, scheduler):
-    for x_batch, y_batch in train_loader:
-        x_batch = x_batch.to(device)
-        y_batch = y_batch.to(device)
-
-        net.zero_grad()
-
-        # Forward pass
-        outputs = net(x_batch)
-        loss = criterion(outputs, y_batch)
-
-        # Backward pass and optimization
-        loss.backward()
-        optimizer.step()
+    for local_epoch in tqdm(range(nb_local_epochs)):
+        if single_batch:
+            idx = (last_epoch + local_epoch) % len(train_loader)
+            batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
+        else:
+            batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
     scheduler.step()
+    return train_loss
+
+
+def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
+    net.zero_grad()
+    x_batch = x_batch.to(device)
+    y_batch = y_batch.to(device)
+
+    # Forward pass
+    outputs = net(x_batch)
+    loss = criterion(outputs, y_batch)
+
+    # Backward pass and optimization
+    loss.backward()
+    optimizer.step()
+
+    return None
+
+def batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+    # For Gossip, we communicate after every batch, therefore we need to access one single batch.
+    net.train()
+    if single_batch_idx is not None:
+        x_batch, y_batch = list(train_loader)[single_batch_idx]
+        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+    else:
+        for x_batch, y_batch in train_loader:
+            batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+
+def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+    net.train()
+    optimizer.zero_grad()
+
+    for i, (x_batch, y_batch) in enumerate(train_loader):
+        if i == single_batch_idx:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            outputs = net(x_batch)
+            loss = criterion(outputs, y_batch)
+            loss.backward()
+            break
+
+    return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
+
+
+def update_model(net, aggregated_gradients, optimizer):
+    ### Check that I am not updating with the preivous grad.
+    """
+    Updates the model using the aggregated gradients.
+
+    net: the neural network model to update
+    aggregated_gradients: list of aggregated gradients to apply
+    optimizer: the optimizer used for updating the model
+    """
+    net.train()
+    optimizer.zero_grad()  # Clears any lingering gradients
+
+    for param, grad in zip(net.parameters(), aggregated_gradients):
+        param.grad = grad
+
+    optimizer.step()
 
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):
     epoch_loss = 0
@@ -201,4 +222,4 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             outputs = net(x_batch).float()
             epoch_loss += criterion(outputs, y_batch)
             epoch_accuracy += metric(y_batch, outputs)
-    return epoch_loss / len(data_loader), epoch_accuracy / len(data_loader)
+    return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")

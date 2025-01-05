@@ -82,7 +82,7 @@ def dice(y_true, y_pred):
     dice = intersection / (union + 1.0e-7)
     # If both inputs are empty the dice coefficient should be equal 1
     dice[union == 0] = 1
-    return np.mean(dice)
+    return torch.mean(dice)
 
 
 def l1_accuracy(y_true, y_pred):
