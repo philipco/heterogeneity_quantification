@@ -2,8 +2,10 @@
 from typing import List
 
 import torch
+from datasets import load_dataset
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+from transformers import AutoTokenizer, DataCollatorWithPadding
 
 from src.data.Dataset import prepare_liquid_asset
 from src.data.Split import create_non_iid_split
@@ -29,7 +31,7 @@ def get_element_from_dataloader(loader):
     return torch.concat(X), torch.concat(Y)#.flatten()
 
 
-def get_data_from_csv(dataset_name: str) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_data_from_csv(dataset_name: str, batch_size) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     root = get_path_to_datasets()
     if dataset_name == "liquid_asset":
@@ -37,6 +39,8 @@ def get_data_from_csv(dataset_name: str) -> [List[torch.FloatTensor], List[torch
     else:
         return ValueError("Dataset not recognized.")
 
+    nb_of_clients = len(data_train)
+
     # Then for each (heterogeneous) client, we split the dataset into train/test
     X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
 
@@ -50,16 +54,25 @@ def get_data_from_csv(dataset_name: str) -> [List[torch.FloatTensor], List[torch
         Y_val.append(y_val)
         Y_test.append(y_test)
 
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in
+                     range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in
+                    range(nb_of_clients)]
+
     natural_split = True
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
+    return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_synth_data(dataset_name: str) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_synth_data(dataset_name: str, batch_size) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     n = 200
     X1, X2, Y1, Y2 = f("same_partionned_support", n=n)
     data_train = [torch.Tensor(X1).reshape(n,1), torch.Tensor(X2).reshape(n,1)]
     labels_train = [torch.Tensor(Y1).reshape(n, 1), torch.Tensor(Y2).reshape(n, 1)]
+
+    nb_of_clients = len(data_train)
+
     # Then for each (heterogeneous) client, we split the dataset into train/test
     X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
 
@@ -73,11 +86,17 @@ def get_synth_data(dataset_name: str) -> [List[torch.FloatTensor], List[torch.Fl
         Y_val.append(y_val)
         Y_test.append(y_test)
 
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in
+                     range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in
+                    range(nb_of_clients)]
+
     natural_split = True
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
+    return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, kwargs_train_dataset, kwargs_test_dataset,
+def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
                           kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     # Get dataloader for train/test.
@@ -111,11 +130,15 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, kwargs_train_d
         Y_val.append(y_val)
         Y_test.append(y_test)
 
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+
     natural_split = False
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
+    return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, kwargs_dataloader, debug: bool = False) \
+def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_size, kwargs_dataloader, debug: bool = False) \
         -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     X_train, X_test, X_val, Y_train, Y_val, Y_test = [], [], [], [], [], []
@@ -150,5 +173,11 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, kwargs_d
         X_test.append(torch.concat([data_test]))
         Y_test.append(torch.concat([labels_test]))
 
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in
+                     range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in
+                    range(nb_of_clients)]
+
     natural_split = True
-    return X_train, X_val, X_test, Y_train, Y_val, Y_test, natural_split
+    return train_loaders, val_loaders, test_loaders, natural_split

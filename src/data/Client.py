@@ -10,7 +10,7 @@ from src.utils.LoggingWriter import LoggingWriter
 
 class Client:
 
-    def __init__(self, ID, tensorboard_dir: str, X_train, X_val, X_test, Y_train, Y_val, Y_test, net: nn.Module,
+    def __init__(self, ID, tensorboard_dir: str, train_loader, val_loader, test_loader, net: nn.Module,
                  criterion, metric, step_size: int, momentum: int, weight_decay: int, batch_size: int,
                  scheduler_params: (int, int)):
         super().__init__()
@@ -24,9 +24,9 @@ class Client:
         self.writer = LoggingWriter(
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{tensorboard_dir}/{self.ID}')
 
-        self.train_loader = DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
-        self.val_loader = DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
-        self.test_loader = DataLoader(TensorDataset(X_test, Y_test), batch_size=batch_size)
+        self.train_loader = train_loader #DataLoader(TensorDataset(X_train, Y_train), batch_size=batch_size)
+        self.val_loader = val_loader # DataLoader(TensorDataset(X_val, Y_val), batch_size=batch_size)
+        self.test_loader = test_loader #DataLoader(TensorDataset(X_test, Y_test), batch_size=batch_size)
 
         self.trained_model = net.to(self.device)
 
