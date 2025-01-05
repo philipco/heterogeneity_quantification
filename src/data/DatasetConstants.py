@@ -64,7 +64,7 @@ STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": .001, "heart_disease": 0,
                 "ixi": 0.0001, "liquid_asset": 0.1, "synth": 0.1}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 64}
+              "synth": 64, "exam_llm": 8}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0}
 SCHEDULER_PARAMS = {"mnist": (15, 0.92), "cifar10": (15, 1), "tcga_brca": (50, 0.609), "heart_disease": (15, 0.554),

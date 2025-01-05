@@ -1,12 +1,14 @@
 """Created by Constantin Philippenko, 29th September 2022."""
 from typing import List
 
+import numpy as np
 import torch
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import AutoTokenizer, DataCollatorWithPadding
 
+from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
 from src.data.Split import create_non_iid_split
 from src.plot.PlotDifferentScenarios import f
@@ -178,6 +180,129 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_si
     val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
     test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in
                     range(nb_of_clients)]
+
+    natural_split = True
+    return train_loaders, val_loaders, test_loaders, natural_split
+
+
+def preprocess(example, tokenizer):
+
+    options = 'ABCD'
+    indices = list(range(5))  # Indexing 0, 1, 2, 3, 4 for each option
+
+    option_to_index = {option: index for option, index in
+                       zip(options, indices)}  # Converting options to indices '''A to 0'''
+    index_to_option = {index: option for option, index in
+                       zip(options, indices)}  # Converting indices to options '''0 to A'''
+
+    first_sentence = [example['Question']] * 4  # Repeating the same question 5 times
+    second_sentence = []  # Creating list of possible answers
+    for option in options:
+        second_sentence.append(example[option])
+
+    # The tokenizer converts the question and answers into 'tokens'.
+    # 'tokens' are simply a sequence of integers in which each specific integer corresponds to
+    # a word or subword that BERT is capable of comprehending
+    tokenized_example = tokenizer(first_sentence, second_sentence, truncation=True)
+
+    # Indexing label - A,B,C,D or E - to either 0, 1, 2, 3, 4, or 5
+    tokenized_example['label'] = option_to_index[example['Answer']]
+
+    # tokenized_example returns:
+    # input_ids --> List of lists represents the tokens
+    # token_type_ids --> A list of lists indicating whether each token belongs to the 1st or 2nd sentence
+    # attention_mask --> List of list where each inner list is either 1 or 0. 1 are not padding tokens, 0 are padding tokens
+    # label --> The index for the correct option
+    return tokenized_example
+
+def process_secqa(ds):
+    return ds.remove_columns(['Explanation'])
+
+def process_allenai(ds):
+    def modify_allenai(example):
+        choices_text = example["choices"]["text"]
+        example["A"] = choices_text[0]
+        example["B"] = choices_text[1]
+        example["C"] = choices_text[2]
+        example["D"] = choices_text[3]
+        return example
+
+    new_ds = ds.map(modify_allenai, remove_columns=["choices", "id"])
+    new_ds = new_ds.rename_column("answerKey", "Answer")
+    new_ds = new_ds.rename_column("question_stem", "Question")
+    return new_ds
+
+def process_cais(ds):
+
+    options = 'ABCD'
+    indices = list(range(5))  # Indexing 0, 1, 2, 3, 4 for each option
+
+    option_to_index = {option: index for option, index in
+                       zip(options, indices)}  # Converting options to indices '''A to 0'''
+    index_to_option = {index: option for option, index in
+                       zip(options, indices)}  # Converting indices to options '''0 to A'''
+
+    def modify_cais(example):
+        choices_text = example["choices"]
+        example["A"] = choices_text[0]
+        example["B"] = choices_text[1]
+        example["C"] = choices_text[2]
+        example["D"] = choices_text[3]
+        example["Answer"] = index_to_option[example["answer"]]
+        return example
+
+    new_ds = ds.map(modify_cais, remove_columns=["choices", "subject"])
+    new_ds = new_ds.rename_column("question", "Question")
+    return new_ds
+
+def get_data_from_NLP(batch_size: int):
+
+    paths = ["cais/mmlu"] #"zefang-liu/secqa", "allenai/openbookqa",
+    names = [ "all"] #"secqa_v1", "main",
+    dict_download = {"zefang-liu/secqa": ["test", "val", "dev"], "allenai/openbookqa": ["train", "validation", "test"],
+            "cais/mmlu": ["auxiliary_train", "validation", "test"]}
+
+    dict_processing = {"zefang-liu/secqa": process_secqa, "allenai/openbookqa": process_allenai,
+                       "cais/mmlu": process_cais}
+
+    checkpoint = "bert-base-uncased"
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+
+    data_collator = DataCollatorForMultipleChoice(tokenizer=tokenizer)
+
+    train_loaders, val_loaders, test_loaders = [], [], []
+
+    for path, name in zip(paths, names):
+        print(path)
+        ds = load_dataset(path, name)
+        ds = dict_processing[path](ds)
+
+        train_ds = ds[dict_download[path][0]]
+        val_ds = ds[dict_download[path][1]]
+        test_ds = ds[dict_download[path][2]]
+
+        # Dataset.map() method in the HuggingFace datasets library does not support passing additional keyword arguments
+        # directly to the function being mapped
+        tokenized_train_ds = train_ds.map(lambda x: preprocess(x, tokenizer), batched=False,
+                                          remove_columns=['Question', 'A', 'B', 'C', 'D', 'Answer'])
+        tokenized_val_ds = val_ds.map(lambda x: preprocess(x, tokenizer), batched=False,
+                                      remove_columns=['Question', 'A', 'B', 'C', 'D', 'Answer'])
+        tokenized_test_ds = test_ds.map(lambda x: preprocess(x, tokenizer), batched=False,
+                                      remove_columns=['Question', 'A', 'B', 'C', 'D', 'Answer'])
+
+        tokenized_train_ds.set_format("torch")
+        tokenized_val_ds.set_format("torch")
+        tokenized_test_ds.set_format("torch")
+
+        train_loader = DataLoader(
+            tokenized_train_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
+        val_loader = DataLoader(
+            tokenized_val_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
+        test_loader = DataLoader(
+            tokenized_test_ds, shuffle=True, batch_size=batch_size, collate_fn=data_collator)
+        train_loaders.append(train_loader)
+        val_loaders.append(val_loader)
+        test_loaders.append(test_loader)
 
     natural_split = True
     return train_loaders, val_loaders, test_loaders, natural_split
