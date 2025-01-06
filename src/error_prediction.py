@@ -25,7 +25,7 @@ if __name__ == '__main__':
         "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 
-    nb_initial_epochs = 0 #1 if dataset_name in ["mnist", "cifar10"] else 1
+    nb_initial_epochs = 0
 
     for algo_name in ["local", "all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
         assert algo_name in ["quantile", "gossip", "fed", "all_for_all", "fednova", "local"], "Algorithm not recognized."
@@ -38,13 +38,13 @@ if __name__ == '__main__':
         if algo_name == "gossip":
             gossip_training(network)
         if algo_name == "fed":
-            federated_training(network, nb_of_synchronization=25)
+            federated_training(network, nb_of_synchronization=2)
         if algo_name == "all_for_all":
-            all_for_all_algo(network, nb_of_synchronization=25)
+            all_for_all_algo(network, nb_of_synchronization=2)
         if algo_name == "local":
-            all_for_all_algo(network, nb_of_synchronization=25, local=True)
+            all_for_all_algo(network, nb_of_synchronization=2, local=True)
         if algo_name == "fednova":
-            fednova_training(network, nb_of_synchronization=25)
+            fednova_training(network, nb_of_synchronization=2)
 
     if dataset_name in ["liquid_asset"]:
         X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())

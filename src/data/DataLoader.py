@@ -1,7 +1,6 @@
 """Created by Constantin Philippenko, 29th September 2022."""
 from typing import List
 
-import numpy as np
 import torch
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
@@ -259,8 +258,8 @@ def process_cais(ds):
 def get_data_from_NLP(batch_size: int):
 
     #paths = ["zefang-liu/secqa", "allenai/openbookqa", "cais/mmlu"]
-    paths = ["cais/mmlu", "cais/mmlu"] #, "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu"]
-    names = ["abstract_algebra", "machine_learning"] #, "computer_security", "anatomy", "philosophy", "sociology"]
+    paths = ["cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu"]
+    names = ["abstract_algebra", "machine_learning", "computer_security", "anatomy", "philosophy", "sociology", "marketing"]
     #names = ["secqa_v1", "main", "machine_learning"]
     dict_download = {"zefang-liu/secqa": ["test", "val", "dev"], "allenai/openbookqa": ["train", "validation", "test"],
             "cais/mmlu": ["test", "validation", "dev"]}

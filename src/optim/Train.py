@@ -136,7 +136,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     train_loss = []
 
     # Training
-    print(f"=== Training the neural network on {client_ID} for {nb_local_epochs} local epochs. ===")
     set_seed(last_epoch)
     for local_epoch in range(nb_local_epochs):
         if single_batch:
@@ -174,7 +173,7 @@ def batch_training(train_iter, device, net, criterion, optimizer, scheduler, sin
         batch = next(train_iter)
         batch_update(batch, device, net, criterion, optimizer)
     else:
-        for batch in next(train_iter):
+        for batch in train_iter:
             batch_update(batch, device, net, criterion, optimizer)
 
 def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):

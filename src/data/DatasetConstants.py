@@ -8,7 +8,7 @@ from torchvision.transforms import transforms
 from src.optim.CustomLoss import DiceLoss, CoxLoss, L1WeightedAccuracyLoss
 from src.optim.Metric import dice, auc, c_index, accuracy, l1_accuracy, mse_accuracy
 from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
-    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression, LR_CIFAR10, Deberta
+    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression
 from src.optim.nn.Unet import UNet
 
 PCA_NB_COMPONENTS = 16
@@ -65,7 +65,7 @@ TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
 STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.001,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.1, "exam_llm": 10**-5}
+             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.1, "exam_llm": 10**-3}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": .001, "heart_disease": 0,
                 "ixi": 0.0001, "liquid_asset": 0.1, "synth": 0.1, "exam_llm": 10**-4}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,

@@ -30,6 +30,10 @@ class Network:
         self.clients = []
         if dataset_name in ["exam_llm"]:
             net = AutoModelForMultipleChoice.from_pretrained(CHECKPOINT, cache_dir="./")
+            # Freeze all pretrained weights
+            for param in net.base_model.parameters():
+                param.requires_grad = False
+
         else:
             net = MODELS[dataset_name]()
         for i in range(self.nb_clients):

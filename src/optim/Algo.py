@@ -1,4 +1,5 @@
 import copy
+import time
 from copy import deepcopy
 from random import sample
 
@@ -77,7 +78,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
-
+        start_time = time.time()
         # One pass of local training
         for  i in range(network.nb_clients):
             network.clients[i].continue_training(nb_of_local_epoch, synchronization_idx, single_batch=False)
@@ -93,6 +94,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
+        print(f"Elapsed time: {start_time - time.time()} seconds")
 
 
 
@@ -117,7 +119,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
-
+        start_time = time.time()
         old_model = deepcopy(network.clients[0].trained_model)
         # One pass of local training
         for  i in range(network.nb_clients):
@@ -135,6 +137,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
+        print(f"Elapsed time: {start_time - time.time()} seconds")
 
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
@@ -165,6 +168,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"===============\tEpoch {synchronization_idx}\t===============")
+        start_time = time.time()
 
         # Compute weights len(client.train_loader.dataset) / total_nb_points
         if local:
@@ -217,6 +221,10 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                              client.ID, client.writer, client.last_epoch)
         for client in network.clients:
             client.scheduler.step()
+
+        print(f"Elapsed time: {start_time - time.time()} seconds")
+        print("Now computing matrix of distances...")
+
         rejection_test.reinitialize()
         compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
 
@@ -226,7 +234,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         if pruning:
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
-
 
         if synchronization_idx % 10 == 0:
             ### We compute the distance between clients.
