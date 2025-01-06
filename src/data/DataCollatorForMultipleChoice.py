@@ -26,7 +26,6 @@ class DataCollatorForMultipleChoice:
     pad_to_multiple_of: Optional[int] = None
 
     def __call__(self, features):
-        print("features", features)
 
         # Finding the correct label key in the features
         label_name = "label" if 'label' in features[0].keys() else 'labels'

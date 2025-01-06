@@ -1,7 +1,10 @@
+import gc
+
 import torch
-from tqdm import tqdm
+from transformers import PreTrainedModel
 
 from src.utils.Utilities import set_seed
+from src.utils.UtilitiesPytorch import move_batch_to_device
 
 
 def write_grad(trained_model, writer, last_epoch):
@@ -133,26 +136,30 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     train_loss = []
 
     # Training
-    print(f"=== Training the neural network on {client_ID}. ===")
+    print(f"=== Training the neural network on {client_ID} for {nb_local_epochs} local epochs. ===")
     set_seed(last_epoch)
-    for local_epoch in tqdm(range(nb_local_epochs)):
+    for local_epoch in range(nb_local_epochs):
         if single_batch:
             idx = (last_epoch + local_epoch) % len(train_loader)
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
         else:
-            batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
+            batch_training(iter(train_loader), device, net, criterion, optimizer, scheduler, None)
     scheduler.step()
     return train_loss
 
 
-def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
+def batch_update(batch, device, net, criterion, optimizer):
     net.zero_grad()
-    x_batch = x_batch.to(device)
-    y_batch = y_batch.to(device)
+    if isinstance(net, PreTrainedModel):
+        outputs = net(**move_batch_to_device(batch, device))
+        loss = outputs.loss
+    else:
+        x_batch, y_batch = batch
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
 
-    # Forward pass
-    outputs = net(x_batch)
-    loss = criterion(outputs, y_batch)
+        # Forward pass
+        outputs = net(x_batch)
+        loss = criterion(outputs, y_batch)
 
     # Backward pass and optimization
     loss.backward()
@@ -160,27 +167,41 @@ def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
 
     return None
 
-def batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+def batch_training(train_iter, device, net, criterion, optimizer, scheduler, single_batch_idx):
     # For Gossip, we communicate after every batch, therefore we need to access one single batch.
     net.train()
     if single_batch_idx is not None:
-        x_batch, y_batch = list(train_loader)[single_batch_idx]
-        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+        batch = next(train_iter)
+        batch_update(batch, device, net, criterion, optimizer)
     else:
-        for x_batch, y_batch in train_loader:
-            batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+        for batch in next(train_iter):
+            batch_update(batch, device, net, criterion, optimizer)
 
-def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
     net.train()
     optimizer.zero_grad()
 
-    for i, (x_batch, y_batch) in enumerate(train_loader):
-        if i == single_batch_idx:
-            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            outputs = net(x_batch)
-            loss = criterion(outputs, y_batch)
-            loss.backward()
-            break
+    # HuggingFace datasets
+    if isinstance(net, PreTrainedModel):
+        batch = next(train_iter)
+        outputs = net(**move_batch_to_device(batch, device))
+        loss = outputs.loss
+
+        del batch
+    # Pytorch datasets
+    else:
+        x_batch, y_batch = next(train_iter)
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        outputs = net(x_batch)
+        loss = criterion(outputs, y_batch)
+
+        del x_batch, y_batch
+
+    # Backward pass
+    loss.backward()
+
+    torch.cuda.empty_cache()
+    gc.collect()
 
     return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
 
@@ -216,10 +237,18 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             epoch_accuracy = metric(y_batch, outputs)
         return epoch_loss, epoch_accuracy
     with torch.no_grad():
-        for x_batch, y_batch in data_loader:
-            x_batch = x_batch.to(device)
-            y_batch = y_batch.to(device)
-            outputs = net(x_batch).float()
-            epoch_loss += criterion(outputs, y_batch)
-            epoch_accuracy += metric(y_batch, outputs)
+        if isinstance(net, PreTrainedModel):
+            for batch in data_loader:
+                outputs = net(**move_batch_to_device(batch, device))
+                epoch_loss += outputs.loss
+                epoch_accuracy += metric(batch['labels'], outputs.logits)
+                del batch
+        else:
+            for x_batch, y_batch in data_loader:
+                x_batch = x_batch.to(device)
+                y_batch = y_batch.to(device)
+                outputs = net(x_batch).float()
+                epoch_loss += criterion(outputs, y_batch)
+                epoch_accuracy += metric(y_batch, outputs)
+                del x_batch, y_batch
     return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")

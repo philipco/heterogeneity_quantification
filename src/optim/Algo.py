@@ -176,6 +176,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             weights = weights @ weights.T
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
+        iter_loaders = [iter(client.train_loader) for client in network.clients]
         for k in range(inner_iterations):
 
             nb_collaborations = [nb_collaborations[i] + np.sum(weights[i] != 0) for i in range(network.nb_clients)]
@@ -185,12 +186,18 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             gradients = []
 
             # Computing gradients on each clients.
-            for client in network.clients:
+            for c_idx in range(network.nb_clients):
+                client = network.clients[c_idx]
                 set_seed(client.last_epoch * inner_iterations + k)
+
+                # Restarting the iterator if it has reached the end.
+                if (client.last_epoch * inner_iterations + k) % len(client.train_loader) == 0:
+                    iter_loaders[c_idx] = iter(client.train_loader)
+
                 # Single batch update before aggregation.
-                gradient = gradient_step(client.train_loader, client.device, client.trained_model,
-                                      client.criterion, client.optimizer, client.scheduler,
-                                         (client.last_epoch * inner_iterations + k) % len(client.train_loader))
+                gradient = gradient_step(iter_loaders[c_idx], client.device, client.trained_model,
+                                      client.criterion, client.optimizer, client.scheduler)
+
                 gradients.append(gradient)
 
             # Averaging gradient and updating models.

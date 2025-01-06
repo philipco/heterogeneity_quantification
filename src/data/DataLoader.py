@@ -10,6 +10,7 @@ from transformers import AutoTokenizer, DataCollatorWithPadding
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
+from src.data.DatasetConstants import CHECKPOINT
 from src.data.Split import create_non_iid_split
 from src.plot.PlotDifferentScenarios import f
 from src.utils.Utilities import get_path_to_datasets
@@ -251,22 +252,23 @@ def process_cais(ds):
         example["Answer"] = index_to_option[example["answer"]]
         return example
 
-    new_ds = ds.map(modify_cais, remove_columns=["choices", "subject"])
+    new_ds = ds.map(modify_cais, remove_columns=["choices", "subject", "answer"])
     new_ds = new_ds.rename_column("question", "Question")
     return new_ds
 
 def get_data_from_NLP(batch_size: int):
 
-    paths = ["cais/mmlu"] #"zefang-liu/secqa", "allenai/openbookqa",
-    names = [ "all"] #"secqa_v1", "main",
+    #paths = ["zefang-liu/secqa", "allenai/openbookqa", "cais/mmlu"]
+    paths = ["cais/mmlu", "cais/mmlu"] #, "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu"]
+    names = ["abstract_algebra", "machine_learning"] #, "computer_security", "anatomy", "philosophy", "sociology"]
+    #names = ["secqa_v1", "main", "machine_learning"]
     dict_download = {"zefang-liu/secqa": ["test", "val", "dev"], "allenai/openbookqa": ["train", "validation", "test"],
-            "cais/mmlu": ["auxiliary_train", "validation", "test"]}
+            "cais/mmlu": ["test", "validation", "dev"]}
 
     dict_processing = {"zefang-liu/secqa": process_secqa, "allenai/openbookqa": process_allenai,
                        "cais/mmlu": process_cais}
 
-    checkpoint = "bert-base-uncased"
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(CHECKPOINT)
 
     data_collator = DataCollatorForMultipleChoice(tokenizer=tokenizer)
 
