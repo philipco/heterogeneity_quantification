@@ -19,9 +19,13 @@ def write_train_val_test_performance(net, device, train_loader, val_loader, test
     if logs=="full":
         for name, param in net.named_parameters():
             writer.add_histogram(f'{name}.weight', param, last_epoch)
-    log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
+    train_loss, train_acc = log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
     log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
-    log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
+    test_loss, test_acc = log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
+
+    writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), last_epoch)
+    writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), last_epoch)
+
     writer.close()
 
 
@@ -33,6 +37,7 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
     writer.add_scalar(f'{name}_loss', epoch_test_loss, epoch)
     writer.add_scalar(f'{name}_accuracy', epoch_test_accuracy, epoch)
     writer.close()
+    return epoch_test_loss, epoch_test_accuracy
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,

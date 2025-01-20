@@ -1,16 +1,19 @@
 #python==3.10
 
-scipy>=1.9.0
-numpy
+scipy==1.13.1
+numpy==1.23.5
 matplotlib>=3.4
 tqdm
-torch  # >=1.10.2
-torchvision # Otherwise issue with Pillow
+torch==2.3.1  # >=1.10.2
+torchvision==0.18.1 # Otherwise issue with Pillow
+transformers==4.47.1
+datasets==3.2.
 Pillow
 tensorflow
+tensorboard==2.12.1
 numba
 sympy
-pot>0.8
+pot==0.9.4
 scikit-learn
 seaborn
 psutil
