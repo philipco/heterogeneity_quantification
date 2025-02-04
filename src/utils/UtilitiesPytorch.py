@@ -1,5 +1,9 @@
 import torch
 
+def assert_gradients_zero(model):
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            assert torch.all(param.grad == 0), f"Gradient of {name} is not zero: {param.grad}"
 
 def move_batch_to_device(batch, device):
     """

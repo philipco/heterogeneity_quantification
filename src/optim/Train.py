@@ -4,7 +4,7 @@ import torch
 from transformers import PreTrainedModel
 
 from src.utils.Utilities import set_seed
-from src.utils.UtilitiesPytorch import move_batch_to_device
+from src.utils.UtilitiesPytorch import move_batch_to_device, assert_gradients_zero
 
 
 def write_grad(trained_model, writer, last_epoch):
@@ -181,9 +181,50 @@ def batch_training(train_iter, device, net, criterion, optimizer, scheduler, sin
         for batch in train_iter:
             batch_update(batch, device, net, criterion, optimizer)
 
-def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
+def compute_gradient_validation_set(val_loader, net, device, optimizer, criterion):
     net.train()
     optimizer.zero_grad()
+    assert_gradients_zero(net)
+
+    # HuggingFace datasets
+    accumulated_grads = [torch.zeros_like(param) if param.grad is not None else None for param in net.parameters()]
+    for batch in val_loader:
+        if isinstance(net, PreTrainedModel):
+            outputs = net(**move_batch_to_device(batch, device))
+            loss = outputs.loss
+
+            del batch
+
+        # Pytorch datasets
+        else:
+            x_batch, y_batch = batch
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            outputs = net(x_batch)
+            loss = criterion(outputs, y_batch)
+
+            del x_batch, y_batch
+
+        # Backward pass
+        loss.backward()
+
+        for i, param in enumerate(net.parameters()):
+            if param.grad is not None:
+                if accumulated_grads[i] is None:
+                    accumulated_grads[i] = param.grad.clone().detach()
+                else:
+                    accumulated_grads[i] += param.grad.clone().detach()
+
+        torch.cuda.empty_cache()
+        gc.collect()
+
+    return [g / len(val_loader) for g in accumulated_grads if g is not None]
+
+def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
+    net.train()
+
+    # Why is this not setting the grad of the net to zero?
+    optimizer.zero_grad()
+    assert_gradients_zero(net)
 
     # HuggingFace datasets
     if isinstance(net, PreTrainedModel):
@@ -221,6 +262,7 @@ def update_model(net, aggregated_gradients, optimizer):
     """
     net.train()
     optimizer.zero_grad()  # Clears any lingering gradients
+    assert_gradients_zero(net)
 
     for param, grad in zip(net.parameters(), aggregated_gradients):
         param.grad = grad

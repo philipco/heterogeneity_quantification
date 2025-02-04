@@ -5,7 +5,7 @@ import torch
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
-from transformers import AutoTokenizer, DataCollatorWithPadding
+from transformers import AutoTokenizer
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset

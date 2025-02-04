@@ -3,15 +3,17 @@ import time
 from copy import deepcopy
 from random import sample
 
+import numba
 import numpy as np
 import optuna
+import torch
 from sklearn.preprocessing import normalize
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
     get_models_of_collaborating_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
 from src.optim.Train import compute_loss_and_accuracy, update_model, gradient_step, \
-    write_train_val_test_performance, write_grad
+    write_train_val_test_performance, write_grad, compute_gradient_validation_set
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue, \
     rejection_pvalue
@@ -144,9 +146,26 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         print(f"Elapsed time: {time.time() - start_time} seconds")
 
 
+def compute_weight_based_on_gradient(gradients, validation_gradient, norm_validation_gradient, local, client_idx):
+    grad_norm_diff = []
+    n = len(gradients)
+    for _ in range(n):
+        grads_G = [p.flatten() for p in gradients[_] if p is not None]
+        grad_norm_diff.append(
+            torch.sum(torch.cat([(gF - gG).pow(2) for gF, gG in zip(grads_G, validation_gradient)]))
+        )
+
+    weight = [float(d < norm_validation_gradient) for d in grad_norm_diff]
+    if sum(weight) == 0 or local:
+        return [int(i == client_idx) for i in range(n)]
+
+    total_weight = sum(weight)
+    return [w / total_weight for w in weight]
+
 
 def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
-                     plot_matrix: bool = True, pruning: bool = False, logs="light", local: bool=False):
+                     plot_matrix: bool = True, pruning: bool = False, logs="light", local: bool=False,
+                     collab_based_on_grad=False):
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
@@ -154,47 +173,28 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
 
-    acceptance_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
-                              "acceptance_test", network.nb_clients, network.nb_testpoints_by_clients)
-
-    rejection_test = Metrics(f"{network.dataset_name}_{network.algo_name}",
-                             "rejection_test", network.nb_clients, network.nb_testpoints_by_clients)
-
-    compute_matrix_of_distances(acceptance_pvalue, network,
-                                acceptance_test, symetric_distance=False)
-    compute_matrix_of_distances(rejection_pvalue, network,
-                                rejection_test, symetric_distance=True)
-
-    if plot_matrix:
-        plot_pvalues(acceptance_test, f"{0}")
-        plot_pvalues(rejection_test, f"{0}")
-
-    nb_collaborations = [0 for client in network.clients]
+    metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
+                              "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
 
-        # Compute weights len(client.train_loader.dataset) / total_nb_points
-        if local:
-            weights = [[int(i == j) for j in range(network.nb_clients)] for i in range(network.nb_clients)]
-        else:
-            weights = [[int(i == j or rejection_test.aggreage_heter()[i][j] > 0.05) for j in range(network.nb_clients)]
-                       for i in range(network.nb_clients)]
-            weights = normalize(weights, axis=1, norm='l1')
-            weights = weights @ weights.T
-
         inner_iterations = max([len(c.train_loader) for c in network.clients])
 
         # We create a data iterator for each clients, for each trained model by clients.
         iter_loaders = [[iter(client.train_loader) for client in network.clients] for client in network.clients]
+
+        # We compute the validation gradients at the beginning of the inner iterations.
+        validation_gradients, norm_validation_gradients = [], []
+        for c in network.clients:
+            g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
+                                                       c.optimizer, c.criterion)
+            validation_gradients.append([p.flatten() for p in g])
+            norm_validation_gradients.append(torch.sum(torch.cat([gF.pow(2) for gF in validation_gradients[-1]])))
+
         for k in range(inner_iterations):
-
-            nb_collaborations = [nb_collaborations[i] + np.sum(weights[i] != 0) for i in range(network.nb_clients)]
-            for (client, c) in zip(network.clients, nb_collaborations):
-                client.writer.add_scalar('nb_collaborations', c, client.last_epoch)
-
-
+            weights = []
 
             # Compute the new model client by client.
             for client_idx in range(network.nb_clients):
@@ -214,13 +214,24 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                     # Single batch update before aggregation.
                     # TODO : probleme with the scheduler.
                     gradient = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
-                                             c.criterion, c.optimizer, c.scheduler)
+                                             client.criterion, client.optimizer, client.scheduler)
 
                     gradients.append(gradient)
 
-                aggregated_gradients = aggregate_gradients(gradients, weights[client_idx], client.device)
-                update_model(client.trained_model, aggregated_gradients, client.optimizer)
+                if collab_based_on_grad:
+                    weight = compute_weight_based_on_gradient(gradients, validation_gradients[client_idx],
+                                                           norm_validation_gradients[client_idx], local, client_idx)
+                else:
+                    metrics_for_comparison.reinitialize()
+                    compute_matrix_of_distances(rejection_pvalue, network, metrics_for_comparison, symetric_distance=True)
+                    weight = [int(client_idx == j or metrics_for_comparison.aggreage_heter()[client_idx][j] > 0.05) for j in range(network.nb_clients)]
 
+                    weight = [w / sum(weight) for w in weight]
+
+                weights.append(weight)
+
+                aggregated_gradients = aggregate_gradients(gradients, weight, client.device)
+                update_model(client.trained_model, aggregated_gradients, client.optimizer)
         for client in network.clients:
             client.last_epoch += 1
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
@@ -232,9 +243,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         print(f"Elapsed time: {time.time() - start_time} seconds")
         print("Now computing matrix of distances...")
 
-        rejection_test.reinitialize()
-        compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
-
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
@@ -242,16 +250,11 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
-        if synchronization_idx % 10 == 0:
+        if synchronization_idx % 2 == 1:
             ### We compute the distance between clients.
-            acceptance_test.reinitialize()
-            compute_matrix_of_distances(acceptance_pvalue, network, acceptance_test, symetric_distance=False)
-
-            # rejection_test.reinitialize()
-            # compute_matrix_of_distances(rejection_pvalue, network, rejection_test, symetric_distance=True)
-
-            plot_pvalues(acceptance_test, f"{synchronization_idx}")
-            plot_pvalues(rejection_test, f"{synchronization_idx}")
+            metrics_for_comparison.reinitialize()
+            metrics_for_comparison.add_distances(weights)
+            plot_pvalues(metrics_for_comparison, f"{synchronization_idx}")
 
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
