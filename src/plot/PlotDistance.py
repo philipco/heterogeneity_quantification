@@ -55,7 +55,7 @@ def plot_pvalues(metrics: Metrics, scenario: str) -> None:
     kwargs = dict(origin='lower', cmap=cmap, norm=norm)
     # We set the diagonal at nan.
     # matrix_to_plot[0][np.arange(metrics.nb_of_clients), np.arange(metrics.nb_of_clients)] = np.nan
-    matrix_to_plot[np.arange(metrics.nb_of_clients), np.arange(metrics.nb_of_clients)] = np.nan
+    # matrix_to_plot[np.arange(metrics.nb_of_clients), np.arange(metrics.nb_of_clients)] = np.nan
 
     x_non_iid = 0
     total_nb_of_points = np.sum(metrics.nb_of_points_by_clients)

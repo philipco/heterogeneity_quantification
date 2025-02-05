@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 import numpy as np
 import torch
 from scipy.stats import norm, ranksums, mannwhitneyu
+from transformers import PreTrainedModel
+
+from src.utils.UtilitiesPytorch import move_batch_to_device
 
 
 class StatisticalTest(ABC):
@@ -114,24 +117,29 @@ class ProportionTest(StatisticalTest):
         print(f"\tBeta critique: {self.beta_critique}")
 
 
-def compute_atomic_errors(reg, data_loader, loss):
+def compute_atomic_errors(net, data_loader, loss):
     # Unified interface to handle both scikit-learn and PyTorch.
-    if isinstance(reg, torch.nn.Module):
-        device = next(reg.parameters()).device
+    if isinstance(net, torch.nn.Module):
+        device = next(net.parameters()).device
         # If the regressor is a PyTorch model
-        reg.eval()  # Set the model to evaluation mode
+        net.eval()  # Set the model to evaluation mode
         atomic_errors = []
         with torch.no_grad():
-            for x_batch, y_batch in data_loader:
-                x_batch = x_batch.to(device)
-                y_batch = y_batch.to(device)
-                predictions = reg(x_batch)
-                atomic_errors.append(loss(predictions, y_batch))
+            if isinstance(net, PreTrainedModel):
+                for batch in data_loader:
+                    outputs = net(**move_batch_to_device(batch, device))
+                    atomic_errors.append(loss(outputs.logits, move_batch_to_device(batch, device)["labels"]))
+            else:
+                for x_batch, y_batch in data_loader:
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+                    predictions = net(x_batch)
+                    atomic_errors.append(loss(predictions, y_batch))
             atomic_errors = torch.concat(atomic_errors)
-    elif hasattr(reg, 'predict'):
+    elif hasattr(net, 'predict'):
         # If the regressor is a scikit-learn model
         features, Y = data_loader
-        predictions = reg.predict(features)
+        predictions = net.predict(features)
         atomic_errors = [loss(ypred, y) for (y, ypred) in zip(Y, predictions)]
     else:
         raise ValueError("Unsupported regressor type.")

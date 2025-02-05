@@ -1,7 +1,10 @@
+import gc
+
 import torch
-from tqdm import tqdm
+from transformers import PreTrainedModel
 
 from src.utils.Utilities import set_seed
+from src.utils.UtilitiesPytorch import move_batch_to_device, assert_gradients_zero
 
 
 def write_grad(trained_model, writer, last_epoch):
@@ -16,9 +19,13 @@ def write_train_val_test_performance(net, device, train_loader, val_loader, test
     if logs=="full":
         for name, param in net.named_parameters():
             writer.add_histogram(f'{name}.weight', param, last_epoch)
-    log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
+    train_loss, train_acc = log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
     log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
-    log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
+    test_loss, test_acc = log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
+
+    writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), last_epoch)
+    writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), last_epoch)
+
     writer.close()
 
 
@@ -30,6 +37,7 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
     writer.add_scalar(f'{name}_loss', epoch_test_loss, epoch)
     writer.add_scalar(f'{name}_accuracy', epoch_test_accuracy, epoch)
     writer.close()
+    return epoch_test_loss, epoch_test_accuracy
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
@@ -133,26 +141,29 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     train_loss = []
 
     # Training
-    print(f"=== Training the neural network on {client_ID}. ===")
     set_seed(last_epoch)
-    for local_epoch in tqdm(range(nb_local_epochs)):
+    for local_epoch in range(nb_local_epochs):
         if single_batch:
             idx = (last_epoch + local_epoch) % len(train_loader)
             batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
         else:
-            batch_training(train_loader, device, net, criterion, optimizer, scheduler, None)
+            batch_training(iter(train_loader), device, net, criterion, optimizer, scheduler, None)
     scheduler.step()
     return train_loss
 
 
-def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
+def batch_update(batch, device, net, criterion, optimizer):
     net.zero_grad()
-    x_batch = x_batch.to(device)
-    y_batch = y_batch.to(device)
+    if isinstance(net, PreTrainedModel):
+        outputs = net(**move_batch_to_device(batch, device))
+        loss = outputs.loss
+    else:
+        x_batch, y_batch = batch
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
 
-    # Forward pass
-    outputs = net(x_batch)
-    loss = criterion(outputs, y_batch)
+        # Forward pass
+        outputs = net(x_batch)
+        loss = criterion(outputs, y_batch)
 
     # Backward pass and optimization
     loss.backward()
@@ -160,27 +171,82 @@ def batch_update(x_batch, y_batch, device, net, criterion, optimizer):
 
     return None
 
-def batch_training(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+def batch_training(train_iter, device, net, criterion, optimizer, scheduler, single_batch_idx):
     # For Gossip, we communicate after every batch, therefore we need to access one single batch.
     net.train()
     if single_batch_idx is not None:
-        x_batch, y_batch = list(train_loader)[single_batch_idx]
-        batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+        batch = next(train_iter)
+        batch_update(batch, device, net, criterion, optimizer)
     else:
-        for x_batch, y_batch in train_loader:
-            batch_update(x_batch, y_batch, device, net, criterion, optimizer)
+        for batch in train_iter:
+            batch_update(batch, device, net, criterion, optimizer)
 
-def gradient_step(train_loader, device, net, criterion, optimizer, scheduler, single_batch_idx):
+def compute_gradient_validation_set(val_loader, net, device, optimizer, criterion):
     net.train()
     optimizer.zero_grad()
+    assert_gradients_zero(net)
 
-    for i, (x_batch, y_batch) in enumerate(train_loader):
-        if i == single_batch_idx:
+    # HuggingFace datasets
+    accumulated_grads = [torch.zeros_like(param) if param.grad is not None else None for param in net.parameters()]
+    for batch in val_loader:
+        if isinstance(net, PreTrainedModel):
+            outputs = net(**move_batch_to_device(batch, device))
+            loss = outputs.loss
+
+            del batch
+
+        # Pytorch datasets
+        else:
+            x_batch, y_batch = batch
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             outputs = net(x_batch)
             loss = criterion(outputs, y_batch)
-            loss.backward()
-            break
+
+            del x_batch, y_batch
+
+        # Backward pass
+        loss.backward()
+
+        for i, param in enumerate(net.parameters()):
+            if param.grad is not None:
+                if accumulated_grads[i] is None:
+                    accumulated_grads[i] = param.grad.clone().detach()
+                else:
+                    accumulated_grads[i] += param.grad.clone().detach()
+
+        torch.cuda.empty_cache()
+        gc.collect()
+
+    return [g / len(val_loader) for g in accumulated_grads if g is not None]
+
+def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
+    net.train()
+
+    # Why is this not setting the grad of the net to zero?
+    optimizer.zero_grad()
+    assert_gradients_zero(net)
+
+    # HuggingFace datasets
+    if isinstance(net, PreTrainedModel):
+        batch = next(train_iter)
+        outputs = net(**move_batch_to_device(batch, device))
+        loss = outputs.loss
+
+        del batch
+    # Pytorch datasets
+    else:
+        x_batch, y_batch = next(train_iter)
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        outputs = net(x_batch)
+        loss = criterion(outputs, y_batch)
+
+        del x_batch, y_batch
+
+    # Backward pass
+    loss.backward()
+
+    torch.cuda.empty_cache()
+    gc.collect()
 
     return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
 
@@ -196,6 +262,7 @@ def update_model(net, aggregated_gradients, optimizer):
     """
     net.train()
     optimizer.zero_grad()  # Clears any lingering gradients
+    assert_gradients_zero(net)
 
     for param, grad in zip(net.parameters(), aggregated_gradients):
         param.grad = grad
@@ -216,10 +283,18 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             epoch_accuracy = metric(y_batch, outputs)
         return epoch_loss, epoch_accuracy
     with torch.no_grad():
-        for x_batch, y_batch in data_loader:
-            x_batch = x_batch.to(device)
-            y_batch = y_batch.to(device)
-            outputs = net(x_batch).float()
-            epoch_loss += criterion(outputs, y_batch)
-            epoch_accuracy += metric(y_batch, outputs)
+        if isinstance(net, PreTrainedModel):
+            for batch in data_loader:
+                outputs = net(**move_batch_to_device(batch, device))
+                epoch_loss += outputs.loss
+                epoch_accuracy += metric(batch['labels'], outputs.logits)
+                del batch
+        else:
+            for x_batch, y_batch in data_loader:
+                x_batch = x_batch.to(device)
+                y_batch = y_batch.to(device)
+                outputs = net(x_batch).float()
+                epoch_loss += criterion(outputs, y_batch)
+                epoch_accuracy += metric(y_batch, outputs)
+                del x_batch, y_batch
     return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")

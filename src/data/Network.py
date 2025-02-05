@@ -1,8 +1,10 @@
 import copy
 
+from transformers import AutoModelForMultipleChoice
+
 from src.data.Client import Client
 from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS, \
-    WEIGHT_DECAY
+    WEIGHT_DECAY, CHECKPOINT
 from src.utils.LoggingWriter import LoggingWriter
 from src.utils.PickleHandler import pickle_loader, pickle_saver
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
@@ -10,7 +12,7 @@ from src.utils.Utilities import get_project_root, file_exist, create_folder_if_n
 
 class Network:
 
-    def __init__(self, X_train, X_val, X_test, Y_train, Y_val, Y_test, batch_size, nb_initial_epochs, dataset_name,
+    def __init__(self, train_loaders, val_loaders, test_loaders, nb_initial_epochs, dataset_name,
                  algo_name, split_type, seed=0):
         super().__init__()
         self.trial = None
@@ -18,20 +20,27 @@ class Network:
         self.dataset_name = dataset_name
         self.split_type = split_type
         self.algo_name = algo_name
-        self.nb_clients = len(Y_train)
+        self.nb_clients = len(train_loaders)
         self.nb_initial_epochs = nb_initial_epochs
-        self.nb_testpoints_by_clients = [len(y) for y in Y_val]
+        self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
 
         # Creating clients.
         self.clients = []
-        net = MODELS[dataset_name]()
+        if dataset_name in ["exam_llm"]:
+            net = AutoModelForMultipleChoice.from_pretrained(CHECKPOINT, cache_dir="./")
+            # Freeze all pretrained weights
+            for param in net.base_model.parameters():
+                param.requires_grad = False
+
+        else:
+            net = MODELS[dataset_name]()
         for i in range(self.nb_clients):
             ID = f"{dataset_name}_{algo_name}_{i}" if split_type is None \
                 else f"{dataset_name}_{split_type}_{algo_name}_{i}"
-            self.clients.append(Client(ID, f"{dataset_name}", X_train[i],
-                                       X_val[i], X_test[i],  Y_train[i], Y_val[i], Y_test[i], copy.deepcopy(net),
+            self.clients.append(Client(ID, f"{dataset_name}", train_loaders[i], val_loaders[i],
+                                       test_loaders[i], copy.deepcopy(net),
                                        CRITERION[dataset_name], METRIC[dataset_name], STEP_SIZE[dataset_name],
                                        MOMENTUM[dataset_name], WEIGHT_DECAY[dataset_name], BATCH_SIZE[dataset_name],
                                        SCHEDULER_PARAMS[dataset_name]))

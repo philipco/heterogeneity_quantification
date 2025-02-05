@@ -17,7 +17,10 @@ def objective(trial, network):
     step_size = trial.suggest_float("step_size", 1e-4, 1e-1, log=True)
     weight_decay = trial.suggest_categorical("weight_decay", [0, 10**-4, 10**-3, 10**-2, 10**-1, 1])
     # scheduler_steps = trial.suggest_int("scheduler_steps", 1, 15)
-    scheduler_gamma = trial.suggest_float("scheduler_gamma", 0.5, 1)
+    if network.dataset_name in ["cifar10"]:
+        scheduler_gamma = 1
+    else:
+        scheduler_gamma = trial.suggest_float("scheduler_gamma", 0.5, 1)
     if network.dataset_name in ["heart_disease", "tcga_brca", "mnist", "liquid_asset"]:
         momentum = 0
     else:
@@ -32,7 +35,7 @@ def objective(trial, network):
     ### We want to minimize the loss of the last 5 iterate (to reduce oscillation if case of).
     return np.mean([network.writer.get_scalar(f'val_accuracy', network.clients[0].last_epoch - i) for i in range(5)])
 
-NB_TRIALS = 50
+NB_TRIALS = 20
 
 if __name__ == '__main__':
 

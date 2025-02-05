@@ -157,6 +157,14 @@ def aggregate_gradients(gradients_list, weights, device):
     for i, gradients in enumerate(gradients_list):
         for j, grad in enumerate(gradients):
             if grad is not None:
-                aggregated_gradients[j] += weights[i] * grad.to(aggregated_gradients[j].device)
+                try:
+                    aggregated_gradients[j] += weights[i] * grad.to(aggregated_gradients[j].device)
+                except IndexError:
+                    print(f"i: {i}")
+                    print(f"j: {j}")
+                    print(f"weights: {weights}")
+                    print(f"len: {len(aggregated_gradients)}")
+
+
 
     return aggregated_gradients

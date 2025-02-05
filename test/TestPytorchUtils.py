@@ -184,7 +184,8 @@ def test_aggregation_equal_weights():
     ]
     weights = [1, 1, 1]
 
-    result = aggregate_gradients(gradients_list, weights)
+    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+    result = aggregate_gradients(gradients_list, weights, device)
 
     # Expected result: sum of each gradient multiplied by its weight
     expected = [torch.tensor([3.0, 6.0]), torch.tensor([9.0, 12.0])]
@@ -201,7 +202,8 @@ def test_aggregation_different_weights():
     ]
     weights = [0.1, 0.2, 0.7]
 
-    result = aggregate_gradients(gradients_list, weights)
+    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+    result = aggregate_gradients(gradients_list, weights, device)
 
     # Expected result: weighted sum of gradients
     expected = [torch.tensor([2.6, 2.6]), torch.tensor([2.6, 2.6, 3.6])]
@@ -221,8 +223,10 @@ def test_no_modification_of_input_gradients():
     # Make deep copies of the input gradients
     original_gradients = [[grad.clone() for grad in grads] for grads in gradients_list]
 
+    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+
     # Run the aggregation
-    _ = aggregate_gradients(gradients_list, weights)
+    _ = aggregate_gradients(gradients_list, weights, device)
 
     # Verify each original gradient is unchanged
     for original, current in zip(original_gradients, gradients_list):
