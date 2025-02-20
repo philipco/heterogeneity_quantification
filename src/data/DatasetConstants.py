@@ -65,15 +65,15 @@ TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
 STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.001,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.1, "exam_llm": 10**-3}
-WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": .001, "heart_disease": 0,
-                "ixi": 0.0001, "liquid_asset": 0.1, "synth": 0.1, "exam_llm": 10**-4}
+             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.8, "exam_llm": 10**-2}
+WEIGHT_DECAY = {"mnist": 0, "cifar10": 0, "tcga_brca": 0, "heart_disease": 0,
+                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "exam_llm": 0}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 64, "exam_llm": 8}
+              "synth": 64, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "exam_llm": 0.95}
-SCHEDULER_PARAMS = {"mnist": (15, 0.92), "cifar10": (15, 1), "tcga_brca": (50, 0.609), "heart_disease": (15, 0.554),
-                    "ixi": (15, 0.75), "liquid_asset": (15, 0.75), "synth": (15, 2/3), "exam_llm": (15, 2/3)}
+SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),
+                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (4, 2/3), "exam_llm": (15, 2/3)}
 
 # MNIST
 # Best trial config:  {'step_size': 0.04500608326765825, 'weight_decay': 0, 'scheduler_gamma': 0.9254090508955067}

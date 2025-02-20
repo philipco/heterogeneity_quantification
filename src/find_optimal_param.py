@@ -5,10 +5,11 @@ from functools import partial
 import argparse
 
 from sympy.physics.units import momentum
+from transformers import AutoModelForMultipleChoice
 
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import all_for_all_algo
-from src.data.DatasetConstants import MODELS
+from src.data.DatasetConstants import MODELS, CHECKPOINT
 
 
 # Define the training function
@@ -27,7 +28,13 @@ def objective(trial, network):
         momentum = 0.95
     scheduler_step = 50 if network.dataset_name in ["tcga_brca"] else 15
         # momentum = trial.suggest_categorical("momentum", [0, 0.9, 0.95, 0.99])
-    net = MODELS[network.dataset_name]()
+    if network.dataset_name in ["exam_llm"]:
+        net = AutoModelForMultipleChoice.from_pretrained(CHECKPOINT, cache_dir="./")
+        # Freeze all pretrained weights
+        for param in net.base_model.parameters():
+            param.requires_grad = False
+    else:
+        net = MODELS[network.dataset_name]()
     for client in network.clients:
         client.reset_hyperparameters(net, step_size, momentum, weight_decay, scheduler_step, scheduler_gamma)
         network.trial = trial
@@ -49,7 +56,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dataset_name = args.dataset_name
 
-    assert dataset_name in ["mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth"], \
+    assert dataset_name in ["mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth", "exam_llm"], \
         "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 

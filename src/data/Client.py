@@ -1,8 +1,9 @@
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
-from torch.optim.lr_scheduler import ConstantLR
+from torch.optim.lr_scheduler import ConstantLR, StepLR
 
+from src.optim.LinearWarmupScheduler import LinearWarmupScheduler
 from src.optim.Train import train_local_neural_network, write_train_val_test_performance
 from src.utils.LoggingWriter import LoggingWriter
 
@@ -31,7 +32,11 @@ class Client:
 
         self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
         self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
-        self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_params[0], factor=scheduler_params[1])
+        if tensorboard_dir in ["exam_llm"]:
+            self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
+                                                   20, plateau=5)
+        else:
+            self.scheduler = StepLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
         if criterion is not None:
             self.criterion = criterion()
         else:
