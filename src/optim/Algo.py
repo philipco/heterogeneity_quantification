@@ -295,7 +295,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
-                     keep_track=True, collab_based_on="loss"):
+                     keep_track=False, collab_based_on="loss"):
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])

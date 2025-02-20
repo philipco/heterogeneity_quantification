@@ -16,8 +16,8 @@ from src.data.DatasetConstants import MODELS, CHECKPOINT
 def objective(trial, network):
     # Define the hyperparameters
     step_size = trial.suggest_float("step_size", 1e-4, 1e-1, log=True)
-    weight_decay = trial.suggest_categorical("weight_decay", [0, 10**-4, 10**-3, 10**-2, 10**-1, 1])
-    # scheduler_steps = trial.suggest_int("scheduler_steps", 1, 15)
+    # weight_decay = trial.suggest_categorical("weight_decay", [0, 10**-4, 10**-3, 10**-2, 10**-1, 1])
+    # scheduler_steps =
     if network.dataset_name in ["cifar10"]:
         scheduler_gamma = 1
     else:
@@ -26,7 +26,7 @@ def objective(trial, network):
         momentum = 0
     else:
         momentum = 0.95
-    scheduler_step = 50 if network.dataset_name in ["tcga_brca"] else 15
+    scheduler_step = 50 if network.dataset_name in ["tcga_brca"] else trial.suggest_int("scheduler_steps", 1, 15)
         # momentum = trial.suggest_categorical("momentum", [0, 0.9, 0.95, 0.99])
     if network.dataset_name in ["exam_llm"]:
         net = AutoModelForMultipleChoice.from_pretrained(CHECKPOINT, cache_dir="./")
@@ -36,7 +36,7 @@ def objective(trial, network):
     else:
         net = MODELS[network.dataset_name]()
     for client in network.clients:
-        client.reset_hyperparameters(net, step_size, momentum, weight_decay, scheduler_step, scheduler_gamma)
+        client.reset_hyperparameters(net, step_size, momentum, 0, scheduler_step, scheduler_gamma)
         network.trial = trial
     all_for_all_algo(network, nb_of_synchronization=25, pruning=True)
     ### We want to minimize the loss of the last 5 iterate (to reduce oscillation if case of).

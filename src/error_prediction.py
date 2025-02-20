@@ -29,7 +29,7 @@ if __name__ == '__main__':
     nb_initial_epochs = 0
 
     for algo_name in ["all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
-        assert algo_name in ["quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
+        assert algo_name in ["all_for_one_pdtscl", "quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
@@ -43,7 +43,7 @@ if __name__ == '__main__':
         if algo_name == "all_for_all":
             all_for_all_algo(network, nb_of_synchronization=20)
         if algo_name == "local":
-            all_for_all_algo(network, nb_of_synchronization=20, local=True)
+            all_for_all_algo(network, nb_of_synchronization=20, collab_based_on="local")
         if algo_name == "fednova":
             fednova_training(network, nb_of_synchronization=20)
         if algo_name == "all_for_one":
