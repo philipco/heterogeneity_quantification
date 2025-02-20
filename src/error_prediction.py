@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    for algo_name in ["all_for_one", "all_for_one_loss", "local", "all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
+    for algo_name in ["all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"]: #["gossip", "quantile", "fed", "all_for_all"]:
         assert algo_name in ["quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
@@ -47,9 +47,11 @@ if __name__ == '__main__':
         if algo_name == "fednova":
             fednova_training(network, nb_of_synchronization=20)
         if algo_name == "all_for_one":
-            all_for_one_algo(network, nb_of_synchronization=20, collab_based_on_grad=True)
+            all_for_one_algo(network, nb_of_synchronization=20)
         if algo_name == "all_for_one_loss":
-            all_for_one_algo(network, nb_of_synchronization=20, collab_based_on_grad=False)
+            all_for_one_algo(network, nb_of_synchronization=20, collab_based_on="loss")
+        if algo_name == "all_for_one_pdtscl":
+            all_for_one_algo(network, nb_of_synchronization=20, collab_based_on="pdtscl")
 
     if dataset_name in ["liquid_asset"]:
         X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())
