@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 import torch
 
 from src.data.NetworkLoader import get_network
-from src.optim.Algo import all_for_one_algo, all_for_all_algo
+from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training
 
 from src.optim.Train import compute_loss_and_accuracy
+from src.utils.PlotUtilities import plot_values
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 
@@ -44,7 +45,7 @@ def plot_level_set_with_gradients_pytorch(net, device, criterion, metric, data_l
     # gradients = np.concatenate(gradients, axis=0)
 
     # Plot the level set
-    plt.contour(X, Y, Z, levels=[0.1, 0.5, 1, 2, 4, 8, 16], colors=color, alpha=0.75)
+    plt.contour(X, Y, Z, levels=[0.05, 0.1, 0.5, 1, 2, 4, 8, 16], colors=color, alpha=0.75)
 
     # Plot the points
     # plt.scatter(points[:, 0], points[:, 1], color='red', label='Points')
@@ -60,47 +61,71 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
+    test_epochs, test_losses, test_accuracies = {}, {}, {}
+
     nb_initial_epochs = 0
-    for algo_name in ["local", "all_for_all", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl"]:
+    all_algos = ["all_for_one_ratio"]#, "all_for_all", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl"]
+    for algo_name in all_algos:
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
 
         for i in range(network.nb_clients):
             c = network.clients[i]
             plot_level_set_with_gradients_pytorch(c.trained_model, c.device, c.criterion, c.metric,
-                                                  c.test_loader, color="tab:red" if i == 0 else "tab:blue")
+                                                  c.train_loader, color="tab:red" if i == 0 else "tab:blue")
             c.trained_model.linear.weight.data = torch.tensor([[-7.5]]).to(torch.float32).to(c.device)
-            c.trained_model.linear.bias.data = torch.tensor([-10]).to(torch.float32).to(c.device)
+            c.trained_model.linear.bias.data = torch.tensor([-7.5]).to(torch.float32).to(c.device)
 
+        if algo_name == "fed":
+            track_models = federated_training(network, nb_of_synchronization=15, keep_track=True)
         if algo_name == "all_for_all":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=25, keep_track=True)
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=15, keep_track=True)
         if algo_name == "local":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=25, collab_based_on = "local",
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=15, collab_based_on = "local",
                                                              keep_track=True)
         if algo_name == "all_for_one":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=25, collab_based_on = "grad",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "grad",
                                                              keep_track=True)
         if algo_name == "all_for_one_loss":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=25, collab_based_on = "loss",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "loss",
                                                              keep_track=True)
         if algo_name == "all_for_one_pdtscl":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=25, collab_based_on = "pdtscl",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "pdtscl",
+                                                             keep_track=True)
+        if algo_name == "all_for_one_ratio":
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
                                                              keep_track=True)
 
 
-        for i in range(len(track_models)):
-            X = [t[0] for t in track_models[i]]
-            Y = [t[1] for t in track_models[i]]
-            plt.scatter(X, Y, color="tab:red" if i == 0 else "tab:blue", marker="*")
+        if not algo_name == "fed":
+            for i in range(len(track_models)):
+                X = [t[0] for t in track_models[i][:-2]]
+                Y = [t[1] for t in track_models[i][:-2]]
+                plt.scatter(X, Y, color="tab:red" if i == 0 else "tab:blue", marker="*")
 
+                for j in range(0, len(X), 1):
+                    plt.quiver(X[j], Y[j], -track_gradients[i][j][0], -track_gradients[i][j][1],
+                               angles='xy', scale_units='xy', scale=1, color="tab:red" if i == 0 else "tab:blue", alpha=0.5,
+                               width=0.005)
+        else:
+            X = [t[0] for t in track_models]
+            Y = [t[1] for t in track_models]
+            plt.scatter(X, Y, color="tab:red", marker="*")
+        test_epochs[algo_name] = network.writer.retrieve_information("test_accuracy")[0]
+        test_accuracies[algo_name] = network.writer.retrieve_information("test_accuracy")[1]
+        test_losses[algo_name] = network.writer.retrieve_information("test_loss")[1]
 
-            for j in range(0, len(X), 4):
-                plt.quiver(X[j], Y[j], -track_gradients[i][j][0], -track_gradients[i][j][1],
-                           angles='xy', scale_units='xy', scale=1, color="tab:red" if i == 0 else "tab:blue", alpha=0.5,
-                           width=0.005)
 
         root = get_project_root()
+        pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
+        create_folder_if_not_existing(pickle_folder)
+        network.writer.save(pickle_folder)
+
+        # Saving the level set figure.
         create_folder_if_not_existing('{0}/pictures/convergence'.format(root))
         folder = '{0}/pictures/convergence/{1}_{2}.pdf'.format(root, dataset_name, algo_name)
         plt.savefig(folder, dpi=600, bbox_inches='tight')
-        plt.show()
+        plt.close()
+
+    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name, algo_name, log=True)
+

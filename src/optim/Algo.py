@@ -67,7 +67,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     writer.close()
 
 
-def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1):
+def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1, keep_track: bool = False):
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
@@ -82,6 +82,10 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         assert equal(network.clients[i].trained_model, network.clients[0].trained_model), \
             (f"Models {network.clients[i].ID} are not equal.")
 
+    if keep_track:
+        track_models = []
+        # track_gradients = [[] for c in network.clients]
+
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
         start_time = time.time()
@@ -92,6 +96,10 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         # Averaging models
         new_model = aggregate_models([client.trained_model for client in network.clients],
                          weights, network.clients[0].device)
+
+        if keep_track:
+            track_models.append([m.data.item() for m in new_model.parameters()])
+
         for client in network.clients:
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
@@ -101,6 +109,10 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
                                              client.ID, client.writer, client.last_epoch)
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
+
+    if keep_track:
+        return track_models
+    return None
 
 
 
@@ -161,6 +173,30 @@ def compute_weight_based_on_gradient(gradients, validation_gradient, norm_valida
     total_weight = sum(weight)
     return [w / total_weight for w in weight]
 
+def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, numerators, denominators, alpha=0.1):
+
+    grads, grads_val = [], []
+    for _ in range(len(gradients)):
+        grads.append(torch.concat([p.flatten() for p in gradients[_] if p is not None]))
+        grads_val.append(torch.concat([p.flatten() for p in validation_gradients[_] if p is not None]))
+
+    new_denom = grads[client_idx] @ grads_val[client_idx]
+    denominators[client_idx] = denominators[client_idx] * (1 - alpha) + new_denom * alpha
+
+    for _ in range(len(gradients)):
+        new_num = (grads[client_idx] @ grads[_] + grads_val[client_idx] @ grads_val[_]
+                   - grads[_] @ grads_val[_])
+        numerators[client_idx][_] = numerators[client_idx][_] * (1-alpha) + new_num * alpha
+
+    print([numerators[client_idx][_] / denominators[client_idx] for _ in range(len(gradients))])
+    weight = [int(numerators[client_idx][_] / denominators[client_idx] >= 0.5) for _ in range(len(gradients))]
+    if sum(weight) == 0:
+        print(f"⚠️ The sum of weights is zero.")
+        weight = [int(i == client_idx) for i in range(len(gradients))]
+    # assert weight[client_idx] == 1, "The client do not consider its own update."
+    total_weight = sum(weight)
+    return [w / total_weight for w in weight], numerators, denominators
+
 def compute_weight_based_on_scalar_product(gradients, validation_gradient, norm_validation_gradient, client_idx):
     sclpdts = []
     validation_gradient = torch.cat([p.flatten() for p in validation_gradient if p is not None])
@@ -192,8 +228,9 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                               "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
 
+    numerators, denominators = [[0 for _ in network.clients] for _ in network.clients], [0 for _ in network.clients]
     if keep_track:
-        track_models = [[] for c in network.clients]
+        track_models = [[[m.data.item() for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
 
     # We create a data iterator for each clients, for each trained model by clients.
@@ -204,7 +241,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         start_time = time.time()
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
-
 
         # We compute the validation gradients at the beginning of the inner iterations.
         validation_gradients, norm_validation_gradients = [], []
@@ -253,6 +289,12 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                               norm_validation_gradients[client_idx], client_idx)
                 elif collab_based_on == "local":
                     weight = [int(j == client_idx) for j in range(network.nb_clients)]
+                elif collab_based_on == "ratio":
+                    print("It: ", c.last_epoch * inner_iterations + k + 1)
+                    weight, numerators, denominators = compute_weight_based_on_ratio(gradients, validation_gradients,
+                                                                                     client_idx, numerators,
+                                                                                     denominators, 0.5)
+                                                                                     #1 / (c.last_epoch * inner_iterations + k + 1))
                 else:
                     raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
 
@@ -309,7 +351,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     nb_collaborations = [0 for client in network.clients]
 
     if keep_track:
-        track_models = [[] for c in network.clients]
+        track_models = [[[m.data.item() for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
 
     iter_loaders = [iter(client.train_loader) for client in network.clients]
@@ -384,7 +426,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                     write_grad(client.trained_model, client.writer, client.writer)
 
                 aggregated_gradients = aggregate_gradients(gradients, weights[client_idx], client.device)
-
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
 
                 if keep_track:

@@ -1,6 +1,14 @@
 import torch
 from torch.optim.lr_scheduler import LRScheduler
 
+class ConstantLRScheduler(LRScheduler):
+    def __init__(self, optimizer, last_epoch=-1):
+        super(ConstantLRScheduler, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        # Return the initial learning rate
+        return [base_lr for base_lr in self.base_lrs]
+
 class LinearWarmupScheduler(LRScheduler):
     def __init__(self, optimizer, warmup_steps, total_steps, plateau = 0, last_epoch=-1):
         """
