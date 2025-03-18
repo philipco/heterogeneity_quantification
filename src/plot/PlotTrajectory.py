@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
+from src.data.DatasetConstants import BATCH_SIZE
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training
 
@@ -61,10 +62,10 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
-    test_epochs, test_losses, test_accuracies = {}, {}, {}
+    test_epochs, test_losses, train_losses = {}, {}, {}
 
     nb_initial_epochs = 0
-    all_algos = ["all_for_one_ratio"]#, "all_for_all", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl"]
+    all_algos = ["all_for_one_ratio", "all_for_all", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "fed", "local"]
     for algo_name in all_algos:
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
@@ -77,20 +78,20 @@ if __name__ == '__main__':
             c.trained_model.linear.bias.data = torch.tensor([-7.5]).to(torch.float32).to(c.device)
 
         if algo_name == "fed":
-            track_models = federated_training(network, nb_of_synchronization=15, keep_track=True)
+            track_models = federated_training(network, nb_of_synchronization=20, keep_track=True)
         if algo_name == "all_for_all":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=15, keep_track=True)
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, keep_track=True)
         if algo_name == "local":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=15, collab_based_on = "local",
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, collab_based_on = "local",
                                                              keep_track=True)
         if algo_name == "all_for_one":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "grad",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "grad",
                                                              keep_track=True)
         if algo_name == "all_for_one_loss":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "loss",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "loss",
                                                              keep_track=True)
         if algo_name == "all_for_one_pdtscl":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=15, collab_based_on = "pdtscl",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "pdtscl",
                                                              keep_track=True)
         if algo_name == "all_for_one_ratio":
             track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
@@ -112,7 +113,7 @@ if __name__ == '__main__':
             Y = [t[1] for t in track_models]
             plt.scatter(X, Y, color="tab:red", marker="*")
         test_epochs[algo_name] = network.writer.retrieve_information("test_accuracy")[0]
-        test_accuracies[algo_name] = network.writer.retrieve_information("test_accuracy")[1]
+        train_losses[algo_name] = network.writer.retrieve_information("train_loss")[1]
         test_losses[algo_name] = network.writer.retrieve_information("test_loss")[1]
 
 
@@ -123,9 +124,10 @@ if __name__ == '__main__':
 
         # Saving the level set figure.
         create_folder_if_not_existing('{0}/pictures/convergence'.format(root))
-        folder = '{0}/pictures/convergence/{1}_{2}.pdf'.format(root, dataset_name, algo_name)
+        folder = f'{root}/pictures/convergence/{dataset_name}_{algo_name}_b{BATCH_SIZE[dataset_name]}.pdf'
         plt.savefig(folder, dpi=600, bbox_inches='tight')
         plt.close()
 
-    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name, algo_name, log=True)
+    plot_values(test_epochs, train_losses, all_algos, 'train_loss', dataset_name, log=True)
+    plot_values(test_epochs, test_losses, all_algos, 'test_loss', dataset_name, log=True)
 
