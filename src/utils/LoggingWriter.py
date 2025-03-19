@@ -74,7 +74,7 @@ class LoggingWriter(SummaryWriter):
             return steps, values
         return [], []
 
-    def save(self, path):
+    def save(self, path, name: str = "logging_writer_central.pkl"):
         """
         Save the writer's state to a file.
 
@@ -85,11 +85,11 @@ class LoggingWriter(SummaryWriter):
         >>> writer.add_scalar("loss", 0.5, 1)
         >>> writer.save("./logs")
         """
-        with open(os.path.join(path, "logging_writer.pkl"), "wb") as f:
+        with open(os.path.join(path, name), "wb") as f:
             pickle.dump(self.scalars, f)
 
     @staticmethod
-    def load(path):
+    def load(path, name: str = "logging_writer_central.pkl"):
         """
         Load a LoggingWriter from a saved file.
 
@@ -102,7 +102,7 @@ class LoggingWriter(SummaryWriter):
         >>> writer = LoggingWriter.load("./logs")
         """
         writer = LoggingWriter()
-        pkl_path = os.path.join(path, "logging_writer.pkl")
+        pkl_path = os.path.join(path, name)
         if os.path.exists(pkl_path):
             with open(pkl_path, "rb") as f:
                 writer.scalars = pickle.load(f)

@@ -6,7 +6,7 @@ import torch
 
 from src.data.DatasetConstants import BATCH_SIZE
 from src.data.NetworkLoader import get_network
-from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training
+from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training, fednova_training
 
 from src.optim.Train import compute_loss_and_accuracy
 from src.utils.PlotUtilities import plot_values
@@ -14,7 +14,7 @@ from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 
 def plot_level_set_with_gradients_pytorch(net, device, criterion, metric, data_loader, color, x_range=(-10, 10), y_range=(-10, 10),
-                                          num_points=50):
+                                          num_points=200):
     """
     Plots the level set of the loss function, points, and arrows representing the gradient at the corresponding points.
 
@@ -62,11 +62,16 @@ NB_RUN = 1
 
 if __name__ == '__main__':
 
-    test_epochs, test_losses, train_losses = {}, {}, {}
-
     nb_initial_epochs = 0
-    all_algos = ["all_for_one_ratio", "all_for_all", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "fed", "local"]
+    all_algos = ["all_for_one_ratio", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"]
+
+    train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
+        algo: [] for algo in all_algos}
+    test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
+        algo: [] for algo in all_algos}
+
     for algo_name in all_algos:
+        print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
 
@@ -79,6 +84,8 @@ if __name__ == '__main__':
 
         if algo_name == "fed":
             track_models = federated_training(network, nb_of_synchronization=20, keep_track=True)
+        if algo_name == "fednova":
+            track_models = fednova_training(network, nb_of_synchronization=20, keep_track=True)
         if algo_name == "all_for_all":
             track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, keep_track=True)
         if algo_name == "local":
@@ -98,7 +105,7 @@ if __name__ == '__main__':
                                                              keep_track=True)
 
 
-        if not algo_name == "fed":
+        if not algo_name in ["fed", "fednova"]:
             for i in range(len(track_models)):
                 X = [t[0] for t in track_models[i][:-2]]
                 Y = [t[1] for t in track_models[i][:-2]]
@@ -112,15 +119,24 @@ if __name__ == '__main__':
             X = [t[0] for t in track_models]
             Y = [t[1] for t in track_models]
             plt.scatter(X, Y, color="tab:red", marker="*")
-        test_epochs[algo_name] = network.writer.retrieve_information("test_accuracy")[0]
-        train_losses[algo_name] = network.writer.retrieve_information("train_loss")[1]
-        test_losses[algo_name] = network.writer.retrieve_information("test_loss")[1]
 
+        for client in network.clients:
+            writer = client.writer
+
+            train_epochs[algo_name].append(writer.retrieve_information("train_accuracy")[0])
+            train_accuracies[algo_name].append(writer.retrieve_information("train_accuracy")[1])
+            train_losses[algo_name].append(writer.retrieve_information("train_loss")[1])
+
+            test_epochs[algo_name].append(writer.retrieve_information("test_accuracy")[0])
+            test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
+            test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
 
         root = get_project_root()
         pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
         create_folder_if_not_existing(pickle_folder)
-        network.writer.save(pickle_folder)
+        network.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
+        for client in network.clients:
+            client.writer.save(f"{pickle_folder}", f"logging_writer_{client.ID}.pkl")
 
         # Saving the level set figure.
         create_folder_if_not_existing('{0}/pictures/convergence'.format(root))
@@ -128,6 +144,8 @@ if __name__ == '__main__':
         plt.savefig(folder, dpi=600, bbox_inches='tight')
         plt.close()
 
-    plot_values(test_epochs, train_losses, all_algos, 'train_loss', dataset_name, log=True)
-    plot_values(test_epochs, test_losses, all_algos, 'test_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
+    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
+    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
+    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
 

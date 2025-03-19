@@ -31,13 +31,13 @@ def write_train_val_test_performance(net, device, train_loader, val_loader, test
 
 def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch):
     # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-    epoch_test_loss, epoch_test_accuracy = compute_loss_and_accuracy(net, device, loader,
+    epoch_loss, epoch_accuracy = compute_loss_and_accuracy(net, device, loader,
                                                                      criterion, metric, "tcga_brca" in client_ID)
     # Writing logs.
-    writer.add_scalar(f'{name}_loss', epoch_test_loss, epoch)
-    writer.add_scalar(f'{name}_accuracy', epoch_test_accuracy, epoch)
+    writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
+    writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
     writer.close()
-    return epoch_test_loss, epoch_test_accuracy
+    return epoch_loss, epoch_accuracy
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
