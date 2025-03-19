@@ -3,11 +3,9 @@ import time
 from copy import deepcopy
 from random import sample
 
-import numba
 import numpy as np
 import optuna
 import torch
-from sklearn.preprocessing import normalize
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
@@ -71,7 +69,12 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
+    for client in network.clients:
+        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
+                                         client.val_loader, client.test_loader, client.criterion, client.metric,
+                                         client.ID, client.writer, client.last_epoch)
 
     # Averaging models
     new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -114,13 +117,16 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         return track_models
     return None
 
-
-
-def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1):
+def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1, keep_track: bool = False):
 
     total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
     weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
+    for client in network.clients:
+        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
+                                         client.val_loader, client.test_loader, client.criterion, client.metric,
+                                         client.ID, client.writer, client.last_epoch)
 
     # Number of local epoch * number of samples / batch size
     tau_i = [np.floor(nb_of_local_epoch * len(client.train_loader.dataset)
@@ -135,6 +141,9 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         assert equal(network.clients[i].trained_model, network.clients[0].trained_model), \
             (f"Models {network.clients[i].ID} are not equal.")
 
+    if keep_track:
+        track_models = []
+
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
         start_time = time.time()
@@ -147,6 +156,9 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         new_model = fednova_aggregation(old_model, [client.trained_model for client in network.clients], tau_i, weights,
                             network.clients[0].device)
 
+        if keep_track:
+            track_models.append([m.data.item() for m in new_model.parameters()])
+
         for client in network.clients:
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
@@ -156,7 +168,9 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
                                              client.ID, client.writer, client.last_epoch)
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
-
+    if keep_track:
+        return track_models
+    return None
 
 def compute_weight_based_on_gradient(gradients, validation_gradient, norm_validation_gradient, client_idx):
     grad_norm_diff = []
@@ -181,15 +195,16 @@ def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, n
         grads_val.append(torch.concat([p.flatten() for p in validation_gradients[_] if p is not None]))
 
     new_denom = grads[client_idx] @ grads_val[client_idx]
-    denominators[client_idx] = denominators[client_idx] * (1 - alpha) + new_denom * alpha
+    denominators[client_idx].append(new_denom)
 
     for _ in range(len(gradients)):
         new_num = (grads[client_idx] @ grads[_] + grads_val[client_idx] @ grads_val[_]
                    - grads[_] @ grads_val[_])
-        numerators[client_idx][_] = numerators[client_idx][_] * (1-alpha) + new_num * alpha
+        numerators[client_idx][_].append(new_num)
 
-    print([numerators[client_idx][_] / denominators[client_idx] for _ in range(len(gradients))])
-    weight = [int(numerators[client_idx][_] / denominators[client_idx] >= 0.5) for _ in range(len(gradients))]
+    #print([numerators[client_idx][_][-1] / denominators[client_idx][-1] for _ in range(len(gradients))])
+    print([(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))])
+    weight = [int(numerators[client_idx][_][-1] > 0) for _ in range(len(gradients))]
     if sum(weight) == 0:
         print(f"⚠️ The sum of weights is zero.")
         weight = [int(i == client_idx) for i in range(len(gradients))]
@@ -213,8 +228,6 @@ def compute_weight_based_on_scalar_product(gradients, validation_gradient, norm_
     total_weight = sum(weight)
     return [w / total_weight for w in weight]
 
-
-
 def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      collab_based_on="grad", keep_track=False):
@@ -224,11 +237,15 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
+    for client in network.clients:
+        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
+                                         client.val_loader, client.test_loader, client.criterion, client.metric,
+                                         client.ID, client.writer, client.last_epoch)
 
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                               "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
 
-    numerators, denominators = [[0 for _ in network.clients] for _ in network.clients], [0 for _ in network.clients]
+    numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
     if keep_track:
         track_models = [[[m.data.item() for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
@@ -244,11 +261,11 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
         # We compute the validation gradients at the beginning of the inner iterations.
         validation_gradients, norm_validation_gradients = [], []
-        for c in network.clients:
-            g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
-                                                       c.optimizer, c.criterion)
-            validation_gradients.append([p.flatten() for p in g])
-            norm_validation_gradients.append(torch.sum(torch.cat([gF.pow(2) for gF in validation_gradients[-1]])))
+        # for c in network.clients:
+        #     g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
+        #                                                c.optimizer, c.criterion)
+        #     validation_gradients.append([p.flatten() for p in g])
+        #     norm_validation_gradients.append(torch.sum(torch.cat([gF.pow(2) for gF in validation_gradients[-1]])))
 
         for k in range(inner_iterations):
             weights = []
@@ -258,6 +275,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 client = network.clients[client_idx]
 
                 gradients = []
+                gradients2 = []
 
                 # Computing gradients on each clients.
                 for c_idx in range(network.nb_clients):
@@ -265,18 +283,42 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                     set_seed(client.last_epoch * inner_iterations + k)
 
                     # Restarting the iterator if it has reached the end.
-                    if (c.last_epoch * inner_iterations + k) % len(c.train_loader) == 0:
-                        iter_loaders[client_idx][c_idx] = iter(c.train_loader)
+                    # if collab_based_on == "ratio":
+                    #     if (2*c.last_epoch * inner_iterations + 2*k) % len(c.train_loader) == 0:
+                    #         iter_loaders[client_idx][c_idx] = iter(c.train_loader)
+                    # else:
+                    #
+                    #     if (c.last_epoch * inner_iterations + k) % len(c.train_loader) == 0:
+                    #         iter_loaders[client_idx][c_idx] = iter(c.train_loader)
 
                     # Single batch update before aggregation.
                     # TODO : probleme with the scheduler.
-                    gradient = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
-                                             client.criterion, client.optimizer, client.scheduler)
+                    try:
+                        gradient = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
+                                                 client.criterion, client.optimizer, client.scheduler)
+                    except StopIteration:
+                        iter_loaders[client_idx][c_idx] = iter(c.train_loader)
+                        gradient = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
+                                                 client.criterion, client.optimizer, client.scheduler)
 
                     gradients.append(gradient)
 
+                    if collab_based_on in ["ratio", "pdtscl", "grad"]:
+                        try:
+                            gradient2 = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
+                                                     client.criterion, client.optimizer, client.scheduler)
+                        except StopIteration:
+                            iter_loaders[client_idx][c_idx] = iter(c.train_loader)
+                            gradient2 = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
+                                                     client.criterion, client.optimizer, client.scheduler)
+                        gradients2.append(gradient2)
+
+                    if collab_based_on in ["grad", "pdtscl"]:
+                        norm_validation_gradients.append(
+                            torch.sum(torch.cat([gF.pow(2) for gF in [p.flatten() for p in gradient2]])))
+
                 if collab_based_on == "grad":
-                    weight = compute_weight_based_on_gradient(gradients, validation_gradients[client_idx],
+                    weight = compute_weight_based_on_gradient(gradients, [p.flatten() for p in gradients2[client_idx]],
                                                            norm_validation_gradients[client_idx], client_idx)
                 elif collab_based_on == "loss":
                     metrics_for_comparison.reinitialize()
@@ -285,13 +327,13 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
                     weight = [w / sum(weight) for w in weight]
                 elif collab_based_on == "pdtscl":
-                    weight = compute_weight_based_on_scalar_product(gradients, validation_gradients[client_idx],
+                    weight = compute_weight_based_on_scalar_product(gradients, [p.flatten() for p in gradients2[client_idx]],
                                                               norm_validation_gradients[client_idx], client_idx)
                 elif collab_based_on == "local":
                     weight = [int(j == client_idx) for j in range(network.nb_clients)]
                 elif collab_based_on == "ratio":
                     print("It: ", c.last_epoch * inner_iterations + k + 1)
-                    weight, numerators, denominators = compute_weight_based_on_ratio(gradients, validation_gradients,
+                    weight, numerators, denominators = compute_weight_based_on_ratio(gradients, gradients2,
                                                                                      client_idx, numerators,
                                                                                      denominators, 0.5)
                                                                                      #1 / (c.last_epoch * inner_iterations + k + 1))
@@ -334,7 +376,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     if keep_track:
         return track_models, track_gradients
 
-
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      keep_track=False, collab_based_on="loss"):
@@ -344,6 +385,10 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
+    for client in network.clients:
+        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
+                                         client.val_loader, client.test_loader, client.criterion, client.metric,
+                                         client.ID, client.writer, client.last_epoch)
 
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                                      "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
