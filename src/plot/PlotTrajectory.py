@@ -104,7 +104,6 @@ if __name__ == '__main__':
             track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
                                                              keep_track=True)
 
-
         if not algo_name in ["fed", "fednova"]:
             for i in range(len(track_models)):
                 X = [t[0] for t in track_models[i][:-2]]
@@ -131,6 +130,7 @@ if __name__ == '__main__':
             test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
             test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
 
+        # Saving the writer as pkl files.
         root = get_project_root()
         pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
         create_folder_if_not_existing(pickle_folder)
@@ -145,7 +145,7 @@ if __name__ == '__main__':
         plt.close()
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=False)
     plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
+    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=False)
 

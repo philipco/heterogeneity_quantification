@@ -12,7 +12,7 @@ if __name__ == '__main__':
 
     # Recalculer l'erreur globale basée sur la moyenne et sur l'écart-type !
 
-    dataset_name = "synth"
+    dataset_name = "heart_disease"
 
     assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth"], \
         "Dataset not recognized."
@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_one_ratio", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"] #["gossip", "quantile", "fed", "all_for_all"]
+    all_algos = ["fednova", "all_for_one_ratio", "local", "fed"] #["all_for_one_ratio", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"] #["gossip", "quantile", "fed", "all_for_all"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
@@ -50,6 +50,6 @@ if __name__ == '__main__':
             test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=False)
     plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
+    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=False)
