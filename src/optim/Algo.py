@@ -260,7 +260,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         inner_iterations = max([len(c.train_loader) for c in network.clients])
 
         # We compute the validation gradients at the beginning of the inner iterations.
-        validation_gradients, norm_validation_gradients = [], []
+        # validation_gradients, norm_validation_gradients = [], []
         # for c in network.clients:
         #     g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
         #                                                c.optimizer, c.criterion)
@@ -276,23 +276,13 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
                 gradients = []
                 gradients2 = []
+                norm_validation_gradients = []
 
                 # Computing gradients on each clients.
                 for c_idx in range(network.nb_clients):
                     c = network.clients[c_idx]
                     set_seed(client.last_epoch * inner_iterations + k)
 
-                    # Restarting the iterator if it has reached the end.
-                    # if collab_based_on == "ratio":
-                    #     if (2*c.last_epoch * inner_iterations + 2*k) % len(c.train_loader) == 0:
-                    #         iter_loaders[client_idx][c_idx] = iter(c.train_loader)
-                    # else:
-                    #
-                    #     if (c.last_epoch * inner_iterations + k) % len(c.train_loader) == 0:
-                    #         iter_loaders[client_idx][c_idx] = iter(c.train_loader)
-
-                    # Single batch update before aggregation.
-                    # TODO : probleme with the scheduler.
                     try:
                         gradient = gradient_step(iter_loaders[client_idx][c_idx], c.device, client.trained_model,
                                                  client.criterion, client.optimizer, client.scheduler)
@@ -393,6 +383,9 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                                      "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
 
+
+    numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
+
     nb_collaborations = [0 for client in network.clients]
 
     if keep_track:
@@ -410,36 +403,47 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         for k in range(inner_iterations):
 
             weights = []
-            # We compute the validation gradients at the beginning of the inner iterations.
-            validation_gradients, norm_validation_gradients = [], []
-            for c in network.clients:
-                g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
-                                                    c.optimizer, c.criterion)
-                validation_gradients.append([p.flatten() for p in g])
-
-            for (client, c) in zip(network.clients, nb_collaborations):
-                client.writer.add_scalar('nb_collaborations', c, client.last_epoch)
-
             gradients = []
+            gradients2 = []
+            norm_validation_gradients = []
 
             # Computing gradients on each clients.
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
                 set_seed(client.last_epoch * inner_iterations + k)
 
-                # Restarting the iterator if it has reached the end.
-                if (client.last_epoch * inner_iterations + k) % len(client.train_loader) == 0:
+                try:
+                    gradient = gradient_step(iter_loaders[client_idx], client.device, client.trained_model,
+                                             client.criterion, client.optimizer, client.scheduler)
+                except StopIteration:
                     iter_loaders[client_idx] = iter(client.train_loader)
-
-                # Single batch update before aggregation.
-                gradient = gradient_step(iter_loaders[client_idx], client.device, client.trained_model,
-                                      client.criterion, client.optimizer, client.scheduler)
+                    gradient = gradient_step(iter_loaders[client_idx], client.device, client.trained_model,
+                                             client.criterion, client.optimizer, client.scheduler)
 
                 gradients.append(gradient)
 
+                if collab_based_on in ["ratio", "pdtscl", "grad"]:
+                    try:
+                        gradient2 = gradient_step(iter_loaders[client_idx], client.device, client.trained_model,
+                                                  client.criterion, client.optimizer, client.scheduler)
+                    except StopIteration:
+                        iter_loaders[client_idx] = iter(client.train_loader)
+                        gradient2 = gradient_step(iter_loaders[client_idx], client.device, client.trained_model,
+                                                  client.criterion, client.optimizer, client.scheduler)
+                    gradients2.append(gradient2)
+
+            # Computing the weights for each
             for client_idx in range(network.nb_clients):
+                if collab_based_on in ["grad", "pdtscl"]:
+                    norm_validation_gradients.append(
+                        torch.sum(torch.cat([gF.pow(2) for gF in [p.flatten() for p in gradient2]])))
+
+                if collab_based_on in ["grad", "pdtscl"]:
+                    norm_validation_gradients.append(
+                        torch.sum(torch.cat([gF.pow(2) for gF in [p.flatten() for p in gradient2]])))
+
                 if collab_based_on == "grad":
-                    weight = compute_weight_based_on_gradient(gradients, validation_gradients[client_idx],
+                    weight = compute_weight_based_on_gradient(gradients, [p.flatten() for p in gradients2[client_idx]],
                                                               norm_validation_gradients[client_idx], client_idx)
                 elif collab_based_on == "loss":
                     metrics_for_comparison.reinitialize()
@@ -450,11 +454,16 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
                     weight = [w / sum(weight) for w in weight]
                 elif collab_based_on == "pdtscl":
-                    weight = compute_weight_based_on_scalar_product(gradients, validation_gradients[client_idx],
-                                                                    norm_validation_gradients[client_idx],
-                                                                    client_idx)
+                    weight = compute_weight_based_on_scalar_product(gradients,
+                                                                    [p.flatten() for p in gradients2[client_idx]],
+                                                                    norm_validation_gradients[client_idx], client_idx)
                 elif collab_based_on == "local":
                     weight = [int(j == client_idx) for j in range(network.nb_clients)]
+                elif collab_based_on == "ratio":
+                    print("It: ", network.clients[client_idx].last_epoch * inner_iterations + k + 1)
+                    weight, numerators, denominators = compute_weight_based_on_ratio(gradients, gradients2,
+                                                                                     client_idx, numerators,
+                                                                                     denominators, 0.5)
                 else:
                     raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
                 weights.append(weight)

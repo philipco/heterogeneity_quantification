@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_one_ratio", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"] #["gossip", "quantile", "fed", "all_for_all"]
+    all_algos = ["all_for_one_ratio", "all_for_one", "all_for_all", "all_for_all_ratio", "local", "fednova", "fed"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -77,7 +77,7 @@ if __name__ == '__main__':
             test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
             test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
 
-            # Saving the writer as pkl files.
+            print("---> Saving the writer as pkl files")
             root = get_project_root()
             pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
             create_folder_if_not_existing(pickle_folder)
