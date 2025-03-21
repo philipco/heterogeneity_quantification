@@ -88,6 +88,9 @@ if __name__ == '__main__':
             track_models = fednova_training(network, nb_of_synchronization=20, keep_track=True)
         if algo_name == "all_for_all":
             track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, keep_track=True)
+        if algo_name == "all_for_all_ratio":
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
+                                                             keep_track=True)
         if algo_name == "local":
             track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, collab_based_on = "local",
                                                              keep_track=True)

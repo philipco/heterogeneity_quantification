@@ -202,13 +202,10 @@ def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, n
                    - grads[_] @ grads_val[_])
         numerators[client_idx][_].append(new_num)
 
-    #print([numerators[client_idx][_][-1] / denominators[client_idx][-1] for _ in range(len(gradients))])
-    print([(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))])
     weight = [int(numerators[client_idx][_][-1] > 0) for _ in range(len(gradients))]
     if sum(weight) == 0:
         print(f"⚠️ The sum of weights is zero.")
         weight = [int(i == client_idx) for i in range(len(gradients))]
-    # assert weight[client_idx] == 1, "The client do not consider its own update."
     total_weight = sum(weight)
     return [w / total_weight for w in weight], numerators, denominators
 
@@ -258,14 +255,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         start_time = time.time()
 
         inner_iterations = max([len(c.train_loader) for c in network.clients])
-
-        # We compute the validation gradients at the beginning of the inner iterations.
-        # validation_gradients, norm_validation_gradients = [], []
-        # for c in network.clients:
-        #     g = compute_gradient_validation_set(c.val_loader, c.trained_model, c.device,
-        #                                                c.optimizer, c.criterion)
-        #     validation_gradients.append([p.flatten() for p in g])
-        #     norm_validation_gradients.append(torch.sum(torch.cat([gF.pow(2) for gF in validation_gradients[-1]])))
 
         for k in range(inner_iterations):
             weights = []
@@ -322,11 +311,9 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 elif collab_based_on == "local":
                     weight = [int(j == client_idx) for j in range(network.nb_clients)]
                 elif collab_based_on == "ratio":
-                    print("It: ", c.last_epoch * inner_iterations + k + 1)
                     weight, numerators, denominators = compute_weight_based_on_ratio(gradients, gradients2,
                                                                                      client_idx, numerators,
                                                                                      denominators, 0.5)
-                                                                                     #1 / (c.last_epoch * inner_iterations + k + 1))
                 else:
                     raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
 
@@ -460,7 +447,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 elif collab_based_on == "local":
                     weight = [int(j == client_idx) for j in range(network.nb_clients)]
                 elif collab_based_on == "ratio":
-                    print("It: ", network.clients[client_idx].last_epoch * inner_iterations + k + 1)
                     weight, numerators, denominators = compute_weight_based_on_ratio(gradients, gradients2,
                                                                                      client_idx, numerators,
                                                                                      denominators, 0.5)

@@ -40,7 +40,7 @@ if __name__ == '__main__':
         algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
-        assert algo_name in ["all_for_one_ratio", "all_for_one_pdtscl", "quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
+        assert algo_name in ["all_for_one_ratio", "all_for_all_ratio", "all_for_one_pdtscl", "quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
@@ -53,6 +53,8 @@ if __name__ == '__main__':
             federated_training(network, nb_of_synchronization=30)
         if algo_name == "all_for_all":
             all_for_all_algo(network, nb_of_synchronization=30)
+        if algo_name == "all_for_all_ratio":
+            all_for_all_algo(network, nb_of_synchronization=30, collab_based_on = "ratio")
         if algo_name == "local":
             all_for_all_algo(network, nb_of_synchronization=30, collab_based_on="local")
         if algo_name == "fednova":
