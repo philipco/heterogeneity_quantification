@@ -41,3 +41,29 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     folder = f'{root}/pictures/convergence/{dataset_name}'
     create_folder_if_not_existing(folder)
     plt.savefig(f"{folder}/{metric_name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)
+
+def plot_weights(weights, dataset_name, algo_name, name="weigths"):
+    nb_clients = len(weights)
+
+    fig, axes = plt.subplots(nb_clients, 1, figsize=(6, nb_clients))
+    for client_idx in range(nb_clients):
+        ax = axes[client_idx]
+        weight = weights[client_idx]
+
+        # Plot each (row, column) entry through time
+        iterations = range(len(weight))
+        for c_idx in range(nb_clients):
+                ax.plot(iterations, [weight[t][c_idx] for t in iterations],
+                         label=f"Client {client_idx} → {c_idx}",
+                         color=COLORS[c_idx], alpha=0.7, linestyle='-')
+
+        # Labels and Legend
+        ax.legend(ncol=2, fontsize=8, loc="upper right")
+        ax.grid(True, linestyle='--', alpha=0.6)
+
+    plt.subplots_adjust(wspace=0, hspace=0)  # To remove the space between subplots
+
+    root = get_project_root()
+    folder = f'{root}/pictures/convergence/{dataset_name}'
+    create_folder_if_not_existing(folder)
+    plt.savefig(f"{folder}/{algo_name}_{name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)

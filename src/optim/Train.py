@@ -219,6 +219,14 @@ def compute_gradient_validation_set(val_loader, net, device, optimizer, criterio
 
     return [g / len(val_loader) for g in accumulated_grads if g is not None]
 
+def safe_gradient_computation(train_loader, iter_loader, device, trained_model, criterion, optimizer, scheduler):
+    try:
+        gradient = gradient_step(iter_loader, device, trained_model, criterion, optimizer, scheduler)
+    except StopIteration:
+        iter_loader = iter(train_loader)
+        gradient = gradient_step(iter_loader, device, trained_model, criterion, optimizer, scheduler)
+    return gradient
+
 def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
     net.train()
 
@@ -240,10 +248,15 @@ def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
         outputs = net(x_batch)
         loss = criterion(outputs, y_batch)
 
+        # Backward pass
+        try:
+            loss.backward()
+        except RuntimeError:
+            print("Error")
+
         del x_batch, y_batch
 
-    # Backward pass
-    loss.backward()
+
 
     torch.cuda.empty_cache()
     gc.collect()

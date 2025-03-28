@@ -9,7 +9,7 @@ from src.data.NetworkLoader import get_network
 from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training, fednova_training
 
 from src.optim.Train import compute_loss_and_accuracy
-from src.utils.PlotUtilities import plot_values
+from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 
@@ -42,33 +42,25 @@ def plot_level_set_with_gradients_pytorch(net, device, criterion, metric, data_l
                 net.linear.bias.data = torch.tensor([Y[i, j]]).to(torch.float32).to(device)
                 Z[i, j] = compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = True)[0]
 
-    # points = np.concatenate(points, axis=0)
-    # gradients = np.concatenate(gradients, axis=0)
-
     # Plot the level set
     plt.contour(X, Y, Z, levels=[0.05, 0.1, 0.5, 1, 2, 4, 8, 16], colors=color, alpha=0.75)
-
-    # Plot the points
-    # plt.scatter(points[:, 0], points[:, 1], color='red', label='Points')
-
-    # Plot the arrows representing the gradients
-    # for point, grad in zip(points, gradients):
-    #     plt.arrow(point[0], point[1], grad[0], grad[1], head_width=0.5, head_length=0.5, fc='blue', ec='blue')
 
 
 dataset_name = "synth"
 
 NB_RUN = 1
+NB_EPOCHS = 25
 
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["all_for_one_ratio", "all_for_one", "all_for_one_loss", "all_for_one_pdtscl", "local", "all_for_all", "fednova", "fed"]
+    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed", "fednova"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
     test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
+    weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
 
     for algo_name in all_algos:
         print(f"--- ================== ALGO: {algo_name} ================== ---")
@@ -83,28 +75,28 @@ if __name__ == '__main__':
             c.trained_model.linear.bias.data = torch.tensor([-7.5]).to(torch.float32).to(c.device)
 
         if algo_name == "fed":
-            track_models = federated_training(network, nb_of_synchronization=20, keep_track=True)
+            track_models = federated_training(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
         if algo_name == "fednova":
-            track_models = fednova_training(network, nb_of_synchronization=20, keep_track=True)
+            track_models = fednova_training(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
         if algo_name == "all_for_all":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, keep_track=True)
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
         if algo_name == "all_for_all_ratio":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio",
                                                              keep_track=True)
         if algo_name == "local":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=20, collab_based_on = "local",
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "local",
                                                              keep_track=True)
         if algo_name == "all_for_one":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "grad",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "grad",
                                                              keep_track=True)
         if algo_name == "all_for_one_loss":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "loss",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "loss",
                                                              keep_track=True)
         if algo_name == "all_for_one_pdtscl":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "pdtscl",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "pdtscl",
                                                              keep_track=True)
         if algo_name == "all_for_one_ratio":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=20, collab_based_on = "ratio",
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio",
                                                              keep_track=True)
 
         if not algo_name in ["fed", "fednova"]:
@@ -133,6 +125,10 @@ if __name__ == '__main__':
             test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
             test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
 
+            weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
+            ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
+
+
         # Saving the writer as pkl files.
         root = get_project_root()
         pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
@@ -151,4 +147,8 @@ if __name__ == '__main__':
     plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=False)
     plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
     plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=False)
+
+    for algo_name in all_algos:
+        plot_weights(weights[algo_name], dataset_name, algo_name)
+        plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
 
