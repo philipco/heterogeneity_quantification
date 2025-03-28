@@ -475,7 +475,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 weights.append(weight)
                 client.writer.add_histogram('weights', np.array(weight), client.last_epoch * inner_iterations + k)
 
-            print(weights)
             nb_collaborations = [nb_collaborations[i] + np.sum(weights[i] != 0) for i in range(network.nb_clients)]
 
             for client_idx in range(network.nb_clients):
