@@ -438,7 +438,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                                             denominators, False)
                 client = network.clients[client_idx]
                 client.writer.add_histogram('ratio', np.array(
-                    [n[-1] / denominators[client_idx][-1] for n in numerators[client_idx]]),
+                    [(n[-1] / denominators[client_idx][-1]).to("cpu") for n in numerators[client_idx]]),
                                             client.last_epoch * inner_iterations + k)
                 if collab_based_on in ["grad", "pdtscl"]:
                     norm_validation_gradients.append(
