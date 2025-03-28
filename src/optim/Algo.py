@@ -302,7 +302,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                                                  denominators, False)
                 client = network.clients[client_idx]
                 client.writer.add_histogram('ratio', np.array(
-                    [n[-1] / denominators[client_idx][-1] for n in numerators[client_idx]]),
+                    [(n[-1] / denominators[client_idx][-1]).to("cpu") for n in numerators[client_idx]]),
                                             client.last_epoch * inner_iterations + k)
                 if collab_based_on == "grad":
                     weight = compute_weight_based_on_gradient(gradients, [p.flatten() for p in gradients2[client_idx]],
