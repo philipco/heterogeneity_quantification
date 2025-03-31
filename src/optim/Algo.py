@@ -67,8 +67,8 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
 
 def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1, keep_track: bool = False):
 
-    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
-    weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
@@ -101,7 +101,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
                          weights, network.clients[0].device)
 
         if keep_track:
-            track_models.append([m.data.item() for m in new_model.parameters()])
+            track_models.append([m.data[0].to("cpu") for m in new_model.parameters()])
 
         for client in network.clients:
             load_new_model(client.trained_model, new_model)
@@ -119,8 +119,8 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
 
 def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1, keep_track: bool = False):
 
-    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
-    weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
@@ -129,7 +129,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
                                          client.ID, client.writer, client.last_epoch)
 
     # Number of local epoch * number of samples / batch size
-    tau_i = [np.floor(nb_of_local_epoch * len(client.train_loader.dataset)
+    tau_i = [np.floor(nb_of_local_epoch * client.nb_train_points
                         / len(list(client.train_loader)[0])) for client in network.clients]
 
     # Averaging models
@@ -157,7 +157,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
                             network.clients[0].device)
 
         if keep_track:
-            track_models.append([m.data.item() for m in new_model.parameters()])
+            track_models.append([m.data[0] for m in new_model.parameters()])
 
         for client in network.clients:
             load_new_model(client.trained_model, new_model)
@@ -233,10 +233,11 @@ def compute_weight_based_on_scalar_product(gradients, validation_gradient, norm_
 def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      collab_based_on="grad", keep_track=False):
+    inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
-    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
-    fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
@@ -249,7 +250,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
     if keep_track:
-        track_models = [[[m.data.item() for m in c.trained_model.parameters()]] for c in network.clients]
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
 
     # We create a data iterator for each clients, for each trained model by clients.
@@ -258,8 +259,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
-
-        inner_iterations = max([len(c.train_loader) for c in network.clients])
 
         for k in range(inner_iterations):
             weights = []
@@ -333,8 +332,8 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 client.writer.add_histogram('weights', np.array(weight), client.last_epoch * inner_iterations + k)
                 if keep_track:
                     lr = client.optimizer.param_groups[0]['lr']
-                    track_models[client_idx].append([m.data.item() for m in client.trained_model.parameters()])
-                    track_gradients[client_idx].append([lr * g.item() for g in aggregated_gradients])
+                    track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
 
         for i in range(network.nb_clients):
             client = network.clients[i]
@@ -368,10 +367,12 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      keep_track=False, collab_based_on="loss"):
+
+    inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
-    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
-    fed_weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
@@ -388,7 +389,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     nb_collaborations = [0 for client in network.clients]
 
     if keep_track:
-        track_models = [[[m.data.item() for m in c.trained_model.parameters()]] for c in network.clients]
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
 
     iter_loaders = [iter(client.train_loader) for client in network.clients]
@@ -396,8 +397,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
-
-        inner_iterations = max([len(c.train_loader) for c in network.clients])
 
         for k in range(inner_iterations):
 
@@ -488,8 +487,8 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
                 if keep_track:
                     lr = client.optimizer.param_groups[0]['lr']
-                    track_models[client_idx].append([m.data.item() for m in client.trained_model.parameters()])
-                    track_gradients[client_idx].append([lr * g.item() for g in aggregated_gradients])
+                    track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         for client in network.clients:
             client.last_epoch += 1
@@ -576,8 +575,8 @@ def gossip_training(network: Network, nb_of_communication: int = 501):
 
 def fedquantile_training(network: Network, nb_of_local_epoch: int = 5, nb_of_communication: int = 51):
 
-    total_nb_points = np.sum([len(client.train_loader.dataset) for client in network.clients])
-    weights = [len(client.train_loader.dataset) / total_nb_points for client in network.clients]
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
 

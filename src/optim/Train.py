@@ -1,5 +1,4 @@
 import gc
-import itertools
 from collections.abc import Sequence
 
 import torch
