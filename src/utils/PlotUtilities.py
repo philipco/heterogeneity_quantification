@@ -43,6 +43,19 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     create_folder_if_not_existing(folder)
     plt.savefig(f"{folder}/{metric_name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)
 
+    # Print the LaTeX table
+    print("\\begin{tabular}{|c|c|}")
+    print("\\hline")
+    print(f"Algorithm & {metric_name} \\\\")
+    print("\\hline")
+    for algo_name in legends:
+        if log:
+            print(f"{algo_name} & {np.mean([np.log10(v) for v in values[algo_name]], axis=0)[-1]:.4f} \\\\")
+        else:
+            print(f"{algo_name} & {np.mean([v for v in values[algo_name]], axis=0)[-1]:.4f} \\\\")
+    print("\\hline")
+    print("\\end{tabular}")
+
 def plot_weights(weights, dataset_name, algo_name, name="weights"):
     nb_clients = len(weights)
 

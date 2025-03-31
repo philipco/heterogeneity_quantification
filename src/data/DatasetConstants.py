@@ -8,7 +8,8 @@ from torchvision.transforms import transforms
 from src.optim.CustomLoss import DiceLoss, CoxLoss, L1WeightedAccuracyLoss
 from src.optim.Metric import dice, auc, c_index, accuracy, l1_accuracy, mse_accuracy
 from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
-    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression
+    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression, \
+    Synth2ClientsRegression, Synth100ClientsRegression
 from src.optim.nn.Unet import UNet
 
 PCA_NB_COMPONENTS = 16
@@ -46,13 +47,15 @@ NB_CLIENTS = {"mnist": 6, "fashion_mnist": 8, "cifar10": 8, "camelyon16": 2, "he
               "exam_llm": 3}
 
 MODELS = {"mnist": CNN_MNIST, "cifar10": GoogleNetTransferLearning, "heart_disease": HeartDiseaseRegression,
-          "tcga_brca": TcgaRegression, "ixi": UNet, "liquid_asset": LiquidAssetRegression, "synth": SynthDataRegression,
+          "tcga_brca": TcgaRegression, "ixi": UNet, "liquid_asset": LiquidAssetRegression, "synth": Synth2ClientsRegression,
+          "synth_complex":  Synth100ClientsRegression,
           "exam_llm": None}
 CRITERION = {"mnist": nn.CrossEntropyLoss, "cifar10": nn.CrossEntropyLoss, "heart_disease": nn.BCELoss,
              "tcga_brca": CoxLoss, "ixi": DiceLoss, "liquid_asset": L1WeightedAccuracyLoss, "synth": MSELoss,
+             "synth_complex": MSELoss,
              "exam_llm": nn.CrossEntropyLoss}
 METRIC =  {"mnist": accuracy, "cifar10": accuracy, "heart_disease": auc, "tcga_brca": c_index, "ixi": dice,
-           "liquid_asset": l1_accuracy, "synth": mse_accuracy,
+           "liquid_asset": l1_accuracy, "synth": mse_accuracy, "synth_complex": mse_accuracy,
            "exam_llm": accuracy}
 
 CHECKPOINT = "distilbert-base-uncased" #"bert-base-uncased"
@@ -64,16 +67,22 @@ TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
-STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.001,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.5, "exam_llm": 10**-2}
+STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.008349135315129853,
+             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.5, "synth_complex": 0.0835, "exam_llm": 10**-2}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
-                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "exam_llm": 0}
+                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0.1, "exam_llm": 0}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 32, "exam_llm": 32}
+              "synth": 64, "synth_complex": 64, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
-            "liquid_asset": 0.95, "synth": 0, "exam_llm": 0.95}
+            "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
 SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),
-                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "exam_llm": (15, 2/3)}
+                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (200, 2/3),
+                    "exam_llm": (15, 2/3)}
+
+# HEART_DISEASE
+# [I 2025-03-31 16:57:40,443] Trial 1 finished with value: 0.5986238121986389 and parameters: {'step_size': 0.018873042065018778, 'weight_decay': 0.1}. Best is trial 1 with value: 0.5986238121986389.
+# [I 2025-03-31 18:42:47,362] Trial 2 finished with value: 0.6494265794754028 and parameters: {'step_size': 0.008349135315129853, 'weight_decay': 0}. Best is trial 2 with value: 0.6494265794754028.
+# [I 2025-03-31 18:39:47,888] Trial 1 finished with value: 0.5959862470626831 and parameters: {'step_size': 0.00022183630278209968, 'weight_decay': 0.1}. Best is trial 1 with value: 0.5959862470626831.
 
 # MNIST
 # Best trial config:  {'step_size': 0.04500608326765825, 'weight_decay': 0, 'scheduler_gamma': 0.9254090508955067}

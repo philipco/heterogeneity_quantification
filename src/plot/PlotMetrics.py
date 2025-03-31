@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed"]
+    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed", "fednova"]
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
