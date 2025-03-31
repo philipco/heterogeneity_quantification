@@ -27,13 +27,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dataset_name = args.dataset_name
 
-    assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth"], \
-        "Dataset not recognized."
+    assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset",
+                            "synth", "synth_complex"], "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed", "fednova"]
+    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}

@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from torch import nn, optim
 from torch.optim.lr_scheduler import ConstantLR, StepLR
 
-from src.optim.LinearWarmupScheduler import LinearWarmupScheduler
+from src.optim.LinearWarmupScheduler import LinearWarmupScheduler, ConstantLRScheduler
 from src.optim.Train import train_local_neural_network, write_train_val_test_performance
 from src.utils.LoggingWriter import LoggingWriter
 
@@ -28,6 +28,12 @@ class Client:
         self.val_loader = val_loader
         self.test_loader = test_loader
 
+        # The iterable dataset has no length (online setting, length is infinite).
+        try:
+            self.nb_train_points = len(self.train_loader.dataset)
+        except TypeError:
+            self.nb_train_points = 1
+
         self.trained_model = net.to(self.device)
 
         self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
@@ -36,7 +42,7 @@ class Client:
             self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
                                                    20, plateau=5)
         else:
-            self.scheduler = StepLR(self.optimizer, step_size=scheduler_params[0], gamma=scheduler_params[1])
+            self.scheduler = ConstantLRScheduler(self.optimizer)
         if criterion is not None:
             self.criterion = criterion()
         else:
@@ -50,7 +56,7 @@ class Client:
         self.trained_model = net.to(self.device)
         self.step_size, self.momentum = step_size, momentum
         self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
-        self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_steps, factor=scheduler_gamma)
+        # self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_steps, factor=scheduler_gamma)
 
     def resplit_train_test(self):
         self.X_train, self.X_test, self.Y_train, self.Y_test \

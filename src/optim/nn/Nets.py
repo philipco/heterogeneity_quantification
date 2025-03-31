@@ -90,6 +90,22 @@ class SynthDataRegression(nn.Module):
     def forward(self, x):
         return self.linear(x**2)#.flatten()
 
+class Synth2ClientsRegression(nn.Module):
+    def __init__(self):
+        super(Synth2ClientsRegression, self).__init__()
+        self.linear = nn.Linear(2, 1, bias=True)
+
+    def forward(self, x):
+        return self.linear(x)#.flatten()
+
+
+class Synth100ClientsRegression(nn.Module):
+    def __init__(self):
+        super(Synth100ClientsRegression, self).__init__()
+        self.linear = nn.Linear(100, 1, bias=True)
+
+    def forward(self, x):
+        return self.linear(x)#.flatten()
 
 class TcgaRegression(LinearRegression):
     def __init__(self):

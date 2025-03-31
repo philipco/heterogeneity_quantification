@@ -22,7 +22,11 @@ class Network:
         self.algo_name = algo_name
         self.nb_clients = len(train_loaders)
         self.nb_initial_epochs = nb_initial_epochs
-        self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
+        # The iterable dataset has no lenght (online setting, lenght is infinite).
+        try:
+            self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
+        except TypeError:
+            self.nb_testpoints_by_clients = [1 for y in val_loaders]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
 
