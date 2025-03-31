@@ -14,13 +14,13 @@ if __name__ == '__main__':
 
     dataset_name = "synth"
 
-    assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset", "synth"], \
-        "Dataset not recognized."
+    assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset",
+                            "synth", "synth_complex"], "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_all_ratio", "all_for_all", "all_for_one", "all_for_one_ratio", "local", "fednova", "fed"]
+    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed"]
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         matching_files = glob.glob(file_pattern)
 
         # Extract the file names from the full paths
-        file_names = [os.path.basename(file) for file in matching_files]
+        file_names = sorted([os.path.basename(file) for file in matching_files])
         for name in file_names:
             writer = LoggingWriter.load(pickle_folder, name)
 
@@ -53,8 +53,9 @@ if __name__ == '__main__':
                 weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
                 ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
 
-        plot_weights(weights[algo_name], dataset_name, algo_name)
-        plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
+        if algo_name not in ["fed", "fednova"]:
+            plot_weights(weights[algo_name], dataset_name, algo_name)
+            plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
     plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)

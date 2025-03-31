@@ -8,13 +8,13 @@ from src.data.DatasetConstants import BATCH_SIZE
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training, fednova_training
 
-from src.optim.Train import compute_loss_and_accuracy
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
+COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
-def plot_level_set_with_gradients_pytorch(net, device, criterion, metric, data_loader, color, x_range=(-10, 10), y_range=(-10, 10),
-                                          num_points=200):
+
+def plot_level_set_with_gradients_pytorch(data_loader, x_range=(-10, 10), y_range=(-10, 10), num_points=200):
     """
     Plots the level set of the loss function, points, and arrows representing the gradient at the corresponding points.
 
@@ -32,24 +32,19 @@ def plot_level_set_with_gradients_pytorch(net, device, criterion, metric, data_l
     X, Y = np.meshgrid(x, y)
     Z = np.zeros_like(X)
 
-    # Calculate the loss and gradients for each point in the data loader
-    points = []
-
     with torch.no_grad():
         for i in range(num_points):
             for j in range(num_points):
-                net.linear.weight.data = torch.tensor([[X[i, j]]]).to(torch.float32).to(device)
-                net.linear.bias.data = torch.tensor([Y[i, j]]).to(torch.float32).to(device)
-                Z[i, j] = compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = True)[0]
+                model_shift = data_loader.dataset.true_theta  - torch.tensor([[X[i, j], Y[i, j]]]).to(torch.float32)
+                Z[i, j] = model_shift @ data_loader.dataset.covariance @ model_shift.T + data_loader.dataset.noise_std**2
 
-    # Plot the level set
-    plt.contour(X, Y, Z, levels=[0.05, 0.1, 0.5, 1, 2, 4, 8, 16], colors=color, alpha=0.75)
+    return X, Y, Z
 
 
 dataset_name = "synth"
 
 NB_RUN = 1
-NB_EPOCHS = 25
+NB_EPOCHS = 10
 
 if __name__ == '__main__':
 
@@ -62,17 +57,23 @@ if __name__ == '__main__':
         algo: [] for algo in all_algos}
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
 
+    client_X, client_Y, client_Z = None, None, None
     for algo_name in all_algos:
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
+        if client_X is None:
+            client_X, client_Y, client_Z = ([None for _ in network.clients] for _ in range(3))
 
         for i in range(network.nb_clients):
             c = network.clients[i]
-            plot_level_set_with_gradients_pytorch(c.trained_model, c.device, c.criterion, c.metric,
-                                                  c.train_loader, color="tab:red" if i == 0 else "tab:blue")
-            c.trained_model.linear.weight.data = torch.tensor([[-7.5]]).to(torch.float32).to(c.device)
-            c.trained_model.linear.bias.data = torch.tensor([-7.5]).to(torch.float32).to(c.device)
+            # Plot the level set
+            if client_X[i] is None:
+                client_X[i], client_Y[i], client_Z[i] = plot_level_set_with_gradients_pytorch(c.train_loader)
+            plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.1, 1, 3, 7, 15, 30],
+                        colors=COLORS[i], alpha=0.75)
+
+            c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.float32).to(c.device)
 
         if algo_name == "fed":
             track_models = federated_training(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
@@ -101,18 +102,18 @@ if __name__ == '__main__':
 
         if not algo_name in ["fed", "fednova"]:
             for i in range(len(track_models)):
-                X = [t[0] for t in track_models[i][:-2]]
-                Y = [t[1] for t in track_models[i][:-2]]
-                plt.scatter(X, Y, color="tab:red" if i == 0 else "tab:blue", marker="*")
+                model_X = [t[0][0] for t in track_models[i][:-2]]
+                model_Y = [t[0][1] for t in track_models[i][:-2]]
+                plt.scatter(model_X, model_Y, color=COLORS[i], marker="*")
 
-                for j in range(0, len(X), 1):
-                    plt.quiver(X[j], Y[j], -track_gradients[i][j][0], -track_gradients[i][j][1],
-                               angles='xy', scale_units='xy', scale=1, color="tab:red" if i == 0 else "tab:blue", alpha=0.5,
+                for j in range(0, len(model_X), 1):
+                    plt.quiver(model_X[j], model_Y[j], -track_gradients[i][j][0][0], -track_gradients[i][j][0][1],
+                               angles='xy', scale_units='xy', scale=1, color=COLORS[i], alpha=0.5,
                                width=0.005)
         else:
-            X = [t[0] for t in track_models]
-            Y = [t[1] for t in track_models]
-            plt.scatter(X, Y, color="tab:red", marker="*")
+            model_X = [t[0][0] for t in track_models[i][:-2]]
+            model_Y = [t[0][1] for t in track_models[i][:-2]]
+            plt.scatter(model_X, model_Y, color="tab:purple", marker="*")
 
         for client in network.clients:
             writer = client.writer
@@ -149,6 +150,7 @@ if __name__ == '__main__':
     plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=False)
 
     for algo_name in all_algos:
-        plot_weights(weights[algo_name], dataset_name, algo_name)
-        plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
+        if algo_name not in ["fed", "fednova"]:
+            plot_weights(weights[algo_name], dataset_name, algo_name)
+            plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
 

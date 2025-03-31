@@ -4,7 +4,8 @@ import numpy as np
 from src.data.DatasetConstants import BATCH_SIZE, STEP_SIZE
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
-COLORS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
+COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
+MARKERS = ['o', 's', 'D', '^', 'v', '<', '>', 'p', 'h', '*']
 
 def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     """
@@ -42,7 +43,7 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     create_folder_if_not_existing(folder)
     plt.savefig(f"{folder}/{metric_name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)
 
-def plot_weights(weights, dataset_name, algo_name, name="weigths"):
+def plot_weights(weights, dataset_name, algo_name, name="weights"):
     nb_clients = len(weights)
 
     fig, axes = plt.subplots(nb_clients, 1, figsize=(6, nb_clients))
@@ -53,13 +54,15 @@ def plot_weights(weights, dataset_name, algo_name, name="weigths"):
         # Plot each (row, column) entry through time
         iterations = range(len(weight))
         for c_idx in range(nb_clients):
-                ax.plot(iterations, [weight[t][c_idx] for t in iterations],
-                         label=f"Client {client_idx} → {c_idx}",
-                         color=COLORS[c_idx], alpha=0.7, linestyle='-')
+            weight_to_plot = [weight[t][c_idx] for t in iterations]
+            # if name.__eq__("weights"):
+            #     ax.set_ylim([0, 1.5])
+            ax.plot(iterations, weight_to_plot, label=f"Client i ← {c_idx}", color=COLORS[c_idx],
+                    alpha=0.7, linestyle='-', marker=MARKERS[c_idx])
 
-        # Labels and Legend
-        ax.legend(ncol=2, fontsize=8, loc="upper right")
         ax.grid(True, linestyle='--', alpha=0.6)
+        if client_idx == 0:
+            ax.legend(ncol=2, fontsize=8, loc="best")
 
     plt.subplots_adjust(wspace=0, hspace=0)  # To remove the space between subplots
 

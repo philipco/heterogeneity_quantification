@@ -85,8 +85,9 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         assert equal(network.clients[i].trained_model, network.clients[0].trained_model), \
             (f"Models {network.clients[i].ID} are not equal.")
 
+
     if keep_track:
-        track_models = []
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         # track_gradients = [[] for c in network.clients]
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
@@ -100,16 +101,16 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         new_model = aggregate_models([client.trained_model for client in network.clients],
                          weights, network.clients[0].device)
 
-        if keep_track:
-            track_models.append([m.data[0].to("cpu") for m in new_model.parameters()])
-
-        for client in network.clients:
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
                 (f"Models 0 and {network.clients[i].ID} are not equal.")
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
+            if keep_track:
+                track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
 
@@ -130,7 +131,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
 
     # Number of local epoch * number of samples / batch size
     tau_i = [np.floor(nb_of_local_epoch * client.nb_train_points
-                        / len(list(client.train_loader)[0])) for client in network.clients]
+                        / client.nb_train_points) for client in network.clients]
 
     # Averaging models
     new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -142,7 +143,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
             (f"Models {network.clients[i].ID} are not equal.")
 
     if keep_track:
-        track_models = []
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
 
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
@@ -156,16 +157,16 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         new_model = fednova_aggregation(old_model, [client.trained_model for client in network.clients], tau_i, weights,
                             network.clients[0].device)
 
-        if keep_track:
-            track_models.append([m.data[0] for m in new_model.parameters()])
-
-        for client in network.clients:
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
                 (f"Models 0 and {network.clients[i].ID} are not equal.")
             write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
                                              client.val_loader, client.test_loader, client.criterion, client.metric,
                                              client.ID, client.writer, client.last_epoch)
+            if keep_track:
+                track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
     if keep_track:
@@ -233,7 +234,10 @@ def compute_weight_based_on_scalar_product(gradients, validation_gradient, norm_
 def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      collab_based_on="grad", keep_track=False):
-    inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
@@ -367,8 +371,10 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_iterations: int = 50,
                      plot_matrix: bool = True, pruning: bool = False, logs="light",
                      keep_track=False, collab_based_on="loss"):
-
-    inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
