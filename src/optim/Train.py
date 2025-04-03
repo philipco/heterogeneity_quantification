@@ -251,8 +251,6 @@ def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
         loss.backward()
         del x_batch, y_batch
 
-
-
     torch.cuda.empty_cache()
     gc.collect()
 
@@ -327,6 +325,11 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             else:
                 # For synthetic dataset that generates data on the fly.
                 nb_pass_on_data = 20
+                # model_shift = data_loader.dataset.true_theta - net.linear.weight.to("cpu")
+                # loss = model_shift @ data_loader.dataset.covariance @ model_shift.T
+                # print(loss)
+                # return loss, loss  # + data_loader.dataset.noise_std**2
+
                 for i in range(nb_pass_on_data):
                     x_batch, y_batch = next(iter(data_loader))
                     x_batch = x_batch.to(device)
@@ -335,5 +338,5 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                     epoch_loss += criterion(outputs, y_batch)
                     epoch_accuracy += metric(y_batch, outputs)
                     del x_batch, y_batch
-                    return (epoch_loss / nb_pass_on_data).to("cpu"), (epoch_accuracy / nb_pass_on_data).to("cpu")
+                return (epoch_loss / nb_pass_on_data).to("cpu"), (epoch_accuracy / nb_pass_on_data).to("cpu")
 

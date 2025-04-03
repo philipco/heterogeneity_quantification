@@ -16,7 +16,7 @@ from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue, \
     rejection_pvalue
 from src.quantif.Metrics import Metrics
-from src.utils.Utilities import set_seed
+from src.utils.Utilities import set_seed, get_project_root, create_folder_if_not_existing
 
 
 def loss_accuracy_central_server(network: Network, weights, writer, epoch):
@@ -26,7 +26,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.train_loader,
-                                              client.criterion, client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, "tcga_brca" in client.ID or "synth" in client.ID)
         epoch_train_loss += loss * weights[i]
         epoch_train_accuracy += acc * weights[i]
 
@@ -39,7 +39,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.val_loader,
-                                              client.criterion, client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, True)
         epoch_val_loss += loss * weights[i]
         epoch_val_accuracy += acc * weights[i]
 
@@ -52,7 +52,7 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
         client = network.clients[i]
         # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
         loss, acc = compute_loss_and_accuracy(client.trained_model, client.device, client.test_loader,
-                                              client.criterion, client.metric, "tcga_brca" in client.ID)
+                                              client.criterion, client.metric, True)
         epoch_test_loss += loss * weights[i]
         epoch_test_accuracy += acc * weights[i]
 
@@ -113,7 +113,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
-
+        network.save()
     if keep_track:
         return track_models
     return None
@@ -169,6 +169,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
         print(f"Elapsed time: {time.time() - start_time} seconds")
+        network.save()
     if keep_track:
         return track_models
     return None
@@ -206,7 +207,8 @@ def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, n
 
     if continuous:
         # Réfléchir un peu plus!
-        weight = [1 - numerators[client_idx][_][-1]/denominators[client_idx][-1] for _ in range(len(gradients))]
+        coef = numerators[client_idx][_][-1]/denominators[client_idx][-1]
+        weight = [coef if coef > 0 else 0 for _ in range(len(gradients))]
     else:
         weight = [int(numerators[client_idx][_][-1] > 0) for _ in range(len(gradients))]
     if sum(weight) == 0:
@@ -279,7 +281,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 # Computing gradients on each clients.
                 for c_idx in range(network.nb_clients):
                     c = network.clients[c_idx]
-                    set_seed(client.last_epoch * inner_iterations + k)
+                    # set_seed(client.last_epoch * inner_iterations + k)
 
                     gradient = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
                                                            client.trained_model, client.criterion, client.optimizer,
@@ -351,8 +353,8 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
         print(f"Elapsed time: {time.time() - start_time} seconds")
         print("Now computing matrix of distances...")
-
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+        network.save()
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:
@@ -415,7 +417,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             # Computing gradients on each clients.
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
-                set_seed(client.last_epoch * inner_iterations + k)
+                # set_seed(client.last_epoch * inner_iterations + k)
 
                 gradient = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
                                                      client.trained_model, client.criterion, client.optimizer,
@@ -432,12 +434,13 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                       client.trained_model, client.criterion, client.optimizer,
                                                       client.scheduler)
                 gradients3.append(gradient3)
-                # Presently, we always compyute the ratio weigth (and override it) it requires.
-                # In order to plot the ratio for every algo.
 
 
             # Computing the weights for each
             for client_idx in range(network.nb_clients):
+
+                # Presently, we always compute the ratio weigth (and override it) it requires.
+                # In order to plot the ratio for every algo.
                 weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, gradients3,
                                                                             client_idx, numerators,
                                                                             denominators, False)
@@ -505,9 +508,8 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             client.scheduler.step()
 
         print(f"Elapsed time: {time.time() - start_time} seconds")
-        print("Now computing matrix of distances...")
-
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+        network.save()
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:

@@ -1,7 +1,7 @@
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
-from torch.optim.lr_scheduler import ConstantLR, StepLR
+from torch.optim.lr_scheduler import ConstantLR, StepLR, LambdaLR
 
 from src.optim.LinearWarmupScheduler import LinearWarmupScheduler, ConstantLRScheduler
 from src.optim.Train import train_local_neural_network, write_train_val_test_performance
@@ -38,11 +38,7 @@ class Client:
 
         self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
         self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
-        if tensorboard_dir in ["exam_llm"]:
-            self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
-                                                   20, plateau=5)
-        else:
-            self.scheduler = ConstantLRScheduler(self.optimizer)
+        self.set_step_scheduler(tensorboard_dir, scheduler_params[0], scheduler_params[1])
         if criterion is not None:
             self.criterion = criterion()
         else:
@@ -51,12 +47,24 @@ class Client:
         self.last_epoch = 0
         self.writer.close()
 
-    def reset_hyperparameters(self, net, step_size, momentum, weight_decay, scheduler_steps, scheduler_gamma):
+    def set_step_scheduler(self, dataset_name, scheduler_steps, scheduler_gamma):
+        if dataset_name in ["exam_llm"]:
+            self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
+                                                   20, plateau=5)
+        elif dataset_name in ["heart_disease"]:
+            self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
+        # elif dataset_name in ["synth_complex"]:
+        #     self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: 1 / (t + 1))
+        else:
+            self.scheduler = ConstantLRScheduler(self.optimizer)
+
+    def reset_hyperparameters(self, net, step_size, momentum, weight_decay, scheduler_steps, scheduler_gamma,
+                              dataset_name=None):
         self.last_epoch = 0
         self.trained_model = net.to(self.device)
         self.step_size, self.momentum = step_size, momentum
         self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
-        # self.scheduler = ConstantLR(self.optimizer, total_iters=scheduler_steps, factor=scheduler_gamma)
+        self.set_step_scheduler(dataset_name, scheduler_steps, scheduler_gamma)
 
     def resplit_train_test(self):
         self.X_train, self.X_test, self.Y_train, self.Y_test \

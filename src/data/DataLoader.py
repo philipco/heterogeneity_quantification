@@ -11,7 +11,7 @@ from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
 from src.data.DatasetConstants import CHECKPOINT, BATCH_SIZE
 from src.data.Split import create_non_iid_split
-from src.data.SyntheticDataset import SyntheticLSRDataset
+from src.data.SyntheticDataset import SyntheticLSRDataset, StreamingGaussianDataset
 from src.plot.PlotDifferentScenarios import f
 from src.utils.Utilities import get_path_to_datasets
 
@@ -84,16 +84,17 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
     # Generate K cluster centers
     # Create an uninitialized tensor and fill it with values from the uniform distribution
     cluster_centers = [torch.empty(d).uniform_(-2.5, 2.5) for _ in range(K)]
-
     # Assign each client to a cluster and generate their model
-    true_models = [cluster_centers[i % K] + cluster_variance * torch.randn(d) for i in range(N)]
+    true_models = [cluster_centers[i % K] for i in range(N)] # + cluster_variance * torch.randn(d)
+    return true_models
 
-    return true_models, cluster_centers
+def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 2) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
-
-    true_models, cluster_centers = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
-
+    # if classification:
+    #     # all_means = generate_client_means(nb_clients, nb_clusters, dim, cluster_variance=0.1)
+    #     datasets = [StreamingGaussianDataset(m, dim=2, batch_size=32, num_classes=2) for m in all_means]
+    # else:
+    true_models = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
     datasets = [SyntheticLSRDataset(m, batch_size) for m in true_models]
 
     train_loaders = [DataLoader(d, batch_size=None) for d in datasets]

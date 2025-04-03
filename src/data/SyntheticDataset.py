@@ -7,7 +7,7 @@ from torch.utils.data import IterableDataset
 
 class SyntheticLSRDataset(IterableDataset):
 
-    def __init__(self, true_theta, batch_size, noise_std=2):
+    def __init__(self, true_theta, batch_size, noise_std=0.1):
         """
         Parameters:
         - true_theta: (d,) torch.Tensor, the true parameter vector
@@ -18,9 +18,9 @@ class SyntheticLSRDataset(IterableDataset):
         self.dim = true_theta.shape[0]
         self.true_theta = true_theta
 
-        self.eigenvalues = torch.FloatTensor([1 / (i**2) for i in range(1, self.dim + 1)[::-1]])
+        self.eigenvalues = torch.FloatTensor([1 for i in range(1, self.dim + 1)[::-1]])
         self.covariance = torch.diag(self.eigenvalues)
-        self.ortho_matrix = torch.FloatTensor(ortho_group.rvs(dim=self.dim, random_state=5))
+        self.ortho_matrix = torch.FloatTensor(ortho_group.rvs(dim=self.dim))
         self.covariance = self.ortho_matrix @ self.covariance @ self.ortho_matrix.T
 
         self.batch_size = batch_size
@@ -30,9 +30,30 @@ class SyntheticLSRDataset(IterableDataset):
         while True:
             X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
             # X = torch.randn(self.batch_size, self.dim, self.covariance)  # Features from N(0, I)
+            X = self.eigenvalues * X
+
             noise = torch.normal(mean=0, std=self.noise_std, size=(self.batch_size, ))
             y = X @ self.true_theta + noise  # Generate targets
+            # print((2 * torch.norm(X.T.mm(X), p=2) / self.batch_size).item())
             yield X, y.reshape(self.batch_size, 1) # Yield a batch instead of returning
 
     def __len__(self):
         return None #float('inf')  # Arbitrary value, as it's an infinite generator
+
+
+class StreamingGaussianDataset(IterableDataset):
+    def __init__(self, means, dim=2, batch_size=32, num_classes=2):
+        self.dim = dim
+        self.num_classes = num_classes
+        self.batch_size = batch_size
+        mean_shift = 2
+        self.means = torch.stack([means[i] * mean_shift * torch.ones(dim) for i in range(num_classes)])
+        self.cov = torch.eye(dim)  # Identity covariance for simplicity
+
+    def __iter__(self):
+        while True:
+            while True:
+                labels = torch.randint(0, self.num_classes, (self.batch_size,))
+                means = self.means[labels]
+                samples = torch.normal(means, torch.ones(self.batch_size, self.num_features))
+                yield samples, labels
