@@ -48,14 +48,13 @@ class Client:
         self.last_epoch = 0
         self.optimal_loss = None
 
-        if "synth" in tensorboard_dir:
-            self.w_star = self.train_loader.dataset.compute_optimal_solution().to(self.device)
-            with torch.no_grad():
-                init_net = self.trained_model.linear.weight.clone()
-                self.trained_model.linear.weight.copy_(self.w_star)
-                self.optimal_loss, _ = compute_loss_and_accuracy(self.trained_model, self.device, self.train_loader, self.criterion, self.metric,
-                                          full_batch = True)
-                self.trained_model.linear.weight.copy_(init_net)
+        # if "synth" in tensorboard_dir:
+        #     with torch.no_grad():
+        #         init_net = self.trained_model.linear.weight.clone()
+        #         self.trained_model.linear.weight.copy_(self.train_loader.dataset.true_theta)
+        #         self.optimal_loss, _ = compute_loss_and_accuracy(self.trained_model, self.device, self.train_loader, self.criterion, self.metric,
+        #                                   full_batch = True)
+        #         self.trained_model.linear.weight.copy_(init_net)
 
         self.writer.close()
 

@@ -15,28 +15,17 @@ def write_grad(trained_model, writer, last_epoch):
             writer.add_histogram(f'{name}.grad', param.grad, last_epoch)
 
 
-def write_train_val_test_performance(net, device, train_loader, val_loader, test_loader, criterion, metric, client_ID,
-                                     writer, last_epoch, logs="light"):
-    if logs=="full":
-        for name, param in net.named_parameters():
-            writer.add_histogram(f'{name}.weight', param, last_epoch)
-    train_loss, train_acc = log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
-    log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
-    test_loss, test_acc = log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
-
-    writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), last_epoch)
-    writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), last_epoch)
-
-    writer.close()
-
-
-def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch):
+def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch, optimal_loss):
     # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-    epoch_loss, epoch_accuracy = compute_loss_and_accuracy(net, device, loader,
-                                                                     criterion, metric, "tcga_brca" in client_ID)
+    epoch_loss, epoch_accuracy = compute_loss_and_accuracy(net, device, loader, criterion, metric,
+                                                           "tcga_brca" in client_ID)
     # Writing logs.
-    writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
-    writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
+    if optimal_loss:
+        writer.add_scalar(f'{name}_loss', epoch_loss-optimal_loss, epoch)
+        writer.add_scalar(f'{name}_accuracy', epoch_accuracy-optimal_loss, epoch)
+    else:
+        writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
+        writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
     writer.close()
     return epoch_loss, epoch_accuracy
 

@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed"]
+    all_algos = ["all_for_all_ratio", "local"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -84,13 +84,6 @@ if __name__ == '__main__':
             weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
             ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
 
-            print("---> Saving the writer as pkl files")
-            root = get_project_root()
-            pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
-            create_folder_if_not_existing(pickle_folder)
-            network.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
-            for client in network.clients:
-                client.writer.save(f"{pickle_folder}", f"logging_writer_{client.ID}.pkl")
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
     plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)

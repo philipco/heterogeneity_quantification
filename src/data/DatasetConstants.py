@@ -43,7 +43,8 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
 NB_CLIENTS = {"mnist": 6, "fashion_mnist": 8, "cifar10": 8, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
-              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 2,
+              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
+              "synth_complex": 40,
               "exam_llm": 3}
 
 MODELS = {"mnist": CNN_MNIST, "cifar10": GoogleNetTransferLearning, "heart_disease": HeartDiseaseRegression,
@@ -67,17 +68,22 @@ TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
-STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.008349135315129853,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.5, "synth_complex": 0.0835, "exam_llm": 10**-2}
+STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.1,
+             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.5, "synth_complex": 0.1,
+             "exam_llm": 0.0008518845025208505}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
-                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0.1, "exam_llm": 0}
+                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
 BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 64, "synth_complex": 64, "exam_llm": 32}
+              "synth": 2, "synth_complex": 2, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
 SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),
-                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (200, 2/3),
+                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (100, 0.5839331768799928),
                     "exam_llm": (15, 2/3)}
+
+# SYNTH COMPLEX
+# Best trial config:  {'step_size': 0.012138813439941028, 'weight_decay': 0.001}
+# Best trial final validation accuracy:  -5.350926399230957
 
 # HEART_DISEASE
 # [I 2025-03-31 16:57:40,443] Trial 1 finished with value: 0.5986238121986389 and parameters: {'step_size': 0.018873042065018778, 'weight_decay': 0.1}. Best is trial 1 with value: 0.5986238121986389.
