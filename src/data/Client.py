@@ -4,7 +4,8 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import ConstantLR, StepLR, LambdaLR
 
 from src.optim.LinearWarmupScheduler import LinearWarmupScheduler, ConstantLRScheduler
-from src.optim.Train import train_local_neural_network, write_train_val_test_performance
+from src.optim.Train import train_local_neural_network, compute_loss_and_accuracy, \
+    log_performance
 from src.utils.LoggingWriter import LoggingWriter
 
 
@@ -45,6 +46,17 @@ class Client:
             self.criterion = None
         self.metric = metric
         self.last_epoch = 0
+        self.optimal_loss = None
+
+        if "synth" in tensorboard_dir:
+            self.w_star = self.train_loader.dataset.compute_optimal_solution().to(self.device)
+            with torch.no_grad():
+                init_net = self.trained_model.linear.weight.clone()
+                self.trained_model.linear.weight.copy_(self.w_star)
+                self.optimal_loss, _ = compute_loss_and_accuracy(self.trained_model, self.device, self.train_loader, self.criterion, self.metric,
+                                          full_batch = True)
+                self.trained_model.linear.weight.copy_(init_net)
+
         self.writer.close()
 
     def set_step_scheduler(self, dataset_name, scheduler_steps, scheduler_gamma):
@@ -73,9 +85,7 @@ class Client:
 
     def train(self, nb_epochs: int):
         # Compute train/val/test metrics at initialization
-        write_train_val_test_performance(self.trained_model, self.device, self.train_loader,
-                                         self.val_loader, self.test_loader, self.criterion, self.metric,
-                                         self.ID, self.writer, self.last_epoch)
+        self.write_train_val_test_performance()
 
         if nb_epochs != 0:
             self.train_loss \
@@ -85,9 +95,7 @@ class Client:
             self.last_epoch += nb_epochs
 
 
-            write_train_val_test_performance(self.trained_model, self.device, self.train_loader,
-                                             self.val_loader, self.test_loader, self.criterion, self.metric,
-                                             self.ID, self.writer, self.last_epoch)
+            self.write_train_val_test_performance()
 
     def continue_training(self, nb_of_local_epoch: int, current_epoch: int, single_batch: bool = False):
         self.train_loss \
@@ -100,4 +108,21 @@ class Client:
         # thought the complete set.
         self.last_epoch += nb_of_local_epoch
         torch.cuda.empty_cache()
+
+    def write_train_val_test_performance(self, logs="light"):
+        if logs == "full":
+            for name, param in self.trained_model.named_parameters():
+                self.writer.add_histogram(f'{name}.weight', param, self.last_epoch)
+        train_loss, train_acc = log_performance("train", self.trained_model, self.device, self.train_loader,
+                                                self.criterion, self.metric, self.ID, self.writer, self.last_epoch,
+                                                self.optimal_loss)
+        log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
+                        self.ID, self.writer, self.last_epoch, self.optimal_loss)
+        test_loss, test_acc = log_performance("test", self.trained_model, self.device, self.test_loader,
+                                              self.criterion, self.metric, self.ID, self.writer,
+                                              self.last_epoch, self.optimal_loss)
+
+        self.writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), self.last_epoch)
+        self.writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), self.last_epoch)
+        self.writer.close()
 

@@ -10,13 +10,11 @@ import torch
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
     get_models_of_collaborating_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
-from src.optim.Train import compute_loss_and_accuracy, update_model, gradient_step, \
-    write_train_val_test_performance, write_grad, compute_gradient_validation_set, safe_gradient_computation
+from src.optim.Train import compute_loss_and_accuracy, update_model, gradient_step, write_grad, compute_gradient_validation_set, safe_gradient_computation
 from src.plot.PlotDistance import plot_pvalues
 from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue, \
     rejection_pvalue
 from src.quantif.Metrics import Metrics
-from src.utils.Utilities import set_seed, get_project_root, create_folder_if_not_existing
 
 
 def loss_accuracy_central_server(network: Network, weights, writer, epoch):
@@ -72,9 +70,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
-        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                         client.val_loader, client.test_loader, client.criterion, client.metric,
-                                         client.ID, client.writer, client.last_epoch)
+        client.write_train_val_test_performance()
 
     # Averaging models
     new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -106,9 +102,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
                 (f"Models 0 and {network.clients[i].ID} are not equal.")
-            write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                             client.val_loader, client.test_loader, client.criterion, client.metric,
-                                             client.ID, client.writer, client.last_epoch)
+            client.write_train_val_test_performance()
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
@@ -125,9 +119,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
-        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                         client.val_loader, client.test_loader, client.criterion, client.metric,
-                                         client.ID, client.writer, client.last_epoch)
+        client.write_train_val_test_performance()
 
     # Number of local epoch * number of samples / batch size
     tau_i = [np.floor(nb_of_local_epoch * client.nb_train_points
@@ -162,9 +154,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
                 (f"Models 0 and {network.clients[i].ID} are not equal.")
-            write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                             client.val_loader, client.test_loader, client.criterion, client.metric,
-                                             client.ID, client.writer, client.last_epoch)
+            client.write_train_val_test_performance()
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
@@ -247,9 +237,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
-        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                         client.val_loader, client.test_loader, client.criterion, client.metric,
-                                         client.ID, client.writer, client.last_epoch)
+        client.write_train_val_test_performance()
 
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                               "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
@@ -344,9 +332,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         for i in range(network.nb_clients):
             client = network.clients[i]
             client.last_epoch += 1
-            write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                             client.val_loader, client.test_loader, client.criterion, client.metric,
-                                             client.ID, client.writer, client.last_epoch)
+            client.write_train_val_test_performance()
 
         for client in network.clients:
             client.scheduler.step()
@@ -384,9 +370,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
-        write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                         client.val_loader, client.test_loader, client.criterion, client.metric,
-                                         client.ID, client.writer, client.last_epoch)
+        client.write_train_val_test_performance()
 
     metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
                                      "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
@@ -501,9 +485,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         for client in network.clients:
             client.last_epoch += 1
-            write_train_val_test_performance(client.trained_model, client.device, client.train_loader,
-                                             client.val_loader, client.test_loader, client.criterion, client.metric,
-                                             client.ID, client.writer, client.last_epoch)
+            client.write_train_val_test_performance()
         for client in network.clients:
             client.scheduler.step()
 

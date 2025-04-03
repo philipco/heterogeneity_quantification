@@ -29,7 +29,6 @@ class SyntheticLSRDataset(IterableDataset):
     def __iter__(self):
         while True:
             X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
-            # X = torch.randn(self.batch_size, self.dim, self.covariance)  # Features from N(0, I)
             X = self.eigenvalues * X
 
             noise = torch.normal(mean=0, std=self.noise_std, size=(self.batch_size, ))
@@ -39,6 +38,16 @@ class SyntheticLSRDataset(IterableDataset):
 
     def __len__(self):
         return None #float('inf')  # Arbitrary value, as it's an infinite generator
+
+    def compute_optimal_solution(self):
+        big_batch = 100000
+        X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=big_batch))
+        X = self.eigenvalues * X
+
+        noise = torch.normal(mean=0, std=self.noise_std, size=(big_batch,))
+        y = X @ self.true_theta + noise  # Generate targets
+        return torch.inverse(X.T @ X) @ X.T @ y
+
 
 
 class StreamingGaussianDataset(IterableDataset):

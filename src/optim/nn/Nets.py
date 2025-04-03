@@ -102,7 +102,7 @@ class Synth2ClientsRegression(nn.Module):
 class Synth100ClientsRegression(nn.Module):
     def __init__(self):
         super(Synth100ClientsRegression, self).__init__()
-        self.linear = nn.Linear(100, 1, bias=True)
+        self.linear = nn.Linear(50, 1, bias=True)
 
     def forward(self, x):
         return self.linear(x)#.flatten()
