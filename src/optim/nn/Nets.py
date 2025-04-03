@@ -82,10 +82,30 @@ class LiquidAssetRegression(nn.Module):
         return self.last(out)
 
 
-class SynthDataRegression(LinearRegression):
+class SynthDataRegression(nn.Module):
     def __init__(self):
-        super(SynthDataRegression, self).__init__(1)
+        super(SynthDataRegression, self).__init__()
+        self.linear = nn.Linear(1, 1)
 
+    def forward(self, x):
+        return self.linear(x**2)#.flatten()
+
+class Synth2ClientsRegression(nn.Module):
+    def __init__(self):
+        super(Synth2ClientsRegression, self).__init__()
+        self.linear = nn.Linear(2, 1, bias=True)
+
+    def forward(self, x):
+        return self.linear(x)#.flatten()
+
+
+class Synth100ClientsRegression(nn.Module):
+    def __init__(self):
+        super(Synth100ClientsRegression, self).__init__()
+        self.linear = nn.Linear(50, 1, bias=True)
+
+    def forward(self, x):
+        return self.linear(x)#.flatten()
 
 class TcgaRegression(LinearRegression):
     def __init__(self):

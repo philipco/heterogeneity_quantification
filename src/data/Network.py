@@ -22,7 +22,11 @@ class Network:
         self.algo_name = algo_name
         self.nb_clients = len(train_loaders)
         self.nb_initial_epochs = nb_initial_epochs
-        self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
+        # The iterable dataset has no lenght (online setting, lenght is infinite).
+        try:
+            self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
+        except TypeError:
+            self.nb_testpoints_by_clients = [1 for y in val_loaders]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")
         self.criterion = CRITERION[dataset_name]
 
@@ -63,8 +67,11 @@ class Network:
 
     def save(self):
         root = get_project_root()
-        create_folder_if_not_existing("{0}/pickle/{1}/processed_data".format(root, self.dataset_name))
-        pickle_saver(self, "{0}/pickle/{1}/processed_data/network".format(root, self.dataset_name))
+        pickle_folder = '{0}/pickle/{1}/{2}'.format(root, self.dataset_name, self.algo_name)
+        create_folder_if_not_existing(pickle_folder)
+        self.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
+        for client in self.clients:
+            client.writer.save(f"{pickle_folder}", f"logging_writer_{client.ID}.pkl")
 
     def retrain_all_clients(self):
         for client in self.clients:

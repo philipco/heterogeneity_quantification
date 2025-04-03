@@ -93,4 +93,4 @@ def l1_accuracy(y_true, y_pred):
 
 
 def mse_accuracy(y_true, y_pred):
-    return torch.mean(torch.norm(y_true - y_pred, p=2)**2)
+    return torch.mean(torch.norm(y_true - y_pred, p=2)**2) / len(y_true)

@@ -1,14 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
+from monai.data import DataLoader
 
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
 from sklearn.preprocessing import PolynomialFeatures
 import matplotlib
+from torch.utils.data import TensorDataset
 
 from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
-from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors#, MSE, sigmoid_loss
+from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors, RanksumsTest  # , MSE, sigmoid_loss
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -18,14 +21,14 @@ matplotlib.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
-DELTA = 0.05
-DEG = 4
+DELTA = 0 #.05
+DEG = 2
 
 
 def f(scenario: str, n=100):
 
-    noise1 = np.random.normal(0, 0.05, n)
-    noise2 = np.random.normal(0, 0.05, n)
+    noise1 = np.random.normal(0, 1, n)
+    noise2 = np.random.normal(0, 1, n)
     X1 = np.random.uniform(-1, 1, n)
     X2 = np.random.uniform(-1, 1, n)
 
@@ -47,7 +50,7 @@ def f(scenario: str, n=100):
     elif scenario == "same_partionned_support":
         X1 = np.random.uniform(-1, 0., n)
         X2 = np.random.uniform(0., 1, n)
-        Y1 = [x ** 2 for x in X1] + noise1
+        Y1 = [5 * x ** 2 for x in X1] + noise1
         Y2 = [x ** 2 for x in X2] + noise2
     elif scenario == "same_partionned_support_different_Y":
         X1 = np.random.uniform(0, 1, n)
@@ -79,6 +82,18 @@ def f(scenario: str, n=100):
         X2 = np.random.uniform(-0.4, 0.4, n)
         Y1 = [20 * x**6 - 40 * x**4 + 20 * x**2 for x in X1] + 2 * noise1
         Y2 = [20 * x ** 2 for x in X2] + 2 * noise2
+
+    ones_column = np.ones((X1.shape[0], 1))  # Ensure this is a 2D array with shape (n_samples, 1)
+    X_with_bias = np.hstack([ones_column, X1.reshape(n, 1)])
+
+    # Compute X^T X
+    XtX = X_with_bias.T @ X_with_bias / n
+
+    eigenvalues = np.linalg.eigvals(XtX)
+
+    # The smoothness constant L is the largest eigenvalue
+    L = np.max(eigenvalues)
+    print("L = ", L)
     return X1, X2, Y1, Y2
 
 
@@ -164,12 +179,17 @@ def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
     # fit polynomial regression model
-    poly_reg = LinearRegression()
+    poly_reg = Ridge(alpha=100)
     poly_reg.fit(poly_features[:train_set_length], Y[:train_set_length])
 
-    atomic_errors = compute_atomic_errors(poly_reg, poly_features[train_set_length:], Y[train_set_length:], MSE)
+    atomic_errors = compute_atomic_errors(poly_reg, (poly_features[train_set_length:], Y[train_set_length:]), MSE)
+
+                                          #
+                                          # DataLoader(TensorDataset(torch.Tensor(poly_features[train_set_length:]),
+                                          #                          torch.Tensor(Y[train_set_length:])), batch_size=4), MSE)
     q0 = np.quantile(atomic_errors, beta0, method="higher")
     return poly_reg, q0, atomic_errors
+
 
 def MSE(y, ypred):
     return (y - ypred)**2 / 2
@@ -198,12 +218,32 @@ def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, l
     poly_features = poly.fit_transform(X.reshape(-1, 1))
 
     test = ProportionTest(beta0, DELTA, MSE)
-    test.evaluate_test(q0, remote_poly_reg, poly_features[train_set_length:], Y[train_set_length:])
+    test.evaluate_test(q0, remote_poly_reg, (poly_features[train_set_length:], Y[train_set_length:]))
 
     if log:
         test.print()
 
     return test.beta_estimator, test.pvalue, test.atomic_errors
+
+
+def compute_pvalue_ranksum(poly_reg1, poly_reg2, X1, Y1, X2,Y2, split_percent: int = 0.5, log: bool = False):
+
+    poly = PolynomialFeatures(DEG)
+
+    train_set_length1 = int(len(Y1) * split_percent)
+    poly_features1 = poly.fit_transform(X1.reshape(-1, 1))
+
+    train_set_length2 = int(len(Y2) * split_percent)
+    poly_features2 = poly.fit_transform(X2.reshape(-1, 1))
+
+    test = RanksumsTest(MSE)
+
+    p1 = test.evaluate_test(poly_reg1, (poly_features1[train_set_length1:], Y1[train_set_length1:]),
+                            (poly_features2[train_set_length1:], Y2[train_set_length1:]))
+    p2 = test.evaluate_test(poly_reg2, (poly_features2[train_set_length2:], Y2[train_set_length2:]),
+                            (poly_features1[train_set_length2:], Y1[train_set_length2:]))
+
+    return 0, min(p1, p2), 0 #test.atomic_errors
 
 
 def quantile_test_on_two_datasets(scenario, X1, Y1, X2, Y2, beta0: int, split_percent: int):
@@ -230,26 +270,29 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
     poly_reg2, q0_2, local_atomic_errors2 = polynomial_regression(X2, Y2, beta0, split_percent)
 
     # We share model 2 with client 1.
-    beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent,
+    beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue_ranksum(poly_reg1, poly_reg2, X1, Y1, X2, Y2, split_percent,
                                                               plot)
 
-    # We share model 1 with client 2.
-    beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent,
-                                                              plot)
+    # beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent,
+    #                                                           plot)
+    #
+    # # We share model 1 with client 2.
+    # beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent,
+    #                                                           plot)
 
-    if plot:
+    # if plot:
         # q0_1 = quantile de local_atomic_errors1
-        plot_arrow_with_atomic_errors(local_atomic_errors1, atomic_errors1, beta0,
-                                      pvalue=pvalue1, main_client=1, name=f"{scenario}_quantiles1")
-        plot_arrow_with_atomic_errors(local_atomic_errors2, atomic_errors2, beta0,
-                                      pvalue=pvalue2, main_client=2, name=f"{scenario}_quantiles2")
+        # plot_arrow_with_atomic_errors(local_atomic_errors1, atomic_errors1, beta0,
+        #                               pvalue=pvalue1, main_client=1, name=f"{scenario}_quantiles1")
+        # plot_arrow_with_atomic_errors(local_atomic_errors2, atomic_errors2, beta0,
+        #                               pvalue=pvalue2, main_client=2, name=f"{scenario}_quantiles2")
 
-        if scenario == "classification":
-            plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, pvalue1, pvalue2, beta_estimator1, beta_estimator2)
-        else:
-            plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, pvalue1, pvalue2,
-                                beta_estimator1, beta_estimator2)
-    return pvalue1, pvalue2
+        # if scenario == "classification":
+        #     plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, pvalue1, pvalue2, beta_estimator1, beta_estimator2)
+        # else:
+        #     plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, pvalue1, pvalue2,
+        #                         beta_estimator1, beta_estimator2)
+    return pvalue1, pvalue1
 
 
 # def plot_atomic_errors(atomic_errors1, atomic_errors2, q0):
@@ -322,6 +365,7 @@ if __name__ == "__main__":
     np.random.seed(2024)
 
     all_beta0 = [0.5, 0.75, 0.8, 0.9, 0.95]
+    # scenarios = ["same_partionned_support"]
     scenarios = ["same", "different", "Y_shift", "same_partionned_support", "X_shift",
                  "same_partionned_support_different_Y", "partionned_support",
                  "totally_different", "various_noise", "more_general", "same_with_variations"]

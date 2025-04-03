@@ -9,8 +9,9 @@ from transformers import AutoTokenizer
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
-from src.data.DatasetConstants import CHECKPOINT
+from src.data.DatasetConstants import CHECKPOINT, BATCH_SIZE
 from src.data.Split import create_non_iid_split
+from src.data.SyntheticDataset import SyntheticLSRDataset, StreamingGaussianDataset
 from src.plot.PlotDifferentScenarios import f
 from src.utils.Utilities import get_path_to_datasets
 
@@ -65,34 +66,40 @@ def get_data_from_csv(dataset_name: str, batch_size) -> [List[torch.FloatTensor]
     natural_split = True
     return train_loaders, val_loaders, test_loaders, natural_split
 
+def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
+    """
+    Generates N client models grouped into K clusters in d-dimensional space.
 
-def get_synth_data(dataset_name: str, batch_size) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+    Parameters:
+    - N: int, number of clients
+    - K: int, number of clusters
+    - d: int, dimensionality of the models
+    - cluster_variance: float, controls spread of clients within each cluster
+    - seed: int, random seed for reproducibility
 
-    n = 200
-    X1, X2, Y1, Y2 = f("same_partionned_support", n=n)
-    data_train = [torch.Tensor(X1).reshape(n,1), torch.Tensor(X2).reshape(n,1)]
-    labels_train = [torch.Tensor(Y1).reshape(n, 1), torch.Tensor(Y2).reshape(n, 1)]
+    Returns:
+    - true_models: list of torch.FloatTensor, each representing a client's model
+    - cluster_centers: list of torch.FloatTensor, the center of each cluster
+    """
+    # Generate K cluster centers
+    # Create an uninitialized tensor and fill it with values from the uniform distribution
+    cluster_centers = [torch.empty(d).uniform_(-2.5, 2.5) for _ in range(K)]
+    # Assign each client to a cluster and generate their model
+    true_models = [cluster_centers[i % K] for i in range(N)] # + cluster_variance * torch.randn(d)
+    return true_models
 
-    nb_of_clients = len(data_train)
+def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-    # Then for each (heterogeneous) client, we split the dataset into train/test
-    X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
+    # if classification:
+    #     # all_means = generate_client_means(nb_clients, nb_clusters, dim, cluster_variance=0.1)
+    #     datasets = [StreamingGaussianDataset(m, dim=2, batch_size=32, num_classes=2) for m in all_means]
+    # else:
+    true_models = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
+    datasets = [SyntheticLSRDataset(m, batch_size) for m in true_models]
 
-    for (x, y) in zip(data_train, labels_train):
-        x2, x_test, y2, y_test = train_test_split(x, y, test_size=0.2, random_state=2024)
-        x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.1, random_state=2024)
-        X_train.append(x_train)
-        X_val.append(x_val)
-        X_test.append(x_test)
-        Y_train.append(y_train)
-        Y_val.append(y_val)
-        Y_test.append(y_test)
-
-    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in
-                     range(nb_of_clients)]
-    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
-    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in
-                    range(nb_of_clients)]
+    train_loaders = [DataLoader(d, batch_size=None) for d in datasets]
+    val_loaders = [DataLoader(d, batch_size=None) for d in datasets]
+    test_loaders = [DataLoader(d, batch_size=None) for d in datasets]
 
     natural_split = True
     return train_loaders, val_loaders, test_loaders, natural_split

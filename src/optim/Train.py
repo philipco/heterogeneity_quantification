@@ -1,4 +1,5 @@
 import gc
+from collections.abc import Sequence
 
 import torch
 from transformers import PreTrainedModel
@@ -14,30 +15,19 @@ def write_grad(trained_model, writer, last_epoch):
             writer.add_histogram(f'{name}.grad', param.grad, last_epoch)
 
 
-def write_train_val_test_performance(net, device, train_loader, val_loader, test_loader, criterion, metric, client_ID,
-                                     writer, last_epoch, logs="light"):
-    if logs=="full":
-        for name, param in net.named_parameters():
-            writer.add_histogram(f'{name}.weight', param, last_epoch)
-    train_loss, train_acc = log_performance("train", net, device, train_loader, criterion, metric, client_ID, writer, last_epoch)
-    log_performance("val", net, device, val_loader, criterion, metric, client_ID, writer, last_epoch)
-    test_loss, test_acc = log_performance("test", net, device, test_loader, criterion, metric, client_ID, writer, last_epoch)
-
-    writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), last_epoch)
-    writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), last_epoch)
-
-    writer.close()
-
-
-def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch):
+def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch, optimal_loss):
     # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
-    epoch_test_loss, epoch_test_accuracy = compute_loss_and_accuracy(net, device, loader,
-                                                                     criterion, metric, "tcga_brca" in client_ID)
+    epoch_loss, epoch_accuracy = compute_loss_and_accuracy(net, device, loader, criterion, metric,
+                                                           "tcga_brca" in client_ID)
     # Writing logs.
-    writer.add_scalar(f'{name}_loss', epoch_test_loss, epoch)
-    writer.add_scalar(f'{name}_accuracy', epoch_test_accuracy, epoch)
+    if optimal_loss:
+        writer.add_scalar(f'{name}_loss', epoch_loss-optimal_loss, epoch)
+        writer.add_scalar(f'{name}_accuracy', epoch_accuracy-optimal_loss, epoch)
+    else:
+        writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
+        writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
     writer.close()
-    return epoch_test_loss, epoch_test_accuracy
+    return epoch_loss, epoch_accuracy
 
 
 def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
@@ -174,7 +164,7 @@ def batch_update(batch, device, net, criterion, optimizer):
 def batch_training(train_iter, device, net, criterion, optimizer, scheduler, single_batch_idx):
     # For Gossip, we communicate after every batch, therefore we need to access one single batch.
     net.train()
-    if single_batch_idx is not None:
+    if single_batch_idx is not None or not isinstance(train_iter, Sequence):
         batch = next(train_iter)
         batch_update(batch, device, net, criterion, optimizer)
     else:
@@ -219,6 +209,14 @@ def compute_gradient_validation_set(val_loader, net, device, optimizer, criterio
 
     return [g / len(val_loader) for g in accumulated_grads if g is not None]
 
+def safe_gradient_computation(train_loader, iter_loader, device, trained_model, criterion, optimizer, scheduler):
+    try:
+        gradient = gradient_step(iter_loader, device, trained_model, criterion, optimizer, scheduler)
+    except StopIteration:
+        iter_loader = iter(train_loader)
+        gradient = gradient_step(iter_loader, device, trained_model, criterion, optimizer, scheduler)
+    return gradient
+
 def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
     net.train()
 
@@ -231,7 +229,7 @@ def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
         batch = next(train_iter)
         outputs = net(**move_batch_to_device(batch, device))
         loss = outputs.loss
-
+        loss.backward()
         del batch
     # Pytorch datasets
     else:
@@ -239,11 +237,8 @@ def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         outputs = net(x_batch)
         loss = criterion(outputs, y_batch)
-
+        loss.backward()
         del x_batch, y_batch
-
-    # Backward pass
-    loss.backward()
 
     torch.cuda.empty_cache()
     gc.collect()
@@ -273,14 +268,31 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
     epoch_loss = 0
     epoch_accuracy = 0
     net.eval()
-    if full_batch:
+    if not full_batch:
         with torch.no_grad():
-            features, labels = data_loader.dataset[:]
-            x_batch = features.to(device)
-            y_batch = labels.to(device)
-            outputs = net(x_batch).float()
-            epoch_loss = criterion(outputs, y_batch)
-            epoch_accuracy = metric(y_batch, outputs)
+            if isinstance(data_loader, Sequence):
+                features, labels = data_loader.dataset[:]
+                x_batch = features.to(device)
+                y_batch = labels.to(device)
+                outputs = net(x_batch).float()
+                epoch_loss = criterion(outputs, y_batch)
+                epoch_accuracy = metric(y_batch, outputs)
+            # FOR LLM
+            elif isinstance(net, PreTrainedModel):
+                batch = next(iter(data_loader))
+                outputs = net(**move_batch_to_device(batch, device))
+                epoch_loss += outputs.loss
+                epoch_accuracy += metric(batch['labels'], outputs.logits)
+                del batch
+            else:
+                for i in range(1):
+                    x_batch, y_batch = next(iter(data_loader))
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+                    outputs = net(x_batch).float()
+                    epoch_loss += criterion(outputs, y_batch)
+                    epoch_accuracy += metric(y_batch, outputs)
+                    del x_batch, y_batch
         return epoch_loss, epoch_accuracy
     with torch.no_grad():
         if isinstance(net, PreTrainedModel):
@@ -290,11 +302,30 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                 epoch_accuracy += metric(batch['labels'], outputs.logits)
                 del batch
         else:
-            for x_batch, y_batch in data_loader:
-                x_batch = x_batch.to(device)
-                y_batch = y_batch.to(device)
-                outputs = net(x_batch).float()
-                epoch_loss += criterion(outputs, y_batch)
-                epoch_accuracy += metric(y_batch, outputs)
-                del x_batch, y_batch
-    return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+            if isinstance(data_loader, Sequence):
+                for x_batch, y_batch in data_loader:
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+                    outputs = net(x_batch).float()
+                    epoch_loss += criterion(outputs, y_batch)
+                    epoch_accuracy += metric(y_batch, outputs)
+                    del x_batch, y_batch
+                    return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+            else:
+                # For synthetic dataset that generates data on the fly.
+                nb_pass_on_data = 20
+                # model_shift = data_loader.dataset.true_theta - net.linear.weight.to("cpu")
+                # loss = model_shift @ data_loader.dataset.covariance @ model_shift.T
+                # print(loss)
+                # return loss, loss  # + data_loader.dataset.noise_std**2
+
+                for i in range(nb_pass_on_data):
+                    x_batch, y_batch = next(iter(data_loader))
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+                    outputs = net(x_batch).float()
+                    epoch_loss += criterion(outputs, y_batch)
+                    epoch_accuracy += metric(y_batch, outputs)
+                    del x_batch, y_batch
+                return (epoch_loss / nb_pass_on_data).to("cpu"), (epoch_accuracy / nb_pass_on_data).to("cpu")
+
