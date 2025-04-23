@@ -7,10 +7,10 @@ from src.data.NetworkLoader import get_network
 from src.optim.Algo import fedquantile_training, federated_training, gossip_training, all_for_all_algo, \
     fednova_training, all_for_one_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
-from src.utils.Utilities import get_path_to_datasets, get_project_root, create_folder_if_not_existing
+from src.utils.Utilities import get_path_to_datasets
 
 NB_RUN = 1
-NB_EPOCHS=25
+NB_EPOCHS=100
 
 if __name__ == '__main__':
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_all_ratio", "local"]
+    all_algos = ["all_for_one_ratio", "local", "fed"]#, "all_for_all_ratio", "local", "fed"]#, "all_for_all_ratio", "local"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
-        assert algo_name in ["all_for_one_ratio", "all_for_all_ratio", "all_for_one_pdtscl", "quantile", "gossip", "fed", "all_for_all", "all_for_one", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
+        assert algo_name in ["all_for_one_ratio", "all_for_all_ratio", "fed", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)

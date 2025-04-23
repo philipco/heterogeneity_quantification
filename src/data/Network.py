@@ -40,12 +40,18 @@ class Network:
 
         else:
             net = MODELS[dataset_name]()
+        step_size = STEP_SIZE[dataset_name]
         for i in range(self.nb_clients):
             ID = f"{dataset_name}_{algo_name}_{i}" if split_type is None \
                 else f"{dataset_name}_{split_type}_{algo_name}_{i}"
+            if "synth" in dataset_name:
+                L = train_loaders[i].dataset.compute_lips() #for #loader in train_loaders]) / self.nb_clients
+                mu = train_loaders[i].dataset.compute_mu()
+                # mu = min([loader.dataset.compute_mu() for loader in train_loaders])
+                step_size = 1 / (2 * L)
             self.clients.append(Client(ID, f"{dataset_name}", train_loaders[i], val_loaders[i],
                                        test_loaders[i], copy.deepcopy(net),
-                                       CRITERION[dataset_name], METRIC[dataset_name], STEP_SIZE[dataset_name],
+                                       CRITERION[dataset_name], METRIC[dataset_name], step_size,
                                        MOMENTUM[dataset_name], WEIGHT_DECAY[dataset_name], BATCH_SIZE[dataset_name],
                                        SCHEDULER_PARAMS[dataset_name]))
 

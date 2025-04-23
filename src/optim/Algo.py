@@ -1,11 +1,11 @@
 import copy
 import time
-from copy import deepcopy
 from random import sample
 
 import numpy as np
 import optuna
 import torch
+from tqdm import tqdm
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import print_collaborating_clients, aggregate_models, \
@@ -16,6 +16,14 @@ from src.quantif.Distances import compute_matrix_of_distances, acceptance_pvalue
     rejection_pvalue
 from src.quantif.Metrics import Metrics
 
+def ratio(x,y):
+    if x == 0:
+        return 1
+    if y == 0:
+        return 0
+    else:
+        assert 1 - x/y < 1, "Not lower than one."
+        return max(1 - x/y, 0)
 
 def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     # On the training set.
@@ -78,9 +86,6 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
 
     for i in range(network.nb_clients):
         load_new_model(network.clients[i].trained_model, new_model)
-        assert equal(network.clients[i].trained_model, network.clients[0].trained_model), \
-            (f"Models {network.clients[i].ID} are not equal.")
-
 
     if keep_track:
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
@@ -90,7 +95,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         print(f"=============== \tEpoch {synchronization_idx} ===============")
         start_time = time.time()
         # One pass of local training
-        for  i in range(network.nb_clients):
+        for i in range(network.nb_clients):
             network.clients[i].continue_training(nb_of_local_epoch, synchronization_idx, single_batch=False)
 
         # Averaging models
@@ -106,6 +111,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
         network.save()
     if keep_track:
@@ -182,25 +188,27 @@ def compute_weight_based_on_gradient(gradients, validation_gradient, norm_valida
 def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, numerators, denominators,
                                   continuous: bool = False) :
 
-    grads, grads_val = [], []
+    # grads, grads_val = [], []
+    # for _ in range(len(gradients)):
+    #     grads.append(torch.concat([p.flatten() for p in gradients[_] if p is not None]))
+    #     grads_val.append(torch.concat([p.flatten() for p in validation_gradients[_] if p is not None]))
+
+    new_denom = gradients[client_idx].T @ gradients[client_idx] # grads[client_idx] @ grads_val[client_idx]
+    denominators[client_idx].append(new_denom.item())
+
     for _ in range(len(gradients)):
-        grads.append(torch.concat([p.flatten() for p in gradients[_] if p is not None]))
-        grads_val.append(torch.concat([p.flatten() for p in validation_gradients[_] if p is not None]))
+        new_num = torch.linalg.vector_norm(gradients[client_idx] - gradients[_])
+        numerators[client_idx][_].append(new_num.item())
 
-    new_denom = grads[client_idx] @ grads_val[client_idx]
-    denominators[client_idx].append(new_denom)
-
-    for _ in range(len(gradients)):
-        new_num = (grads[client_idx] @ grads[_] + grads_val[client_idx] @ grads_val[_]
-                   - grads[_] @ grads_val[_])
-        numerators[client_idx][_].append(new_num)
-
-    if continuous:
+    if True:
         # Réfléchir un peu plus!
-        coef = numerators[client_idx][_][-1]/denominators[client_idx][-1]
-        weight = [coef if coef > 0 else 0 for _ in range(len(gradients))]
-    else:
-        weight = [int(numerators[client_idx][_][-1] > 0) for _ in range(len(gradients))]
+        weight = [ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))]
+        if sum(weight) == 0:
+            print(f"⚠️ The sum of weights is zero.")
+            weight = [int(i == client_idx) for i in range(len(gradients))]
+        total_weight = sum(weight)
+        return [w / total_weight for w in weight], numerators, denominators
+    weight = [1 if numerators[client_idx][_][-1] == 0 else int(1 - numerators[client_idx][_][-1] / denominators[client_idx][-1] > 0) for _ in range(len(gradients))]
     if sum(weight) == 0:
         print(f"⚠️ The sum of weights is zero.")
         weight = [int(i == client_idx) for i in range(len(gradients))]
@@ -244,7 +252,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
 
     numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
     if keep_track:
-        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
+        track_models = [[[copy.deepcopy(m.data[0]).to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
 
     # We create a data iterator for each clients, for each trained model by clients.
@@ -267,6 +275,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 norm_validation_gradients = []
 
                 # Computing gradients on each clients.
+                grad_time = time.time()
                 for c_idx in range(network.nb_clients):
                     c = network.clients[c_idx]
                     # set_seed(client.last_epoch * inner_iterations + k)
@@ -276,27 +285,26 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                            client.scheduler)
                     gradients.append(gradient)
 
-                    if collab_based_on in ["ratio", "pdtscl", "grad"]:
-                        gradient2 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                                                               client.trained_model, client.criterion, client.optimizer,
-                                                               client.scheduler)
-                        gradients2.append(gradient2)
-                        gradient3 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                                                              client.trained_model, client.criterion, client.optimizer,
-                                                              client.scheduler)
-                        gradients3.append(gradient3)
+                    # if collab_based_on in ["ratio", "pdtscl", "grad"]:
+                    gradient2 = c.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data
+                                                                     - c.train_loader.dataset.true_theta).T  #safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                                                           # client.trained_model, client.criterion, client.optimizer,
+                                                           # client.scheduler)
+                    gradients2.append(gradient2)
+                    gradient3 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                                                          client.trained_model, client.criterion, client.optimizer,
+                                                          client.scheduler)
+                    gradients3.append(gradient3)
 
                     if collab_based_on in ["grad", "pdtscl"]:
                         norm_validation_gradients.append(
                             torch.sum(torch.cat([gF.pow(2) for gF in [p.flatten() for p in gradient2]])))
 
+                print(f"Gradients computation time: {time.time() - grad_time} seconds")
                 weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, gradients3,
                                                                                  client_idx, numerators,
                                                                                  denominators, False)
                 client = network.clients[client_idx]
-                client.writer.add_histogram('ratio', np.array(
-                    [(n[-1] / denominators[client_idx][-1]).to("cpu") for n in numerators[client_idx]]),
-                                            client.last_epoch * inner_iterations + k)
                 if collab_based_on == "grad":
                     weight = compute_weight_based_on_gradient(gradients, [p.flatten() for p in gradients2[client_idx]],
                                                            norm_validation_gradients[client_idx], client_idx)
@@ -326,7 +334,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 client.writer.add_histogram('weights', np.array(weight), client.last_epoch * inner_iterations + k)
                 if keep_track:
                     lr = client.optimizer.param_groups[0]['lr']
-                    track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
+                    track_models[client_idx].append([copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
                     track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
 
         for i in range(network.nb_clients):
@@ -347,7 +355,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
-        if synchronization_idx % 2 == 1:
+        if synchronization_idx % 20 == 1:
             ### We compute the distance between clients.
             metrics_for_comparison.reinitialize()
             metrics_for_comparison.add_distances(weights)
@@ -399,6 +407,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             norm_validation_gradients = []
 
             # Computing gradients on each clients.
+            grad_time = time.time()
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
                 # set_seed(client.last_epoch * inner_iterations + k)
@@ -410,15 +419,18 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                 gradients.append(gradient)
 
                 # if collab_based_on in ["ratio", "pdtscl", "grad"]:
-                gradient2 = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
-                                                 client.trained_model, client.criterion, client.optimizer,
-                                                 client.scheduler)
+                gradient2 = client.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data
+                                                                 - client.train_loader.dataset.true_theta).T
+                # gradient2 = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
+                #                                  client.trained_model, client.criterion, client.optimizer,
+                #                                  client.scheduler)
                 gradients2.append(gradient2)
                 gradient3 = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
                                                       client.trained_model, client.criterion, client.optimizer,
                                                       client.scheduler)
                 gradients3.append(gradient3)
 
+            print(f"Gradients computation time: {time.time() - grad_time} seconds")
 
             # Computing the weights for each
             for client_idx in range(network.nb_clients):
@@ -429,9 +441,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
                                                                             client_idx, numerators,
                                                                             denominators, False)
                 client = network.clients[client_idx]
-                client.writer.add_histogram('ratio', np.array(
-                    [(n[-1] / denominators[client_idx][-1]).to("cpu") for n in numerators[client_idx]]),
-                                            client.last_epoch * inner_iterations + k)
                 if collab_based_on in ["grad", "pdtscl"]:
                     norm_validation_gradients.append(
                         torch.sum(torch.cat([gF.pow(2) for gF in [p.flatten() for p in gradient2]])))
@@ -498,7 +507,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, inner_ite
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
-        if synchronization_idx % 2 == 1:
+        if synchronization_idx % 20 == 1:
             ### We compute the distance between clients.
             metrics_for_comparison.reinitialize()
             metrics_for_comparison.add_distances(weights)

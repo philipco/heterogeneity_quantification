@@ -4,7 +4,6 @@ from collections.abc import Sequence
 import torch
 from transformers import PreTrainedModel
 
-from src.utils.Utilities import set_seed
 from src.utils.UtilitiesPytorch import move_batch_to_device, assert_gradients_zero
 
 
@@ -131,7 +130,6 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     train_loss = []
 
     # Training
-    set_seed(last_epoch)
     for local_epoch in range(nb_local_epochs):
         if single_batch:
             idx = (last_epoch + local_epoch) % len(train_loader)
@@ -220,7 +218,6 @@ def safe_gradient_computation(train_loader, iter_loader, device, trained_model, 
 def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
     net.train()
 
-    # Why is this not setting the grad of the net to zero?
     optimizer.zero_grad()
     assert_gradients_zero(net)
 
@@ -241,7 +238,6 @@ def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
         del x_batch, y_batch
 
     torch.cuda.empty_cache()
-    gc.collect()
 
     return [param.grad.detach() if (param.grad is not None) else None for param in net.parameters()]
 

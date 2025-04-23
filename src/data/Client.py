@@ -64,8 +64,8 @@ class Client:
                                                    20, plateau=5)
         elif dataset_name in ["heart_disease"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
-        # elif dataset_name in ["synth_complex"]:
-        #     self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: 1 / (t + 1))
+        elif dataset_name in ["cifar10", "mnist"]:
+            self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size * 1.5 / (t + 1))
         else:
             self.scheduler = ConstantLRScheduler(self.optimizer)
 

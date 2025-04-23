@@ -128,7 +128,7 @@ def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: 
         for name, param in model_copy.named_parameters():
             temp_param = torch.zeros(param.shape).to(device)
             for weight, model in zip(weights, models):
-                temp_param += weight * model.state_dict()[name].data.clone()
+                temp_param += (weight * model.state_dict()[name].data.clone())
 
             model_copy.state_dict()[name].copy_(temp_param)
     return model_copy

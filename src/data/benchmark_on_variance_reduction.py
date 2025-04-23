@@ -109,10 +109,10 @@ def train_fedavg(models, dataloaders, L, global_steps=100, local_steps=1):
 
 # Initialize experiment
 d = 10  # Input dimension  # Ground truth parameter
-batch_size = 16
-num_clients = 50
+batch_size = 1
+num_clients = 10
 
-true_theta = generate_client_models(num_clients, 1, d, cluster_variance=1)
+true_theta = generate_client_models(num_clients, 1, d, cluster_variance=0.1)
 steps = 250
 
 # Create datasets and compute Lipschitz constant
