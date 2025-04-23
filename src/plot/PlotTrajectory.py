@@ -36,20 +36,19 @@ def plot_level_set_with_gradients_pytorch(data_loader, x_range=(-10, 10), y_rang
         for i in range(num_points):
             for j in range(num_points):
                 model_shift = data_loader.dataset.true_theta  - torch.tensor([[X[i, j], Y[i, j]]]).to(torch.float32)
-                Z[i, j] = model_shift @ data_loader.dataset.covariance @ model_shift.T + data_loader.dataset.noise_std**2
-
+                Z[i, j] = model_shift @ data_loader.dataset.covariance @ model_shift.T #+ data_loader.dataset.noise_std**2
     return X, Y, Z
 
 
 dataset_name = "synth"
 
 NB_RUN = 1
-NB_EPOCHS = 10
+NB_EPOCHS = 100
 
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["all_for_all_ratio", "all_for_one_ratio", "local", "fed", "fednova"]
+    all_algos = ["all_for_one_ratio", "fed", "local"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -70,8 +69,8 @@ if __name__ == '__main__':
             # Plot the level set
             if client_X[i] is None:
                 client_X[i], client_Y[i], client_Z[i] = plot_level_set_with_gradients_pytorch(c.train_loader)
-            plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.1, 1, 3, 7, 15, 30],
-                        colors=COLORS[i], alpha=0.75)
+            plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.01, 0.1, 1, 3, 7, 9, 15, 30], alpha=0.75)
+                        #colors=COLORS[i], alpha=0.75)
 
             c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.float32).to(c.device)
 
@@ -104,12 +103,11 @@ if __name__ == '__main__':
             for i in range(len(track_models)):
                 model_X = [t[0][0] for t in track_models[i][:-2]]
                 model_Y = [t[0][1] for t in track_models[i][:-2]]
-                plt.scatter(model_X, model_Y, color=COLORS[i], marker="*")
+                plt.scatter(model_X, model_Y, marker="*")#, color=COLORS[i]
 
                 for j in range(0, len(model_X), 1):
                     plt.quiver(model_X[j], model_Y[j], -track_gradients[i][j][0][0], -track_gradients[i][j][0][1],
-                               angles='xy', scale_units='xy', scale=1, color=COLORS[i], alpha=0.5,
-                               width=0.005)
+                               angles='xy', scale_units='xy', scale=1, alpha=0.5, width=0.005)#, color=COLORS[i])
         else:
             model_X = [t[0][0] for t in track_models[i][:-2]]
             model_Y = [t[0][1] for t in track_models[i][:-2]]
@@ -130,14 +128,7 @@ if __name__ == '__main__':
             ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
 
 
-        # Saving the writer as pkl files.
         root = get_project_root()
-        pickle_folder = '{0}/pickle/{1}/{2}'.format(root, dataset_name, algo_name)
-        create_folder_if_not_existing(pickle_folder)
-        network.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
-        for client in network.clients:
-            client.writer.save(f"{pickle_folder}", f"logging_writer_{client.ID}.pkl")
-
         # Saving the level set figure.
         create_folder_if_not_existing('{0}/pictures/convergence'.format(root))
         folder = f'{root}/pictures/convergence/{dataset_name}_{algo_name}_b{BATCH_SIZE[dataset_name]}.pdf'
@@ -145,12 +136,11 @@ if __name__ == '__main__':
         plt.close()
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=False)
+    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
     plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=False)
+    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
 
     for algo_name in all_algos:
         if algo_name not in ["fed", "fednova"]:
             plot_weights(weights[algo_name], dataset_name, algo_name)
-            plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
 

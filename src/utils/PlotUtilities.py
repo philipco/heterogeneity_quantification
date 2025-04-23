@@ -4,8 +4,8 @@ import numpy as np
 from src.data.DatasetConstants import BATCH_SIZE, STEP_SIZE
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
-COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
-MARKERS = ['o', 's', 'D', '^', 'v', '<', '>', 'p', 'h', '*']
+COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple']
+MARKERS = ['o', 's', 'D', '^', 'v', '<']
 
 def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     """
@@ -21,8 +21,8 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     i = 0
     for algo_name in legends:
         if log:
-            avg_values = np.log10(np.mean([v for v in values[algo_name]], axis=0))
-            avg_values_var = np.log10(np.std([v for v in values[algo_name]], axis=0))
+            avg_values = np.mean([np.log10(v) for v in values[algo_name]], axis=0)
+            avg_values_var = np.std([np.log10(v) for v in values[algo_name]], axis=0)
             plt.plot(epochs[algo_name][0], avg_values, marker='o', linestyle='-', color=COLORS[i], label=algo_name)
             plt.fill_between(epochs[algo_name][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
@@ -59,14 +59,14 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
 def plot_weights(weights, dataset_name, algo_name, name="weights"):
     nb_clients = len(weights)
 
-    fig, axes = plt.subplots(nb_clients, 1, figsize=(6, nb_clients))
-    for client_idx in range(nb_clients):
+    fig, axes = plt.subplots(min(nb_clients, len(MARKERS)), 1, figsize=(6, min(nb_clients, len(MARKERS))))
+    for client_idx in range(min(nb_clients, len(MARKERS))):
         ax = axes[client_idx]
         weight = weights[client_idx]
 
         # Plot each (row, column) entry through time
         iterations = range(len(weight))
-        for c_idx in range(nb_clients):
+        for c_idx in range(min(nb_clients, len(MARKERS))):
             weight_to_plot = [weight[t][c_idx] for t in iterations]
             # if name.__eq__("weights"):
             #     ax.set_ylim([0, 1.5])

@@ -42,11 +42,6 @@ OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
                "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
                "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
 
-NB_CLIENTS = {"mnist": 6, "fashion_mnist": 8, "cifar10": 8, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
-              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
-              "synth_complex": 40,
-              "exam_llm": 3}
-
 MODELS = {"mnist": CNN_MNIST, "cifar10": GoogleNetTransferLearning, "heart_disease": HeartDiseaseRegression,
           "tcga_brca": TcgaRegression, "ixi": UNet, "liquid_asset": LiquidAssetRegression, "synth": Synth2ClientsRegression,
           "synth_complex":  Synth100ClientsRegression,
@@ -68,13 +63,17 @@ TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
-STEP_SIZE = {"mnist": 0.045, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.1,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": 0.5, "synth_complex": 0.1,
+NB_CLIENTS = {"mnist": 40, "fashion_mnist": 8, "cifar10": 20, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 10,
+              "synth_complex": 10,
+              "exam_llm": 3}
+STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.1,
+             "ixi": 0.01, "liquid_asset": 0.001, "synth": None, "synth_complex": None,
              "exam_llm": 0.0008518845025208505}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
                 "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
-BATCH_SIZE = {"mnist": 256, "cifar10": 256, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 2, "synth_complex": 2, "exam_llm": 32}
+BATCH_SIZE = {"mnist": 16, "cifar10": 2, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
+              "synth": 1, "synth_complex": 1, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
 SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),

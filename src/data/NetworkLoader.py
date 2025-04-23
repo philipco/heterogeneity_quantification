@@ -46,13 +46,13 @@ def get_network(dataset_name: str, algo_name: str, nb_initial_epochs: int):
             = get_data_from_csv(dataset_name, BATCH_SIZE[dataset_name])
     elif dataset_name in ["synth"]:
         train_loaders, val_loaders, test_loaders, natural_split \
-            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=NB_CLIENTS[dataset_name])
+            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=NB_CLIENTS[dataset_name], nb_clusters=2)
     elif dataset_name in ["synth_complex"]:
         train_loaders, val_loaders, test_loaders, natural_split \
-            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=NB_CLIENTS[dataset_name], nb_clusters=2, dim=50)
+            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=NB_CLIENTS[dataset_name], nb_clusters=2, dim=10)
     elif dataset_name in ["synth_classif"]:
         train_loaders, val_loaders, test_loaders, natural_split \
-            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=2, nb_clusters=1, dim=50, classification=True)
+            = get_synth_data(BATCH_SIZE[dataset_name], nb_clients=2, nb_clusters=1, dim=10, classification=True)
     else:
         train_loaders, val_loaders, test_loaders, natural_split \
             = get_data_from_flamby(DATASET[dataset_name], NB_CLIENTS[dataset_name], dataset_name, BATCH_SIZE[dataset_name],

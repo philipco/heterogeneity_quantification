@@ -32,22 +32,33 @@ class SyntheticLSRDataset(IterableDataset):
             X = self.eigenvalues * X
 
             noise = torch.normal(mean=0, std=self.noise_std, size=(self.batch_size, ))
-            y = X @ self.true_theta + noise  # Generate targets
-            # print((2 * torch.norm(X.T.mm(X), p=2) / self.batch_size).item())
+            y = X @ self.true_theta #+ noise  # Generate targets
             yield X, y.reshape(self.batch_size, 1) # Yield a batch instead of returning
 
     def __len__(self):
         return None #float('inf')  # Arbitrary value, as it's an infinite generator
 
-    def compute_optimal_solution(self):
-        big_batch = 100000
-        X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=big_batch))
-        X = self.eigenvalues * X
+    def compute_lips(self):
+        cov = torch.zeros((self.dim, self.dim))
+        nb_samples = 10
+        for k in range(nb_samples):
+            X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
+            X = self.eigenvalues * X
+            cov += X.T.mm(X) / self.batch_size
+        lips = 2 * torch.norm(cov / nb_samples, p=2).item()
+        print(lips)
+        return lips
 
-        noise = torch.normal(mean=0, std=self.noise_std, size=(big_batch,))
-        y = X @ self.true_theta + noise  # Generate targets
-        return torch.inverse(X.T @ X) @ X.T @ y
-
+    def compute_mu(self):
+        cov = torch.zeros((self.dim, self.dim))
+        nb_samples = 10
+        for k in range(nb_samples):
+            X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
+            X = self.eigenvalues * X
+            cov += X.T.mm(X) / self.batch_size
+        mu = 2 * torch.linalg.svd(cov / nb_samples).S[-1].item()
+        print(mu)
+        return mu
 
 
 class StreamingGaussianDataset(IterableDataset):
