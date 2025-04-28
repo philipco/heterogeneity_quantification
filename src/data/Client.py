@@ -119,7 +119,7 @@ class Client:
                         self.ID, self.writer, self.last_epoch, self.optimal_loss)
         test_loss, test_acc = log_performance("test", self.trained_model, self.device, self.test_loader,
                                               self.criterion, self.metric, self.ID, self.writer,
-                                              self.last_epoch, self.optimal_loss)
+                                              self.last_epoch, self.optimal_loss, True)
 
         self.writer.add_scalar(f'generalisation_loss', abs(train_loss - test_loss), self.last_epoch)
         self.writer.add_scalar(f'generalisation_accuracy', abs(train_acc - test_acc), self.last_epoch)
