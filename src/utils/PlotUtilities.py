@@ -56,7 +56,7 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     print("\\hline")
     print("\\end{tabular}")
 
-def plot_weights(weights, dataset_name, algo_name, name="weights"):
+def plot_weights(weights, dataset_name, algo_name, name="weights", x_axis=None):
     nb_clients = len(weights)
 
     fig, axes = plt.subplots(min(nb_clients, len(MARKERS)), 1, figsize=(6, min(nb_clients, len(MARKERS))))
@@ -70,8 +70,15 @@ def plot_weights(weights, dataset_name, algo_name, name="weights"):
             weight_to_plot = [weight[t][c_idx] for t in iterations]
             # if name.__eq__("weights"):
             #     ax.set_ylim([0, 1.5])
-            ax.plot(iterations, weight_to_plot, label=f"Client i ← {c_idx}", color=COLORS[c_idx],
-                    alpha=0.7, linestyle='-', marker=MARKERS[c_idx])
+            if x_axis:
+                sorted_indices = np.argsort(x_axis[c_idx][:-1])
+                sorted_x_axis = np.array(x_axis[c_idx][:-1])[sorted_indices]
+                sorted_weight_to_plot = np.array(weight_to_plot)[sorted_indices]
+                ax.plot(np.log10(sorted_x_axis), sorted_weight_to_plot, label=f"Client i ← {c_idx}", color=COLORS[c_idx],
+                        alpha=0.7, linestyle='-', marker=MARKERS[c_idx])
+            else:
+                ax.plot(iterations, weight_to_plot, label=f"Client i ← {c_idx}", color=COLORS[c_idx],
+                        alpha=0.7, linestyle='-', marker=MARKERS[c_idx])
 
         ax.grid(True, linestyle='--', alpha=0.6)
         if client_idx == 0:
