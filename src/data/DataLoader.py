@@ -9,10 +9,9 @@ from transformers import AutoTokenizer
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
-from src.data.DatasetConstants import CHECKPOINT, BATCH_SIZE
+from src.data.DatasetConstants import CHECKPOINT
 from src.data.Split import create_non_iid_split
-from src.data.SyntheticDataset import SyntheticLSRDataset, StreamingGaussianDataset
-from src.plot.PlotDifferentScenarios import f
+from src.data.SyntheticDataset import SyntheticLSRDataset
 from src.utils.Utilities import get_path_to_datasets
 
 
@@ -83,19 +82,15 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
     """
     # Generate K cluster centers
     # Create an uninitialized tensor and fill it with values from the uniform distribution
-    cluster_centers = [torch.empty(d).uniform_(-2.5, 2.5) for _ in range(K)]
+    cluster_centers = [torch.empty(d).uniform_(-5, 5) for _ in range(K)]
     # Assign each client to a cluster and generate their model
-    true_models = [cluster_centers[i % K]  + cluster_variance * torch.randn(d) for i in range(N)]
-    return true_models
+    variations = [cluster_variance * torch.randn(d) for i in range(N)]
+    return [cluster_centers[i % K] + variations[i] for i in range(N)], variations
 
-def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-    # if classification:
-    #     # all_means = generate_client_means(nb_clients, nb_clusters, dim, cluster_variance=0.1)
-    #     datasets = [StreamingGaussianDataset(m, dim=2, batch_size=32, num_classes=2) for m in all_means]
-    # else:
-    true_models = generate_client_models(nb_clients, 1, dim, cluster_variance=0.1)
-    datasets = [SyntheticLSRDataset(m, batch_size) for m in true_models]
+    true_models, variations = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.001)
+    datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_models, variations)]
 
     train_loaders = [DataLoader(d, batch_size=None) for d in datasets]
     val_loaders = [DataLoader(d, batch_size=None) for d in datasets]

@@ -4,13 +4,13 @@ import argparse
 
 from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.NetworkLoader import get_network
-from src.optim.Algo import fedquantile_training, federated_training, gossip_training, all_for_all_algo, \
+from src.optim.Algo import federated_training, all_for_all_algo, \
     fednova_training, all_for_one_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
 NB_RUN = 1
-NB_EPOCHS=100
+NB_EPOCHS=25
 
 if __name__ == '__main__':
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["all_for_one_ratio", "local", "fed"]#, "all_for_all_ratio", "local", "fed"]#, "all_for_all_ratio", "local"]
+    all_algos = ["All-for-one", "Local", "FedAvg"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -42,32 +42,20 @@ if __name__ == '__main__':
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
-        assert algo_name in ["all_for_one_ratio", "all_for_all_ratio", "fed", "all_for_one_loss", "fednova", "local"], "Algorithm not recognized."
+        assert algo_name in ["All-for-one", "All-for-all", "Local", "FedAvg", "FedNova"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
 
-        if algo_name == "quantile":
-            fedquantile_training(network)
-        if algo_name == "gossip":
-            gossip_training(network)
-        if algo_name == "fed":
+        if algo_name == "FedAvg":
             federated_training(network, nb_of_synchronization=NB_EPOCHS)
-        if algo_name == "all_for_all":
-            all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS)
-        if algo_name == "all_for_all_ratio":
+        if algo_name == "All-for-all":
             all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio")
-        if algo_name == "local":
+        if algo_name == "Local":
             all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="local")
-        if algo_name == "fednova":
+        if algo_name == "Fednova":
             fednova_training(network, nb_of_synchronization=NB_EPOCHS)
-        if algo_name == "all_for_one":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS)
-        if algo_name == "all_for_one_loss":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="loss")
-        if algo_name == "all_for_one_pdtscl":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="pdtscl")
-        if algo_name == "all_for_one_ratio":
+        if algo_name == "All-for-one":
             all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="ratio")
 
         for client in network.clients:
@@ -91,8 +79,8 @@ if __name__ == '__main__':
     plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
 
     for algo_name in all_algos:
-        plot_weights(weights[algo_name], dataset_name, algo_name)
-        plot_weights(ratio[algo_name], dataset_name, algo_name, "ratio")
+        if algo_name in ["All-for-one", "All-for-all"]:
+            plot_weights(weights[algo_name], dataset_name, algo_name, x_axis=test_accuracies[algo_name])
 
     if dataset_name in ["liquid_asset"]:
         X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())

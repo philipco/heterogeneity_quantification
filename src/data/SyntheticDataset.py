@@ -22,7 +22,7 @@ class SyntheticLSRDataset(IterableDataset):
         self.eigenvalues = torch.FloatTensor([1 for i in range(1, self.dim + 1)[::-1]])
         self.covariance = torch.diag(self.eigenvalues)
         self.ortho_matrix = torch.FloatTensor(ortho_group.rvs(dim=self.dim))
-        # self.covariance = self.ortho_matrix @ self.covariance @ self.ortho_matrix.T
+        self.covariance = self.ortho_matrix @ self.covariance @ self.ortho_matrix.T
 
         self.batch_size = batch_size
         self.noise_std = noise_std
@@ -47,6 +47,7 @@ class SyntheticLSRDataset(IterableDataset):
             X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
             cov += X.T.mm(X) / self.batch_size
         lips = 2 * torch.linalg.svd(cov / nb_samples).S[0].item()
+        # lips = 2 * torch.norm(cov / nb_samples, p=2).item()
         print("Lipshitz constant: ", lips)
         mu = 2 * torch.linalg.svd(cov / nb_samples).S[-1].item()
         print("Mu constant:", mu)

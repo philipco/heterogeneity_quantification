@@ -44,10 +44,13 @@ class Network:
         for i in range(self.nb_clients):
             ID = f"{dataset_name}_{algo_name}_{i}" if split_type is None \
                 else f"{dataset_name}_{split_type}_{algo_name}_{i}"
-            if "synth" in dataset_name:
-                L = train_loaders[i].dataset.compute_lips() #for #loader in train_loaders]) / self.nb_clients
-                mu = train_loaders[i].dataset.compute_mu()
-                # mu = min([loader.dataset.compute_mu() for loader in train_loaders])
+            if "synth" == dataset_name:
+                L = train_loaders[i].dataset.L
+                mu = train_loaders[i].dataset.mu
+                step_size = 1 / (2 * L)
+            elif dataset_name == "synth_complex":
+                L = train_loaders[i].dataset.L
+                mu = train_loaders[i].dataset.mu
                 step_size = 1 / (2 * L)
             self.clients.append(Client(ID, f"{dataset_name}", train_loaders[i], val_loaders[i],
                                        test_loaders[i], copy.deepcopy(net),

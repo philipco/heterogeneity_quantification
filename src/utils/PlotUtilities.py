@@ -1,7 +1,16 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.data.DatasetConstants import BATCH_SIZE, STEP_SIZE
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
+
+from src.data.DatasetConstants import BATCH_SIZE
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple']
@@ -17,13 +26,13 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
         onding values.
         name (str): Label for the y-axis.
     """
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(8, 3))
     i = 0
     for algo_name in legends:
         if log:
             avg_values = np.mean([np.log10(v) for v in values[algo_name]], axis=0)
             avg_values_var = np.std([np.log10(v) for v in values[algo_name]], axis=0)
-            plt.plot(epochs[algo_name][0], avg_values, marker='o', linestyle='-', color=COLORS[i], label=algo_name)
+            plt.plot(epochs[algo_name][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
             plt.fill_between(epochs[algo_name][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
