@@ -201,7 +201,7 @@ def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, n
 def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False,
                      collab_based_on="grad", keep_track=False):
     try:
-        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+        inner_iterations = 1 #int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
         inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
@@ -212,9 +212,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
         client.write_train_val_test_performance()
-
-    metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
-                              "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
 
     numerators, denominators = [[[0] for _ in network.clients] for _ in network.clients], [[0] for _ in network.clients]
     if keep_track:
@@ -295,22 +292,15 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         for client in network.clients:
             client.scheduler.step()
 
-        print("Step-size:", client.optimizer.param_groups[0]['lr'])
-        print(f"Elapsed time: {time.time() - start_time} seconds")
-        print("Now computing matrix of distances...")
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
         network.save()
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
-
-        if synchronization_idx % 20 == 1:
-            ### We compute the distance between clients.
-            metrics_for_comparison.reinitialize()
-            metrics_for_comparison.add_distances(weights)
-            plot_pvalues(metrics_for_comparison, f"{synchronization_idx}")
 
     if keep_track:
         return track_models, track_gradients
@@ -318,7 +308,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False,
                      keep_track=False, collab_based_on="loss"):
     try:
-        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+        inner_iterations = 1 #int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
         inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
@@ -329,10 +319,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
     loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
         client.write_train_val_test_performance()
-
-    metrics_for_comparison = Metrics(f"{network.dataset_name}_{network.algo_name}",
-                                     "_comparaison", network.nb_clients, network.nb_testpoints_by_clients)
-
 
     numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
 
@@ -417,20 +403,16 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         for client in network.clients:
             client.scheduler.step()
 
-        print(f"Elapsed time: {time.time() - start_time} seconds")
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
         network.save()
+
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
-
-        if synchronization_idx % 20 == 1:
-            ### We compute the distance between clients.
-            metrics_for_comparison.reinitialize()
-            metrics_for_comparison.add_distances(weights)
-            plot_pvalues(metrics_for_comparison, f"{synchronization_idx}")
 
     if keep_track:
         return track_models, track_gradients

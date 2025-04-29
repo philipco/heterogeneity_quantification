@@ -10,7 +10,7 @@ from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
 NB_RUN = 1
-NB_EPOCHS=25
+NB_EPOCHS=200
 
 if __name__ == '__main__':
 

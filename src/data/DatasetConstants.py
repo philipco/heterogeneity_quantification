@@ -63,16 +63,16 @@ TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
 TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
-NB_CLIENTS = {"mnist": 40, "fashion_mnist": 8, "cifar10": 20, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
-              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 10,
-              "synth_complex": 10,
+NB_CLIENTS = {"mnist": 20, "fashion_mnist": 8, "cifar10": 20, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
+              "synth_complex": 20,
               "exam_llm": 3}
-STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.1,
+STEP_SIZE = {"mnist": 0.1, "cifar10": 0.1, "tcga_brca": .015, "heart_disease": 0.1,
              "ixi": 0.01, "liquid_asset": 0.001, "synth": None, "synth_complex": None,
              "exam_llm": 0.0008518845025208505}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
                 "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
-BATCH_SIZE = {"mnist": 16, "cifar10": 2, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
+BATCH_SIZE = {"mnist": 128, "cifar10": 128, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
               "synth": 1, "synth_complex": 1, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
