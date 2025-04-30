@@ -8,9 +8,6 @@ import numpy as np
 import psutil
 import torch
 
-from src.data.DatasetConstants import OUTPUT_TYPE
-
-
 def get_project_root() -> str:
     import pathlib
     path = str(pathlib.Path().absolute())

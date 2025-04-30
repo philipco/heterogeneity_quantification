@@ -27,7 +27,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dataset_name = args.dataset_name
 
-    assert dataset_name in ["exam_llm", "mnist", "cifar10", "heart_disease", "tcga_brca", "ixi", "liquid_asset",
+    assert dataset_name in ["exam_llm", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "heart_disease", "tcga_brca", "ixi", "liquid_asset",
                             "synth", "synth_complex"], "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 

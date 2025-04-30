@@ -20,7 +20,8 @@ from flamby.datasets.fed_ixi import FedIXITiny
 # from flamby.datasets.fed_isic2019.dataset import FedIsic2019
 
 
-DATASET = {"mnist": torchvision.datasets.MNIST, "cifar10": torchvision.datasets.CIFAR10,
+DATASET = {"mnist": torchvision.datasets.MNIST, "mnist_iid": torchvision.datasets.MNIST,
+           "cifar10": torchvision.datasets.CIFAR10, "cifar10_iid": torchvision.datasets.CIFAR10,
            "heart_disease": FedHeartDisease, "tcga_brca": FedTcgaBrca, "ixi": FedIXITiny
            }
 
@@ -31,6 +32,15 @@ def get_network(dataset_name: str, algo_name: str, nb_initial_epochs: int):
     ### We the dataset naturally splitted or not.
     if dataset_name in ["mnist", "cifar10"]:
         split_type = "partition"
+        train_loaders, val_loaders, test_loaders, natural_split \
+            = get_data_from_pytorch(DATASET[dataset_name], NB_CLIENTS[dataset_name], split_type, BATCH_SIZE[dataset_name],
+                                    kwargs_train_dataset=dict(root=get_path_to_datasets(), download=True,
+                                                              transform=TRANSFORM_TRAIN[dataset_name]),
+                                    kwargs_test_dataset=dict(root=get_path_to_datasets(), download=True,
+                                                             transform=TRANSFORM_TEST[dataset_name]),
+                                    kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=False))
+    if dataset_name in ["mnist_iid", "cifar10_iid"]:
+        split_type = "iid"
         train_loaders, val_loaders, test_loaders, natural_split \
             = get_data_from_pytorch(DATASET[dataset_name], NB_CLIENTS[dataset_name], split_type, BATCH_SIZE[dataset_name],
                                     kwargs_train_dataset=dict(root=get_path_to_datasets(), download=True,
