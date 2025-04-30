@@ -72,11 +72,11 @@ STEP_SIZE = {"mnist": 0.1, "cifar10": 0.1, "tcga_brca": .015, "heart_disease": 0
              "exam_llm": 0.0008518845025208505}
 WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
                 "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
-BATCH_SIZE = {"mnist": 128, "cifar10": 128, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
+BATCH_SIZE = {"mnist": 32, "cifar10": 128, "tcga_brca": 8, "heart_disease": 8, "ixi": 32, "liquid_asset": 32,
               "synth": 1, "synth_complex": 1, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
-SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),
+SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (3, 2/3),
                     "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (100, 0.5839331768799928),
                     "exam_llm": (15, 2/3)}
 

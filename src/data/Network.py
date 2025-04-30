@@ -24,7 +24,7 @@ class Network:
         self.nb_initial_epochs = nb_initial_epochs
         # The iterable dataset has no lenght (online setting, lenght is infinite).
         try:
-            self.nb_testpoints_by_clients = [len(y.dataset) for y in val_loaders]
+            self.nb_testpoints_by_clients = [len(y.dataset) for y in train_loaders]
         except TypeError:
             self.nb_testpoints_by_clients = [1 for y in val_loaders]
         print(f"Number of test points by clients: {self.nb_testpoints_by_clients}")

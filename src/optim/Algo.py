@@ -157,7 +157,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         return track_models
     return None
 
-def ratio(x,y, lmbda=0):
+def ratio(x,y):
     if x == 0:
         return 1
     if y == 0:
@@ -165,9 +165,9 @@ def ratio(x,y, lmbda=0):
     else:
         if not 1 - x/y <= 1:
             print(f"Not lower than one: {1 - x/y}, x={x}, y={y}.")
-        return max(1 - x/y, lmbda)
+        return max(1 - x/y, 0)
 
-def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, numerators, denominators,
+def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, numerators, denominators,
                                   continuous: bool = False) :
     grads, grads_val = [], []
     for _ in range(len(gradients)):
@@ -188,6 +188,8 @@ def compute_weight_based_on_ratio(gradients, validation_gradients, client_idx, n
         weight = [ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))]
     else:
         weight = [int(ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) > 0) for _ in range(len(gradients))]
+        nb_points_by_selected_clients = sum([n if w != 0 else 0 for (w, n) in zip(weight, nb_points_by_clients)])
+        weight = [w * n / nb_points_by_selected_clients for  (w, n) in zip(weight, nb_points_by_clients)]
 
     if weight[client_idx] == 0:
         print(f"⚠️ The client {client_idx} do not collaborate with himself..")
@@ -252,7 +254,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                         gradients2[c_idx] = gradient2
                     else:
                         beta = 0. #1-1 / synchronization_idx
-                        gradients2[c_idx] = [(g_old * beta + (1-beta)* g_new) for (g_old, g_new) in zip(gradients2[c_idx], gradient2)]
+                        gradients2[c_idx] = [(g_old * beta + (1-beta)* g_new) if g_new is not None else None for (g_old, g_new) in zip(gradients2[c_idx], gradient2)]
                         # gradients2[c_idx] = gradients2[c_idx] / (1-beta)
                     # gradients2[c_idx] = c.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data.to("cpu")
                     #                                                  - c.train_loader.dataset.true_theta).T
@@ -263,7 +265,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                     gradients3.append(gradient3)
 
 
-                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, gradients3,
+                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, network.nb_testpoints_by_clients,
                                                                                  client_idx, numerators,
                                                                                  denominators, False)
                 client = network.clients[client_idx]
@@ -370,7 +372,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 
                 # Presently, we always compute the ratio weigth (and override it) it requires.
                 # In order to plot the ratio for every algo.
-                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, gradients3,
+                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, network.nb_testpoints_by_clients,
                                                                             client_idx, numerators,
                                                                             denominators, False)
                 client = network.clients[client_idx]
@@ -396,7 +398,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                     lr = client.optimizer.param_groups[0]['lr']
                     track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
                     track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
-        print("Step-size:", client.optimizer.param_groups[0]['lr'])
         for client in network.clients:
             client.last_epoch += 1
             client.write_train_val_test_performance()

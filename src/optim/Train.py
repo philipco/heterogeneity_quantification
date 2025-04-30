@@ -297,6 +297,7 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                 epoch_loss += outputs.loss
                 epoch_accuracy += metric(batch['labels'], outputs.logits)
                 del batch
+                return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
         else:
             if isinstance(data_loader, Sequence):
                 for x_batch, y_batch in data_loader:
