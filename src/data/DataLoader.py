@@ -100,7 +100,7 @@ def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 
     return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
+def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
                           kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     # Get dataloader for train/test.
@@ -120,7 +120,7 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kw
     print("Test data shape:", Y[0].shape)
 
     ### We generate a non-iid datasplit if it's not already done.
-    X, Y = create_non_iid_split(X, Y, nb_of_clients, split_type=split_type)
+    X, Y = create_non_iid_split(X, Y, nb_of_clients, split_type=split_type, dataset_name=dataset_name)
 
     # Then for each (heterogeneous) client, we split the dataset into train/test
     X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []

@@ -62,9 +62,9 @@ class Client:
         if dataset_name in ["exam_llm"]:
             self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
                                                    20, plateau=5)
-        elif dataset_name in ["heart_disease"]:
+        elif dataset_name in ["heart_disease", "mnist", "cifar10"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
-        elif dataset_name in ["cifar10"]:
+        elif dataset_name in ["mnistpp"]:
             self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
         else:
             self.scheduler = ConstantLRScheduler(self.optimizer)
