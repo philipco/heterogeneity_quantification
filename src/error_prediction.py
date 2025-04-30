@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     for algo_name in all_algos:
         if algo_name in ["All-for-one", "All-for-all"]:
-            plot_weights(weights[algo_name], dataset_name, algo_name, x_axis=test_accuracies[algo_name])
+            plot_weights(weights[algo_name], dataset_name, algo_name)#, x_axis=test_accuracies[algo_name])
 
     if dataset_name in ["liquid_asset"]:
         X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())

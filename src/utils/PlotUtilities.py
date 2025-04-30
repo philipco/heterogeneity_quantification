@@ -39,7 +39,7 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
         else:
             avg_values = np.mean(values[algo_name], axis=0)
             avg_values_var = np.std(values[algo_name], axis=0)
-            plt.plot(epochs[algo_name][0], avg_values, marker='o', linestyle='-', color=COLORS[i], label=algo_name)
+            plt.plot(epochs[algo_name][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
             plt.fill_between(epochs[algo_name][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
