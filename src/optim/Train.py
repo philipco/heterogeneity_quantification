@@ -29,9 +29,8 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
     return epoch_loss, epoch_accuracy
 
 
-def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, val_loader, criterion,
-                               nb_local_epochs, lr, momentum, metric, last_epoch: int, epoch,
-                               single_batch: int = None):
+def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, train_iter, criterion,
+                               nb_local_epochs):
     """
     Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
 
@@ -39,108 +38,22 @@ def train_local_neural_network(net, optimizer, scheduler, device, client_ID, tra
     for optimizer and scheduler initialization if not provided, supports logging with TensorBoard, and tracks
     loss and accuracy throughout the training process.
 
-    :param net:
-        The neural network model to train.
-    :type net: torch.nn.Module
-
-    :param optimizer:
-        The optimizer used for training the model. If `None`, a new optimizer (SGD) will be created.
-    :type optimizer: torch.optim.Optimizer or None
-
-    :param scheduler:
-        The learning rate scheduler used to adjust the learning rate during training. If `None`, a new scheduler
-        (StepLR) will be created.
-    :type scheduler: torch.optim.lr_scheduler or None
-
-    :param device:
-        The device to perform the computations on (e.g., 'cpu', 'cuda').
-    :type device: str
-
-    :param client_ID:
-        Identifier for the client (useful for federated learning or distributed settings).
-    :type client_ID: str
-
-    :param train_loader:
-        DataLoader for the training set, providing batches of training data.
-    :type train_loader: torch.utils.data.DataLoader
-
-    :param val_loader:
-        DataLoader for the validation set, providing batches of validation data.
-    :type val_loader: torch.utils.data.DataLoader
-
-    :param criterion:
-        The loss function used to compute the training loss.
-    :type criterion: torch.nn.Module
-
-    :param nb_local_epochs:
-        Number of local epochs to train the model.
-    :type nb_local_epochs: int
-
-    :param lr:
-        Learning rate used for the optimizer (if it is initialized within the function).
-    :type lr: float
-
-    :param momentum:
-        Momentum value used in the SGD optimizer (if it is initialized within the function).
-    :type momentum: float
-
-    :param metric:
-        The performance metric to evaluate the model (e.g., accuracy).
-    :type metric: callable
-
-    :param last_epoch:
-        The last completed epoch number, used for seeding and TensorBoard logging.
-    :type last_epoch: int
-
-    :param epoch:
-        Current global epoch used for logging histograms of model parameters.
-    :type epoch: int
-
-    :return:
-        A tuple containing the trained model (`net`), list of training loss values, updated `writer`,
-        `optimizer`, and `scheduler`.
-    :rtype: Tuple[torch.nn.Module, List[float], torch.utils.tensorboard.SummaryWriter, torch.optim.Optimizer, torch.optim.lr_scheduler]
-
-    **Example usage:**
-
-    .. code-block:: python
-
-        net = MyModel()
-        optimizer = None
-        scheduler = None
-        device = 'cuda'
-        train_loader = ...
-        val_loader = ...
-        criterion = torch.nn.CrossEntropyLoss()
-        nb_epochs = 10
-        lr = 0.01
-        momentum = 0.9
-        metric = accuracy_function
-        last_epoch = 0
-
-        trained_model, train_loss, writer = train_local_neural_network(
-            net, optimizer, scheduler, device, 'client_1', train_loader, val_loader,
-            criterion, nb_epochs, lr, momentum, metric, last_epoch, epoch=0
-        )
-
-    **Notes:**
-    - This function uses the `torch.no_grad()` context to disable gradient tracking when logging model parameters.
-    - It initializes the optimizer and scheduler if they are not provided.
     """
     train_loss = []
 
     # Training
     for local_epoch in range(nb_local_epochs):
-        if single_batch:
-            idx = (last_epoch + local_epoch) % len(train_loader)
-            batch_training(train_loader, device, net, criterion, optimizer, scheduler, idx)
-        else:
-            batch_training(iter(train_loader), device, net, criterion, optimizer, scheduler, None)
+        batch_training(train_loader, train_iter, device, net, criterion, optimizer)
     scheduler.step()
     return train_loss
 
 
-def batch_update(batch, device, net, criterion, optimizer):
+def batch_training(train_loader, train_iter, device, net, criterion, optimizer):
+    try:
+        batch = next(train_iter)
+    except StopIteration:
+        train_iter = iter(train_loader)
+        batch = next(train_iter)
     net.zero_grad()
     if isinstance(net, PreTrainedModel):
         outputs = net(**move_batch_to_device(batch, device))
@@ -156,18 +69,6 @@ def batch_update(batch, device, net, criterion, optimizer):
     # Backward pass and optimization
     loss.backward()
     optimizer.step()
-
-    return None
-
-def batch_training(train_iter, device, net, criterion, optimizer, scheduler, single_batch_idx):
-    # For Gossip, we communicate after every batch, therefore we need to access one single batch.
-    net.train()
-    if single_batch_idx is not None or not isinstance(train_iter, Sequence):
-        batch = next(train_iter)
-        batch_update(batch, device, net, criterion, optimizer)
-    else:
-        for batch in train_iter:
-            batch_update(batch, device, net, criterion, optimizer)
 
 def compute_gradient_validation_set(val_loader, net, device, optimizer, criterion):
     net.train()

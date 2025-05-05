@@ -1,3 +1,4 @@
+import matplotlib
 import torch
 from matplotlib import pyplot as plt
 
@@ -5,6 +6,15 @@ from src.data.DataLoader import generate_client_models
 from src.data.DatasetConstants import NB_CLIENTS
 from src.data.SyntheticDataset import SyntheticLSRDataset
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
+
+
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
 
 def compute_effective_variance(datasets, lbda, epsilon):
     nb_clients = len(datasets)
@@ -27,10 +37,10 @@ def compute_effective_variance(datasets, lbda, epsilon):
 COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple']
 MARKERS = ['o', 's', 'D', '^', 'v', '<']
 
-dataset_name = "synth"
+dataset_name = "synth_complex"
 
 # Initialize experiment
-d = 2  # Input dimension  # Ground truth parameter
+d = 10  # Input dimension  # Ground truth parameter
 batch_size = 1
 num_clients = NB_CLIENTS[dataset_name]
 
@@ -62,7 +72,7 @@ axes[0].set_ylabel(r"$\mathcal{N}_1^*(\varepsilon, 10^{-2})$")
 axes[1].set_ylabel(r"$\mathcal{N}_2^*(\varepsilon, 10^{-2})$")
 axes[0].set_xlabel(r"Precision $\varepsilon$")
 axes[1].set_xlabel(r"Precision $\varepsilon$")
-axes[0].legend()
+axes[0].legend(loc="upper right")
 
 root = get_project_root()
 folder = f'{root}/pictures/convergence/{dataset_name}'

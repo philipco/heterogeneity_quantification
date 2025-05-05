@@ -89,19 +89,16 @@ class Client:
         if nb_epochs != 0:
             self.train_loss \
                 = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                             self.train_loader, self.val_loader, self.criterion, nb_epochs, self.step_size,
-                                             self.momentum, self.metric, 0, 0)
+                                             self.train_loader, self.val_loader, self.criterion, nb_epochs)
             self.last_epoch += nb_epochs
 
 
             self.write_train_val_test_performance()
 
-    def continue_training(self, nb_of_local_epoch: int, current_epoch: int, single_batch: bool = False):
+    def continue_training(self, nb_of_local_epoch: int, train_iter):
         self.train_loss \
             = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                         self.train_loader, self.val_loader, self.criterion, nb_of_local_epoch,
-                                         self.step_size, self.momentum, self.metric, self.last_epoch, current_epoch,
-                                         single_batch)
+                                         self.train_loader, train_iter, self.criterion, nb_of_local_epoch)
 
         # In the case of single batch training, we start iterating on the dataset from 0 and then use a modulo to iterate
         # thought the complete set.

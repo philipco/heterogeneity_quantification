@@ -57,10 +57,16 @@ def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     writer.close()
 
 
-def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_local_epoch: int = 1, keep_track: bool = False):
+def federated_training(network: Network, nb_of_synchronization: int = 5, keep_track: bool = False):
 
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
     weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
     loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
     for client in network.clients:
@@ -77,12 +83,15 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         # track_gradients = [[] for c in network.clients]
 
+    # We create a data iterator for each clients, for each trained model by clients.
+    iter_loaders = [iter(client.train_loader) for client in network.clients]
+
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
         start_time = time.time()
         # One pass of local training
         for i in range(network.nb_clients):
-            network.clients[i].continue_training(nb_of_local_epoch, synchronization_idx, single_batch=False)
+            network.clients[i].continue_training(inner_iterations, iter_loaders[i])
 
         # Averaging models
         new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -97,6 +106,8 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, nb_of_l
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
         loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
+        print(network.writer.retrieve_information('train_loss')[1][-1])
+        print(network.writer.retrieve_information('train_accuracy')[1][-1])
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
         network.save()
@@ -237,7 +248,6 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 client = network.clients[client_idx]
 
                 gradients = []
-                gradients3 = []
 
                 for c_idx in range(network.nb_clients):
                     c = network.clients[c_idx]
@@ -259,10 +269,10 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                     # gradients2[c_idx] = c.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data.to("cpu")
                     #                                                  - c.train_loader.dataset.true_theta).T
                     # gradients2.append(gradient2)
-                    gradient3 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                                                          client.trained_model, client.criterion, client.optimizer,
-                                                          client.scheduler)
-                    gradients3.append(gradient3)
+                    # gradient3 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                    #                                       client.trained_model, client.criterion, client.optimizer,
+                    #                                       client.scheduler)
+                    # gradients3.append(gradient3)
 
 
                 weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, network.nb_testpoints_by_clients,

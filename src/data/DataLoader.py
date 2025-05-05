@@ -134,9 +134,9 @@ def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_t
         Y_val.append(y_val)
         Y_test.append(y_test)
 
-    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in range(nb_of_clients)]
-    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
-    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
 
     natural_split = False
     return train_loaders, val_loaders, test_loaders, natural_split
