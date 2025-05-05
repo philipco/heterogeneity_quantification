@@ -42,7 +42,7 @@ def get_network(dataset_name: str, algo_name: str, nb_initial_epochs: int):
     elif dataset_name in ["mnist_iid", "cifar10_iid"]:
         split_type = "iid"
         train_loaders, val_loaders, test_loaders, natural_split \
-            = get_data_from_pytorch(DATASET[dataset_name], NB_CLIENTS[dataset_name], split_type, BATCH_SIZE[dataset_name],
+            = get_data_from_pytorch(dataset_name, DATASET[dataset_name], NB_CLIENTS[dataset_name], split_type, BATCH_SIZE[dataset_name],
                                     kwargs_train_dataset=dict(root=get_path_to_datasets(), download=True,
                                                               transform=TRANSFORM_TRAIN[dataset_name]),
                                     kwargs_test_dataset=dict(root=get_path_to_datasets(), download=True,
