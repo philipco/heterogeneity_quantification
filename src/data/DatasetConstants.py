@@ -62,17 +62,18 @@ NB_CLIENTS = {"mnist": 20, "mnist_iid": 20, "fashion_mnist": 8, "cifar10": 20, "
               "synth_complex": 20,
               "exam_llm": 3}
 STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.1,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": None, "synth_complex": None,
-             "exam_llm": 0.0008518845025208505}
+             "ixi": 0.01, "liquid_asset": 0.01, "synth": None, "synth_complex": None,
+             "exam_llm": 0.001}
 WEIGHT_DECAY = {"mnist": 5*10**-4, "mnist_iid": 5*10**-4, "cifar10": 5*10**-4, "cifar10_iid": 5*10**-4, "tcga_brca": 0, "heart_disease": 0,
-                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
-BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 128, "cifar10_iid": 128, "tcga_brca": 8, "heart_disease": 8, "ixi": 32, "liquid_asset": 32,
-              "synth": 1, "synth_complex": 1, "exam_llm": 32}
-MOMENTUM = {"mnist": 0., "mnist_iid": 0., "cifar10": 0.9, "cifar10_iid": 0.9, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
-            "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
-SCHEDULER_PARAMS = {"mnist": (40, 0.1), "mnist_iid": (40, 0.1), "cifar10": (20, 0.1), "cifar10_iid": (20, 0.1), "tcga_brca": (50, 0.609), "heart_disease": (3, 2/3),
-                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (100, 0.5839331768799928),
-                    "exam_llm": (15, 2/3)}
+                "ixi": 5*10**-4, "liquid_asset": 5*10**-4, "synth": 0, "synth_complex": 0, "exam_llm": 5*10**-4}
+BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 128, "cifar10_iid": 128, "tcga_brca": 8, "heart_disease": 1,
+              "ixi": 8, "liquid_asset": 8, "synth": 1, "synth_complex": 1, "exam_llm": 8}
+MOMENTUM = {"mnist": 0., "mnist_iid": 0., "cifar10": 0.9, "cifar10_iid": 0.9, "tcga_brca": 0, "heart_disease": 0,
+            "ixi": 0.9, "liquid_asset": 0.9, "synth": 0, "synth_complex":0, "exam_llm": 0.9}
+SCHEDULER_PARAMS = {"mnist": (40, 0.1), "mnist_iid": (40, 0.1), "cifar10": (20, 0.1), "cifar10_iid": (20, 0.1), "tcga_brca": (50, 0.609),
+                    "heart_disease": (10, 0.5),
+                    "ixi": (1, 1), "liquid_asset": (1, 0.9), "synth": (1, 1), "synth_complex": (1, 1),
+                    "exam_llm": (1, 1)}
 
 # SYNTH COMPLEX
 # Best trial config:  {'step_size': 0.012138813439941028, 'weight_decay': 0.001}
