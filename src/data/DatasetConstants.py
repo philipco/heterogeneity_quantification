@@ -70,7 +70,7 @@ BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 128, "cifar10_iid": 128, 
               "synth": 1, "synth_complex": 1, "exam_llm": 32}
 MOMENTUM = {"mnist": 0., "mnist_iid": 0., "cifar10": 0.9, "cifar10_iid": 0.9, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
             "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
-SCHEDULER_PARAMS = {"mnist": (20, 0.1), "mnist_iid": (20, 0.1), "cifar10": (20, 0.1), "cifar10_iid": (20, 0.1), "tcga_brca": (50, 0.609), "heart_disease": (3, 2/3),
+SCHEDULER_PARAMS = {"mnist": (40, 0.1), "mnist_iid": (40, 0.1), "cifar10": (20, 0.1), "cifar10_iid": (20, 0.1), "tcga_brca": (50, 0.609), "heart_disease": (3, 2/3),
                     "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (100, 0.5839331768799928),
                     "exam_llm": (15, 2/3)}
 

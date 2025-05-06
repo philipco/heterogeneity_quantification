@@ -34,11 +34,13 @@ def remove_file(filename: str) -> None:
 
 
 def print_mem_usage(info = None) -> None:
-    if info:
-        print(info)
+
     process = psutil.Process(os.getpid())
     mem = process.memory_info().rss * 10**-9 # Memory in Gb.
-    print("Memory usage: {0:1.2f}Gb".format(mem))
+    if info:
+        print("{0}: {1:1.2f}Gb".format(info, mem))
+    else:
+        print("Memory usage: {0:1.2f}Gb".format(mem))
 
 
 def open_plotted_matrix(dataset_name: str, iid: bool = False) -> [np.ndarray, np.ndarray]:

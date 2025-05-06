@@ -1,4 +1,5 @@
 import copy
+import gc
 import time
 
 import numpy as np
@@ -112,6 +113,11 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, keep_tr
         print(f"Elapsed time: {time.time() - start_time} seconds")
         print_mem_usage()
         network.save()
+
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
     if keep_track:
         return track_models
     return None
@@ -303,6 +309,10 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuou
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
 
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
     if keep_track:
         return track_models, track_gradients
 
@@ -409,6 +419,10 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         if pruning:
             if network.trial.should_prune():
                 raise optuna.TrialPruned()
+
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
 
     if keep_track:
         return track_models, track_gradients
