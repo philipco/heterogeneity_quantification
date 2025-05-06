@@ -7,9 +7,7 @@ import torch
 
 from src.data.Network import Network
 from src.optim.PytorchUtilities import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
-from src.optim.Train import compute_loss_and_accuracy, update_model, gradient_step, write_grad, compute_gradient_validation_set, safe_gradient_computation
-from src.plot.PlotDistance import plot_pvalues
-from src.quantif.Metrics import Metrics
+from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation
 
 def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     # On the training set.
@@ -91,7 +89,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, keep_tr
         start_time = time.time()
         # One pass of local training
         for i in range(network.nb_clients):
-            network.clients[i].continue_training(inner_iterations, iter_loaders[i])
+            iter_loaders[i] = network.clients[i].continue_training(inner_iterations, iter_loaders[i])
 
         # Averaging models
         new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -180,19 +178,15 @@ def ratio(x,y):
 
 def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, numerators, denominators,
                                   continuous: bool = False) :
-    grads, grads_val = [], []
+    grads = []
     for _ in range(len(gradients)):
         grads.append(torch.concat([p.flatten() for p in gradients[_] if p is not None]))
-        # grads.append(gradients[_])
 
-    new_denom = grads[client_idx].T @ grads[client_idx] # grads[client_idx] @ grads_val[client_idx]
-    # new_denom = grads[client_idx].T @ grads_val[client_idx]
+    new_denom = grads[client_idx].T @ grads[client_idx]
     denominators[client_idx].append(new_denom.item())
 
     for _ in range(len(gradients)):
         new_num = torch.linalg.vector_norm(grads[client_idx] - grads[_])
-        # new_num = (grads[client_idx] @ grads[_] + grads_val[client_idx] @ grads_val[_]
-        #            - grads[_] @ grads_val[_])
         numerators[client_idx][_].append(new_num.item())
 
     if continuous:
@@ -211,10 +205,9 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
     total_weight = sum(weight)
     return [w / total_weight for w in weight], numerators, denominators
 
-def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False,
-                     collab_based_on="grad", keep_track=False):
+def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
     try:
-        inner_iterations = 1 #int(np.mean([len(client.train_loader) for client in network.clients]))
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
         inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
@@ -238,12 +231,30 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
 
+        weights = {_: None for _ in range(network.nb_clients)}
+        for client_idx in range(network.nb_clients):
+            gradients_eval = {_: None for _ in range(network.nb_clients)}
+            client = network.clients[client_idx]
+            for c_idx in range(network.nb_clients):
+                c = network.clients[c_idx]
+
+                gradient_eval, iter_loaders[client_idx][c_idx] = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                                                      client.trained_model, client.criterion, client.optimizer,
+                                                      client.scheduler)
+                gradients_eval[c_idx] = gradient_eval
+
+            weight, numerators, denominators = compute_weight_based_on_ratio(gradients_eval, network.nb_testpoints_by_clients,
+                                                                             client_idx, numerators,
+                                                                             denominators, False)
+
+            weights[client_idx] = weight
+            network.clients[client_idx].writer.add_histogram('weights', np.array(weight),
+                                                             network.clients[client_idx].last_epoch * inner_iterations)
+
         for k in range(inner_iterations):
-            weights = []
 
             # Compute the new model client by client.
             grad_time = time.time()
-            gradients2 = {_: None for _ in range(network.nb_clients)}
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
 
@@ -252,50 +263,21 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 for c_idx in range(network.nb_clients):
                     c = network.clients[c_idx]
 
-                    gradient = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                    gradient, iter_loaders[client_idx][c_idx] = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
                                                            client.trained_model, client.criterion, client.optimizer,
                                                            client.scheduler)
                     gradients.append(gradient)
 
-                    gradient2 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                                                          client.trained_model, client.criterion, client.optimizer,
-                                                          client.scheduler)
-                    if gradients2[c_idx] is None:
-                        gradients2[c_idx] = gradient2
-                    else:
-                        beta = 0. #1-1 / synchronization_idx
-                        gradients2[c_idx] = [(g_old * beta + (1-beta)* g_new) if g_new is not None else None for (g_old, g_new) in zip(gradients2[c_idx], gradient2)]
-                        # gradients2[c_idx] = gradients2[c_idx] / (1-beta)
-                    # gradients2[c_idx] = c.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data.to("cpu")
-                    #                                                  - c.train_loader.dataset.true_theta).T
-                    # gradients2.append(gradient2)
-                    # gradient3 = safe_gradient_computation(c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                    #                                       client.trained_model, client.criterion, client.optimizer,
-                    #                                       client.scheduler)
-                    # gradients3.append(gradient3)
-
-
-                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, network.nb_testpoints_by_clients,
-                                                                                 client_idx, numerators,
-                                                                                 denominators, False)
-                client = network.clients[client_idx]
-                if collab_based_on == "local":
-                    weight = [int(j == client_idx) for j in range(network.nb_clients)]
-                elif collab_based_on == "ratio":
-                    pass
-                else:
-                    raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
-
-                weights.append(weight)
-
                 aggregated_gradients = aggregate_gradients(gradients, weights[client_idx], client.device)
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
-                client.writer.add_histogram('weights', np.array(weight), client.last_epoch * inner_iterations + k)
+
                 if keep_track:
                     lr = client.optimizer.param_groups[0]['lr']
                     track_models[client_idx].append([copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
                     track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
             print(f"Gradients computation time: {time.time() - grad_time} seconds")
+
+        perf_time = time.time()
         for i in range(network.nb_clients):
             client = network.clients[i]
             client.last_epoch += 1
@@ -305,6 +287,9 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
             client.scheduler.step()
 
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+
         network.save()
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
@@ -320,7 +305,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False,
                      keep_track=False, collab_based_on="loss"):
     try:
-        inner_iterations = 1 #int(np.mean([len(client.train_loader) for client in network.clients]))
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
         inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
@@ -334,8 +319,6 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 
     numerators, denominators = [[[] for _ in network.clients] for _ in network.clients], [[] for _ in network.clients]
 
-    nb_collaborations = [0 for client in network.clients]
-
     if keep_track:
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
         track_gradients = [[] for c in network.clients]
@@ -346,57 +329,50 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
 
+        weights = {_: None for _ in range(network.nb_clients)}
+        if collab_based_on == "local":
+            for client_idx in range(network.nb_clients):
+                weight = [int(j == client_idx) for j in range(network.nb_clients)]
+                weights[client_idx] = weight
+                network.clients[client_idx].writer.add_histogram('weights', np.array(weight),
+                                                                 network.clients[client_idx].last_epoch * inner_iterations)
+
+        elif collab_based_on == "ratio":
+            gradients_eval = {_: None for _ in range(network.nb_clients)}
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+
+                gradient_eval, iter_loaders[client_idx] = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
+                                                      client.trained_model, client.criterion, client.optimizer,
+                                                      client.scheduler)
+                gradients_eval[client_idx] = gradient_eval
+
+            for client_idx in range(network.nb_clients):
+                weight, numerators, denominators = compute_weight_based_on_ratio(gradients_eval,
+                                                                                 network.nb_testpoints_by_clients,
+                                                                                 client_idx, numerators,
+                                                                                 denominators, False)
+                weights[client_idx] = weight
+                network.clients[client_idx].writer.add_histogram('weights', np.array(weight), network.clients[client_idx].last_epoch * inner_iterations)
+        else:
+            raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
+
         for k in range(inner_iterations):
 
-            weights = []
             gradients = []
-            gradients2 = []
-            gradients3 = []
 
             # Computing gradients on each clients.
             grad_time = time.time()
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
 
-                gradient = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
+                gradient, iter_loaders[client_idx] = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
                                                      client.trained_model, client.criterion, client.optimizer,
                                                      client.scheduler)
 
                 gradients.append(gradient)
 
-                # gradient2 = client.train_loader.dataset.covariance @ (client.trained_model.linear.weight.data.to("cpu")
-                #                                                  - client.train_loader.dataset.true_theta).T
-                gradient2 = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
-                                                 client.trained_model, client.criterion, client.optimizer,
-                                                 client.scheduler)
-                gradients2.append(gradient2)
-                gradient3 = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
-                                                      client.trained_model, client.criterion, client.optimizer,
-                                                      client.scheduler)
-                gradients3.append(gradient3)
-
             print(f"Gradients computation time: {time.time() - grad_time} seconds")
-
-            # Computing the weights for each
-            for client_idx in range(network.nb_clients):
-
-                # Presently, we always compute the ratio weigth (and override it) it requires.
-                # In order to plot the ratio for every algo.
-                weight, numerators, denominators = compute_weight_based_on_ratio(gradients2, network.nb_testpoints_by_clients,
-                                                                            client_idx, numerators,
-                                                                            denominators, False)
-                client = network.clients[client_idx]
-
-                if collab_based_on == "local":
-                    weight = [int(j == client_idx) for j in range(network.nb_clients)]
-                elif collab_based_on == "ratio":
-                    pass
-                else:
-                    raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
-                weights.append(weight)
-                client.writer.add_histogram('weights', np.array(weight), client.last_epoch * inner_iterations + k)
-
-            nb_collaborations = [nb_collaborations[i] + np.sum(weights[i] != 0) for i in range(network.nb_clients)]
 
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
@@ -408,6 +384,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                     lr = client.optimizer.param_groups[0]['lr']
                     track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
                     track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
+        perf_time = time.time()
         for client in network.clients:
             client.last_epoch += 1
             client.write_train_val_test_performance()
@@ -415,6 +392,9 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
             client.scheduler.step()
 
         loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+
         network.save()
 
         print("Step-size:", client.optimizer.param_groups[0]['lr'])

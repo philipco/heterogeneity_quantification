@@ -29,31 +29,8 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
     return epoch_loss, epoch_accuracy
 
 
-def train_local_neural_network(net, optimizer, scheduler, device, client_ID, train_loader, train_iter, criterion,
-                               nb_local_epochs):
-    """
-    Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
-
-    This function trains a neural network using a provided training and validation dataset loader. It allows
-    for optimizer and scheduler initialization if not provided, supports logging with TensorBoard, and tracks
-    loss and accuracy throughout the training process.
-
-    """
-    train_loss = []
-
-    # Training
-    for local_epoch in range(nb_local_epochs):
-        batch_training(train_loader, train_iter, device, net, criterion, optimizer)
-    scheduler.step()
-    return train_loss
-
-
-def batch_training(train_loader, train_iter, device, net, criterion, optimizer):
-    try:
-        batch = next(train_iter)
-    except StopIteration:
-        train_iter = iter(train_loader)
-        batch = next(train_iter)
+def batch_training(train_iter, device, net, criterion, optimizer):
+    batch = next(train_iter)
     net.zero_grad()
     if isinstance(net, PreTrainedModel):
         outputs = net(**move_batch_to_device(batch, device))
@@ -114,7 +91,7 @@ def safe_gradient_computation(train_loader, iter_loader, device, trained_model, 
     except StopIteration:
         iter_loader = iter(train_loader)
         gradient = gradient_step(iter_loader, device, trained_model, criterion, optimizer, scheduler)
-    return gradient
+    return gradient, iter_loader
 
 def gradient_step(train_iter, device, net, criterion, optimizer, scheduler):
     net.train()

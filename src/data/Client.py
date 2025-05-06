@@ -4,8 +4,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import ConstantLR, StepLR, LambdaLR
 
 from src.optim.LinearWarmupScheduler import LinearWarmupScheduler, ConstantLRScheduler
-from src.optim.Train import train_local_neural_network, compute_loss_and_accuracy, \
-    log_performance
+from src.optim.Train import log_performance, batch_training
 from src.utils.LoggingWriter import LoggingWriter
 
 
@@ -48,14 +47,6 @@ class Client:
         self.last_epoch = 0
         self.optimal_loss = None
 
-        # if "synth" in tensorboard_dir:
-        #     with torch.no_grad():
-        #         init_net = self.trained_model.linear.weight.clone()
-        #         self.trained_model.linear.weight.copy_(self.train_loader.dataset.true_theta)
-        #         self.optimal_loss, _ = compute_loss_and_accuracy(self.trained_model, self.device, self.train_loader, self.criterion, self.metric,
-        #                                   full_batch = True)
-        #         self.trained_model.linear.weight.copy_(init_net)
-
         self.writer.close()
 
     def set_step_scheduler(self, dataset_name, scheduler_steps, scheduler_gamma):
@@ -86,24 +77,35 @@ class Client:
         # Compute train/val/test metrics at initialization
         self.write_train_val_test_performance()
 
-        if nb_epochs != 0:
-            self.train_loss \
-                = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                             self.train_loader, self.val_loader, self.criterion, nb_epochs)
-            self.last_epoch += nb_epochs
+    def train_local_neural_network(self, nb_local_epochs, train_iter):
+        """
+        Train a neural network on a local dataset with a given optimizer, scheduler, and performance logging.
 
+        This function trains a neural network using a provided training and validation dataset loader. It allows
+        for optimizer and scheduler initialization if not provided, supports logging with TensorBoard, and tracks
+        loss and accuracy throughout the training process.
 
-            self.write_train_val_test_performance()
+        """
+        # Training
+        for local_epoch in range(nb_local_epochs):
+            try:
+                batch_training(train_iter, self.device, self.trained_model, self.criterion,
+                                             self.optimizer)
+            except StopIteration:
+                train_iter = iter(self.train_loader)
+                batch_training(train_iter, self.device, self.trained_model, self.criterion,
+                                             self.optimizer)
+        self.scheduler.step()
+        return train_iter
 
     def continue_training(self, nb_of_local_epoch: int, train_iter):
-        self.train_loss \
-            = train_local_neural_network(self.trained_model, self.optimizer, self.scheduler, self.device, self.ID,
-                                         self.train_loader, train_iter, self.criterion, nb_of_local_epoch)
+        train_iter = self.train_local_neural_network(nb_of_local_epoch, train_iter)
 
         # In the case of single batch training, we start iterating on the dataset from 0 and then use a modulo to iterate
         # thought the complete set.
         self.last_epoch += nb_of_local_epoch
         torch.cuda.empty_cache()
+        return train_iter
 
     def write_train_val_test_performance(self, logs="light"):
         if logs == "full":
