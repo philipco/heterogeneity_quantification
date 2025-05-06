@@ -51,7 +51,7 @@ class Network:
             elif dataset_name == "synth_complex":
                 L = train_loaders[i].dataset.L
                 mu = train_loaders[i].dataset.mu
-                step_size = 1 / (2 * L)
+                step_size = 1 / (8 * L)
             self.clients.append(Client(ID, f"{dataset_name}", train_loaders[i], val_loaders[i],
                                        test_loaders[i], copy.deepcopy(net),
                                        CRITERION[dataset_name], METRIC[dataset_name], step_size,

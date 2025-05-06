@@ -8,6 +8,8 @@ import torch
 from src.data.Network import Network
 from src.optim.PytorchUtilities import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
 from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation
+from src.utils.Utilities import print_mem_usage
+
 
 def loss_accuracy_central_server(network: Network, weights, writer, epoch):
     # On the training set.
@@ -108,6 +110,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, keep_tr
         print(network.writer.retrieve_information('train_accuracy')[1][-1])
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
         network.save()
     if keep_track:
         return track_models
@@ -205,7 +208,7 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
     total_weight = sum(weight)
     return [w / total_weight for w in weight], numerators, denominators
 
-def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
+def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuous: bool = False, pruning: bool = False, keep_track=False):
     try:
         inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
@@ -245,7 +248,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 
             weight, numerators, denominators = compute_weight_based_on_ratio(gradients_eval, network.nb_testpoints_by_clients,
                                                                              client_idx, numerators,
-                                                                             denominators, False)
+                                                                             denominators, continuous=continuous)
 
             weights[client_idx] = weight
             network.clients[client_idx].writer.add_histogram('weights', np.array(weight),
@@ -293,6 +296,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         network.save()
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:
@@ -399,6 +403,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
 
         print("Step-size:", client.optimizer.param_groups[0]['lr'])
         print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
 
         # The network has trial parameter only if the pruning is active (for hyperparameters search).
         if pruning:

@@ -1,4 +1,5 @@
 """Created by Constantin Philippenko, 29th September 2022."""
+import gc
 from typing import List
 
 import torch
@@ -12,7 +13,7 @@ from src.data.Dataset import prepare_liquid_asset
 from src.data.DatasetConstants import CHECKPOINT
 from src.data.Split import create_non_iid_split
 from src.data.SyntheticDataset import SyntheticLSRDataset
-from src.utils.Utilities import get_path_to_datasets
+from src.utils.Utilities import get_path_to_datasets, print_mem_usage
 
 
 def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
@@ -89,7 +90,7 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
 
 def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-    true_models, variations = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.001)
+    true_models, variations = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
     datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_models, variations)]
 
     train_loaders = [DataLoader(d, batch_size=None) for d in datasets]
@@ -133,6 +134,16 @@ def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_t
         Y_train.append(y_train)
         Y_val.append(y_val)
         Y_test.append(y_test)
+
+    print_mem_usage()
+
+    print("Removing the concatenated datasets.")
+    del X, Y
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    print_mem_usage()
+
 
     train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
     val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), **kwargs_dataloader) for i in range(nb_of_clients)]

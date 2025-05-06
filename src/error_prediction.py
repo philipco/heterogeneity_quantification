@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["All-for-one", "Local", "FedAvg"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
-        assert algo_name in ["All-for-one", "All-for-all", "Local", "FedAvg", "FedNova"], "Algorithm not recognized."
+        assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name, nb_initial_epochs)
@@ -55,8 +55,10 @@ if __name__ == '__main__':
             all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="local")
         if algo_name == "Fednova":
             fednova_training(network, nb_of_synchronization=NB_EPOCHS)
-        if algo_name == "All-for-one":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="ratio")
+        if algo_name == "All-for-one-bin":
+            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=False)
+        if algo_name == "All-for-one-cont":
+            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=True)
 
         for client in network.clients:
             writer = client.writer
@@ -79,7 +81,7 @@ if __name__ == '__main__':
     plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
 
     for algo_name in all_algos:
-        if algo_name in ["All-for-one", "All-for-all"]:
+        if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all"]:
             plot_weights(weights[algo_name], dataset_name, algo_name)#, x_axis=test_accuracies[algo_name])
 
     if dataset_name in ["liquid_asset"]:

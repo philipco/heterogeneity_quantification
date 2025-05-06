@@ -13,7 +13,7 @@ matplotlib.rcParams.update({
 from src.data.DatasetConstants import BATCH_SIZE
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
-COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple']
+COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:brown', 'tab:green', 'tab:purple']
 MARKERS = ['o', 's', 'D', '^', 'v', '<']
 
 def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
@@ -32,15 +32,15 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
         if log:
             avg_values = np.mean([np.log10(v) for v in values[algo_name]], axis=0)
             avg_values_var = np.std([np.log10(v) for v in values[algo_name]], axis=0)
-            plt.plot(epochs["All-for-one"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
-            plt.fill_between(epochs["All-for-one"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
+            plt.plot(epochs["All-for-one-bin"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
+            plt.fill_between(epochs["All-for-one-bin"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
         else:
             avg_values = np.mean(values[algo_name], axis=0)
             avg_values_var = np.std(values[algo_name], axis=0)
-            plt.plot(epochs["All-for-one"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
-            plt.fill_between(epochs["All-for-one"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
+            plt.plot(epochs["All-for-one-bin"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
+            plt.fill_between(epochs["All-for-one-bin"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
         i+=1
