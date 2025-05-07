@@ -69,7 +69,7 @@ def federated_training(network: Network, nb_of_synchronization: int = 5, keep_tr
         inner_iterations = 1
     print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
 
-    loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, weights, network.writer, 0)
     for client in network.clients:
         client.write_train_val_test_performance()
 
@@ -127,7 +127,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
     weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, weights, network.writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, weights, network.writer, 0)
     for client in network.clients:
         client.write_train_val_test_performance()
 
@@ -224,7 +224,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuou
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
     fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
     for client in network.clients:
         client.write_train_val_test_performance()
 
@@ -327,7 +327,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
     total_nb_points = np.sum([client.nb_train_points for client in network.clients])
     fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
 
-    loss_accuracy_central_server(network, fed_weights, network.writer, network.nb_initial_epochs)
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
     for client in network.clients:
         client.write_train_val_test_performance()
 

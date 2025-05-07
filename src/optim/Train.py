@@ -144,6 +144,7 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
     net.eval()
     if not full_batch:
         with torch.no_grad():
+            nb_train_pass = 5
             if isinstance(data_loader, Sequence):
                 features, labels = data_loader.dataset[:]
                 x_batch = features.to(device)
@@ -154,7 +155,7 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
             # FOR LLM
             elif isinstance(net, PreTrainedModel):
                 data_iter = iter(data_loader)
-                for i in range(5):
+                for i in range(nb_train_pass):
                     batch = next(data_iter)
                     outputs = net(**move_batch_to_device(batch, device))
                     epoch_loss += outputs.loss
@@ -162,7 +163,6 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                     del batch
             else:
                 data_iter = iter(data_loader)
-                nb_train_pass = 5
                 for i in range(nb_train_pass):
                     x_batch, y_batch = next(data_iter)
                     x_batch = x_batch.to(device)
