@@ -138,70 +138,83 @@ def update_model(net, aggregated_gradients, optimizer):
 
     optimizer.step()
 
-def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch = False):
-    epoch_loss = 0
-    epoch_accuracy = 0
+
+def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
     net.eval()
-    if not full_batch:
-        with torch.no_grad():
-            nb_train_pass = 5
-            if isinstance(data_loader, Sequence):
-                features, labels = data_loader.dataset[:]
-                x_batch = features.to(device)
-                y_batch = labels.to(device)
-                outputs = net(x_batch).float()
-                epoch_loss = criterion(outputs, y_batch)
-                epoch_accuracy = metric(y_batch, outputs)
-            # FOR LLM
-            elif isinstance(net, PreTrainedModel):
-                data_iter = iter(data_loader)
-                for i in range(nb_train_pass):
-                    batch = next(data_iter)
-                    outputs = net(**move_batch_to_device(batch, device))
-                    epoch_loss += outputs.loss
-                    epoch_accuracy += metric(batch['labels'], outputs.logits)
-                    del batch
-            else:
-                data_iter = iter(data_loader)
-                for i in range(nb_train_pass):
-                    x_batch, y_batch = next(data_iter)
-                    x_batch = x_batch.to(device)
-                    y_batch = y_batch.to(device)
-                    outputs = net(x_batch).float()
-                    epoch_loss += criterion(outputs, y_batch)
-                    epoch_accuracy += metric(y_batch, outputs)
-                    del x_batch, y_batch
-        return epoch_loss / nb_train_pass, epoch_accuracy / nb_train_pass
     with torch.no_grad():
         if isinstance(net, PreTrainedModel):
-            for batch in data_loader:
-                outputs = net(**move_batch_to_device(batch, device))
-                epoch_loss += outputs.loss
-                epoch_accuracy += metric(batch['labels'], outputs.logits)
-                del batch
-                return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+            return _eval_hf_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
+                                  nb_eval_batches=nb_eval_batches)
+        elif isinstance(data_loader, Sequence):
+            return _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
+                                        nb_eval_batches=nb_eval_batches)
         else:
-            if isinstance(data_loader, Sequence):
-                for x_batch, y_batch in data_loader:
-                    x_batch = x_batch.to(device)
-                    y_batch = y_batch.to(device)
-                    outputs = net(x_batch).float()
-                    epoch_loss += criterion(outputs, y_batch)
-                    epoch_accuracy += metric(y_batch, outputs)
-                    del x_batch, y_batch
-                    return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
-            else:
-                # For synthetic dataset that generates data on the fly.
-                # model_shift = data_loader.dataset.true_theta - net.linear.weight.to("cpu")
-                # loss = model_shift @ data_loader.dataset.covariance @ model_shift.T
-                # return loss, loss  # + data_loader.dataset.noise_std**2
-                for batch_idx, batch in enumerate(data_loader):
-                    x_batch, y_batch = batch
-                    x_batch = x_batch.to(device)
-                    y_batch = y_batch.to(device)
-                    outputs = net(x_batch).float()
-                    epoch_loss += criterion(outputs, y_batch)
-                    epoch_accuracy += metric(y_batch, outputs)
-                    del x_batch, y_batch
-                return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+            return _eval_standard_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
+                                        nb_eval_batches=nb_eval_batches)
+
+def _eval_standard_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    epoch_loss = 0
+    epoch_accuracy = 0
+    if full_batch:
+        for batch_idx, batch in enumerate(data_loader):
+            x_batch, y_batch = batch
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            outputs = net(x_batch).float()
+            epoch_loss += criterion(outputs, y_batch)
+            epoch_accuracy += metric(y_batch, outputs)
+            del x_batch, y_batch
+        return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+    else:
+        data_iter = iter(data_loader)
+        for i in range(nb_eval_batches):
+            x_batch, y_batch = next(data_iter)
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            outputs = net(x_batch).float()
+            epoch_loss += criterion(outputs, y_batch)
+            epoch_accuracy += metric(y_batch, outputs)
+            del x_batch, y_batch
+        return epoch_loss / nb_eval_batches, epoch_accuracy / nb_eval_batches
+
+def _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    epoch_loss = 0
+    epoch_accuracy = 0
+    if full_batch:
+        for x_batch, y_batch in data_loader:
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            outputs = net(x_batch).float()
+            epoch_loss += criterion(outputs, y_batch)
+            epoch_accuracy += metric(y_batch, outputs)
+            del x_batch, y_batch
+        return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+    else:
+        features, labels = data_loader.dataset[:]
+        x_batch = features.to(device)
+        y_batch = labels.to(device)
+        outputs = net(x_batch).float()
+        epoch_loss = criterion(outputs, y_batch)
+        epoch_accuracy = metric(y_batch, outputs)
+        return epoch_loss, epoch_accuracy
+
+def _eval_hf_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    epoch_loss = 0
+    epoch_accuracy = 0
+    if full_batch:
+        for batch in data_loader:
+            outputs = net(**move_batch_to_device(batch, device))
+            epoch_loss += outputs.loss
+            epoch_accuracy += metric(batch['labels'], outputs.logits)
+            del batch
+        return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
+    else:
+        data_iter = iter(data_loader)
+        for i in range(nb_eval_batches):
+            batch = next(data_iter)
+            outputs = net(**move_batch_to_device(batch, device))
+            epoch_loss += outputs.loss
+            epoch_accuracy += metric(batch['labels'], outputs.logits)
+            del batch
+        return epoch_loss / nb_eval_batches, epoch_accuracy / nb_eval_batches
 
