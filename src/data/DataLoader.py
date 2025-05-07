@@ -171,17 +171,9 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_si
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
-        # For TCGA_BRCA, there must be enough point to compute the metric, using the train set to create a very small
-        # val set do not work.
-        # Therefore, the val and test set are IDENTICAL for TCGA_BRCA.
-        if dataset_name not in ["tcga_brca"]:
-            data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
-                                                                              test_size=0.1, random_state=2023)
-            X_val.append(torch.concat([data_val]))
-            Y_val.append(torch.concat([labels_val]))
-        else:
-            X_val.append(torch.concat([data_test]))
-            Y_val.append(torch.concat([labels_test]))
+        # I don't use ValSet, should be removed.
+        X_val.append(torch.concat([data_test]))
+        Y_val.append(torch.concat([labels_test]))
 
         X_train.append(torch.concat([data_train]))
         Y_train.append(torch.concat([labels_train]))

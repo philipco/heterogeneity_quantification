@@ -42,15 +42,6 @@ def print_mem_usage(info = None) -> None:
     else:
         print("Memory usage: {0:1.2f}Gb".format(mem))
 
-
-def open_plotted_matrix(dataset_name: str, iid: bool = False) -> [np.ndarray, np.ndarray]:
-    metrics_folder = "{0}/pictures/{1}".format(get_project_root(), dataset_name)
-    type = "iid" if iid else "non_iid"
-    non_iid_distance_X = np.loadtxt('{0}/{1}-{2}.txt'.format(metrics_folder, "X", type), delimiter=',')
-    Y_name = "Y_TV" if OUTPUT_TYPE[dataset_name] == "discrete" else "Y"
-    non_iid_distance_Y = np.loadtxt('{0}/{1}-{2}.txt'.format(metrics_folder, Y_name, type), delimiter=',')
-    return non_iid_distance_X, non_iid_distance_Y
-
 # Set seeds for reproducibility
 def set_seed(seed):
     torch.manual_seed(seed)

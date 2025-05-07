@@ -6,7 +6,7 @@ from src.data.Client import Client
 from src.data.DatasetConstants import CRITERION, MODELS, STEP_SIZE, METRIC, MOMENTUM, BATCH_SIZE, SCHEDULER_PARAMS, \
     WEIGHT_DECAY, CHECKPOINT
 from src.utils.LoggingWriter import LoggingWriter
-from src.utils.PickleHandler import pickle_loader, pickle_saver
+from src.utils.PickleHandler import pickle_loader
 from src.utils.Utilities import get_project_root, file_exist, create_folder_if_not_existing, set_seed
 
 
@@ -58,10 +58,6 @@ class Network:
                                        MOMENTUM[dataset_name], WEIGHT_DECAY[dataset_name], BATCH_SIZE[dataset_name],
                                        SCHEDULER_PARAMS[dataset_name]))
 
-        # Training all clients
-        for client in self.clients:
-            client.train(self.nb_initial_epochs)
-
         ID = f"{dataset_name}_{algo_name}_central_server" if split_type is None \
             else f"{dataset_name}_{split_type}_{algo_name}_central_server"
         self.writer = LoggingWriter(
@@ -81,7 +77,3 @@ class Network:
         self.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
         for client in self.clients:
             client.writer.save(f"{pickle_folder}", f"logging_writer_{client.ID}.pkl")
-
-    def retrain_all_clients(self):
-        for client in self.clients:
-            client.train(self.nb_initial_epochs)

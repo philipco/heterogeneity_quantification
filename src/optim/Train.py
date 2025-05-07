@@ -153,21 +153,25 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                 epoch_accuracy = metric(y_batch, outputs)
             # FOR LLM
             elif isinstance(net, PreTrainedModel):
-                batch = next(iter(data_loader))
-                outputs = net(**move_batch_to_device(batch, device))
-                epoch_loss += outputs.loss
-                epoch_accuracy += metric(batch['labels'], outputs.logits)
-                del batch
+                data_iter = iter(data_loader)
+                for i in range(5):
+                    batch = next(data_iter)
+                    outputs = net(**move_batch_to_device(batch, device))
+                    epoch_loss += outputs.loss
+                    epoch_accuracy += metric(batch['labels'], outputs.logits)
+                    del batch
             else:
-                for i in range(1):
-                    x_batch, y_batch = next(iter(data_loader))
+                data_iter = iter(data_loader)
+                nb_train_pass = 5
+                for i in range(nb_train_pass):
+                    x_batch, y_batch = next(data_iter)
                     x_batch = x_batch.to(device)
                     y_batch = y_batch.to(device)
                     outputs = net(x_batch).float()
                     epoch_loss += criterion(outputs, y_batch)
                     epoch_accuracy += metric(y_batch, outputs)
                     del x_batch, y_batch
-        return epoch_loss, epoch_accuracy
+        return epoch_loss / nb_train_pass, epoch_accuracy / nb_train_pass
     with torch.no_grad():
         if isinstance(net, PreTrainedModel):
             for batch in data_loader:
@@ -188,19 +192,16 @@ def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_
                     return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
             else:
                 # For synthetic dataset that generates data on the fly.
-                nb_pass_on_data = 20
                 # model_shift = data_loader.dataset.true_theta - net.linear.weight.to("cpu")
                 # loss = model_shift @ data_loader.dataset.covariance @ model_shift.T
-                # print(loss)
                 # return loss, loss  # + data_loader.dataset.noise_std**2
-
-                for i in range(nb_pass_on_data):
-                    x_batch, y_batch = next(iter(data_loader))
+                for batch_idx, batch in enumerate(data_loader):
+                    x_batch, y_batch = batch
                     x_batch = x_batch.to(device)
                     y_batch = y_batch.to(device)
                     outputs = net(x_batch).float()
                     epoch_loss += criterion(outputs, y_batch)
                     epoch_accuracy += metric(y_batch, outputs)
                     del x_batch, y_batch
-                return (epoch_loss / nb_pass_on_data).to("cpu"), (epoch_accuracy / nb_pass_on_data).to("cpu")
+                return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
 

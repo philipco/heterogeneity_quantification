@@ -50,10 +50,10 @@ class Client:
         self.writer.close()
 
     def set_step_scheduler(self, dataset_name, scheduler_steps, scheduler_gamma):
-        if dataset_name in ["exam_llm"]:
+        if dataset_name in ["LLM"]:
             self.scheduler = LinearWarmupScheduler(self.optimizer, 5,
                                                    20, plateau=5)
-        elif dataset_name in ["heart_disease", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "ixi"]:
+        elif dataset_name in ["heart_disease", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "ixi", "exam_llm"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
         elif dataset_name in ["X"]:
             self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
@@ -72,10 +72,6 @@ class Client:
         self.X_train, self.X_test, self.Y_train, self.Y_test \
             = train_test_split(torch.concat([self.X_train, self.X_test]),
                                torch.concat([self.Y_train, self.Y_test]), test_size=self.test_size)
-
-    def train(self, nb_epochs: int):
-        # Compute train/val/test metrics at initialization
-        self.write_train_val_test_performance()
 
     def train_local_neural_network(self, nb_local_epochs, train_iter):
         """
@@ -113,7 +109,7 @@ class Client:
                 self.writer.add_histogram(f'{name}.weight', param, self.last_epoch)
         train_loss, train_acc = log_performance("train", self.trained_model, self.device, self.train_loader,
                                                 self.criterion, self.metric, self.ID, self.writer, self.last_epoch,
-                                                self.optimal_loss)
+                                                self.optimal_loss, self.last_epoch == 0)
         log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
                         self.ID, self.writer, self.last_epoch, self.optimal_loss)
         test_loss, test_acc = log_performance("test", self.trained_model, self.device, self.test_loader,
