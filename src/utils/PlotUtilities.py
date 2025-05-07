@@ -10,7 +10,7 @@ matplotlib.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
-from src.data.DatasetConstants import BATCH_SIZE
+from src.data.DatasetConstants import BATCH_SIZE, STEP_SIZE, MOMENTUM
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:brown', 'tab:green', 'tab:purple']
@@ -32,15 +32,15 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
         if log:
             avg_values = np.mean([np.log10(v) for v in values[algo_name]], axis=0)
             avg_values_var = np.std([np.log10(v) for v in values[algo_name]], axis=0)
-            plt.plot(epochs["All-for-one-bin"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
-            plt.fill_between(epochs["All-for-one-bin"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
+            plt.plot(epochs["Local"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
+            plt.fill_between(epochs["Local"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
         else:
             avg_values = np.mean(values[algo_name], axis=0)
             avg_values_var = np.std(values[algo_name], axis=0)
-            plt.plot(epochs["All-for-one-bin"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
-            plt.fill_between(epochs["All-for-one-bin"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
+            plt.plot(epochs["Local"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=3)
+            plt.fill_between(epochs["Local"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                              color=COLORS[i])
 
         i+=1
@@ -50,7 +50,8 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     root = get_project_root()
     folder = f'{root}/pictures/convergence/{dataset_name}'
     create_folder_if_not_existing(folder)
-    plt.savefig(f"{folder}/{metric_name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)
+    plt.savefig(f"{folder}/{metric_name}_b{BATCH_SIZE[dataset_name]}_LR{STEP_SIZE[dataset_name]}_m{MOMENTUM[dataset_name]}.pdf",
+                bbox_inches='tight', dpi=600)
 
     # Print the LaTeX table
     print("\\begin{tabular}{|c|c|}")
@@ -98,4 +99,5 @@ def plot_weights(weights, dataset_name, algo_name, name="weights", x_axis=None):
     root = get_project_root()
     folder = f'{root}/pictures/convergence/{dataset_name}'
     create_folder_if_not_existing(folder)
-    plt.savefig(f"{folder}/{algo_name}_{name}_b{BATCH_SIZE[dataset_name]}.pdf", bbox_inches='tight', dpi=600)
+    plt.savefig(f"{folder}/{algo_name}_{name}_b{BATCH_SIZE[dataset_name]}_LR{STEP_SIZE[dataset_name]}_m{MOMENTUM[dataset_name]}.pdf",
+                bbox_inches='tight', dpi=600)
