@@ -3,6 +3,7 @@
 import argparse
 
 from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
+from src.data.DatasetConstants import NB_EPOCHS
 from src.data.NetworkLoader import get_network
 from src.optim.Algo import federated_training, all_for_all_algo, \
     fednova_training, all_for_one_algo
@@ -10,7 +11,6 @@ from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
 NB_RUN = 1
-NB_EPOCHS=50
 
 if __name__ == '__main__':
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
                             "synth", "synth_complex"], "Dataset not recognized."
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 
-    nb_initial_epochs = 0
+    nb_epochs = NB_EPOCHS[dataset_name]
 
     all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
 
@@ -45,20 +45,20 @@ if __name__ == '__main__':
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
-        network = get_network(dataset_name, algo_name, nb_initial_epochs)
+        network = get_network(dataset_name, algo_name)
 
         if algo_name == "FedAvg":
-            federated_training(network, nb_of_synchronization=NB_EPOCHS)
+            federated_training(network, nb_of_synchronization=nb_epochs)
         if algo_name == "All-for-all":
-            all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio")
+            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on = "ratio")
         if algo_name == "Local":
-            all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on="local")
+            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
         if algo_name == "Fednova":
-            fednova_training(network, nb_of_synchronization=NB_EPOCHS)
+            fednova_training(network, nb_of_synchronization=nb_epochs)
         if algo_name == "All-for-one-bin":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=False)
+            all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
         if algo_name == "All-for-one-cont":
-            all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=True)
+            all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
 
         for client in network.clients:
             writer = client.writer

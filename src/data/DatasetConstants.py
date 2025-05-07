@@ -63,7 +63,7 @@ NB_CLIENTS = {"mnist": 20, "mnist_iid": 20, "fashion_mnist": 8, "cifar10": 20, "
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
               "synth_complex": 20,
               "exam_llm": 3}
-STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.02,
+STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.1,
              "ixi": 0.01, "liquid_asset": 0.01, "synth": None, "synth_complex": None,
              "exam_llm": 0.01}
 WEIGHT_DECAY = {"mnist": 5*10**-4, "mnist_iid": 5*10**-4, "cifar10": 5*10**-4, "cifar10_iid": 5*10**-4, "tcga_brca": 0, "heart_disease": 0,
@@ -73,9 +73,11 @@ BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 64, "cifar10_iid": 64, "t
 MOMENTUM = {"mnist": 0., "mnist_iid": 0., "cifar10": 0.9, "cifar10_iid": 0.9, "tcga_brca": 0, "heart_disease": 0,
             "ixi": 0.9, "liquid_asset": 0.9, "synth": 0, "synth_complex":0, "exam_llm": 0.9}
 SCHEDULER_PARAMS = {"mnist": (10, 0.1), "mnist_iid": (10, 0.1), "cifar10": (10, 0.1), "cifar10_iid": (10, 0.1), "tcga_brca": (50, 0.609),
-                    "heart_disease": (10, 0.1),
+                    "heart_disease": (5, 0.1),
                     "ixi": (10, 0.1), "liquid_asset": (1, 0.9), "synth": (1, 1), "synth_complex": (1, 1),
                     "exam_llm": (10, 0.1)}
+NB_EPOCHS = {"mnist": 50, "mnist_iid": 50, "cifar10": 50, "cifar10_iid": 50, "tcga_brca": 50, "heart_disease": 25,
+            "ixi": 10, "liquid_asset": 50, "synth": 100, "synth_complex": 200, "exam_llm": 50}
 
 # SYNTH COMPLEX
 # Best trial config:  {'step_size': 0.012138813439941028, 'weight_decay': 0.001}

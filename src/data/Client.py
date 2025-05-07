@@ -110,8 +110,8 @@ class Client:
         train_loss, train_acc = log_performance("train", self.trained_model, self.device, self.train_loader,
                                                 self.criterion, self.metric, self.ID, self.writer, self.last_epoch,
                                                 self.optimal_loss, self.last_epoch == 0)
-        log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
-                        self.ID, self.writer, self.last_epoch, self.optimal_loss)
+        # log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
+        #                 self.ID, self.writer, self.last_epoch, self.optimal_loss)
         test_loss, test_acc = log_performance("test", self.trained_model, self.device, self.test_loader,
                                               self.criterion, self.metric, self.ID, self.writer,
                                               self.last_epoch, self.optimal_loss, True)

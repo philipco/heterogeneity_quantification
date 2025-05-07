@@ -16,7 +16,6 @@ sys.path.insert(0, FLAMBY_PATH)
 from flamby.datasets.fed_heart_disease.dataset import FedHeartDisease
 from flamby.datasets.fed_tcga_brca.dataset import FedTcgaBrca
 from flamby.datasets.fed_ixi import FedIXITiny
-
 # from flamby.datasets.fed_isic2019.dataset import FedIsic2019
 
 
@@ -26,7 +25,7 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "mnist_iid": torchvision.dataset
            }
 
 
-def get_network(dataset_name: str, algo_name: str, nb_initial_epochs: int):
+def get_network(dataset_name: str, algo_name: str):
     split_type = None
 
     ### We the dataset naturally splitted or not.
@@ -67,5 +66,4 @@ def get_network(dataset_name: str, algo_name: str, nb_initial_epochs: int):
         train_loaders, val_loaders, test_loaders, natural_split \
             = get_data_from_flamby(DATASET[dataset_name], NB_CLIENTS[dataset_name], dataset_name, BATCH_SIZE[dataset_name],
                                    kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=True))
-    return Network(train_loaders, val_loaders, test_loaders,
-                      nb_initial_epochs, dataset_name, algo_name, split_type)
+    return Network(train_loaders, val_loaders, test_loaders, dataset_name, algo_name, split_type)

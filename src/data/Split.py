@@ -33,7 +33,7 @@ def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_cl
         return iid_split(features, labels, nb_clients)
     if split_type == "dirichlet":
         print("Diriclet split")
-        return dirichlet_split(features, labels, nb_clients, 0.1 if dataset_name == "mnist" else 5)
+        return dirichlet_split(features, labels, nb_clients, 0.1 if dataset_name == "mnist" else 1)
     if split_type == "partition":
         print("Partition split.")
         return sort_and_partition_split(features, labels, nb_clients)
