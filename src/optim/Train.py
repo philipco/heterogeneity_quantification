@@ -1,9 +1,11 @@
 import gc
 from collections.abc import Sequence
+from itertools import islice
 
 import torch
 from transformers import PreTrainedModel
 
+from src.data.SyntheticDataset import SyntheticLSRDataset
 from src.utils.UtilitiesPytorch import move_batch_to_device, assert_gradients_zero
 
 
@@ -138,37 +140,66 @@ def update_model(net, aggregated_gradients, optimizer):
 
     optimizer.step()
 
-
 def compute_loss_and_accuracy(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    """
+    Dispatch evaluation based on model and data_loader type.
+
+    Handles four cases:
+    1. HuggingFace model (PreTrainedModel)
+    2. Sequence-based dataset (e.g., list or indexable dataset)
+    3. Standard PyTorch DataLoader
+    4. Synthetic iterable datasets (no __len__, infinite yield)
+
+    Parameters:
+    - net: The model to evaluate (can be a standard PyTorch model or a HuggingFace transformer).
+    - device: The torch.device to run evaluation on (e.g., 'cpu' or 'cuda').
+    - data_loader: DataLoader, custom iterable, or Sequence for evaluation.
+    - criterion: Loss function (e.g., torch.nn.CrossEntropyLoss).
+    - metric: Accuracy or other evaluation metric function.
+    - full_batch (bool): If True, evaluates on the whole dataset; otherwise, uses nb_eval_batches batches.
+    - nb_eval_batches (int): Number of batches to evaluate if full_batch is False.
+
+    Returns:
+    - Tuple of (mean_loss, mean_accuracy)
+    """
     net.eval()
     with torch.no_grad():
         if isinstance(net, PreTrainedModel):
-            return _eval_hf_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
-                                  nb_eval_batches=nb_eval_batches)
+            return _eval_hf_model(net, device, data_loader, criterion, metric, full_batch, nb_eval_batches)
         elif isinstance(data_loader, Sequence):
-            return _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
-                                        nb_eval_batches=nb_eval_batches)
+            return _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch, nb_eval_batches)
+        elif isinstance(getattr(data_loader, "dataset", None), SyntheticLSRDataset):
+            return _eval_iterable_model(net, device, data_loader, criterion, metric, full_batch, nb_eval_batches)
         else:
-            return _eval_standard_model(net, device, data_loader, criterion, metric, full_batch=full_batch,
-                                        nb_eval_batches=nb_eval_batches)
+            return _eval_standard_model(net, device, data_loader, criterion, metric, full_batch, nb_eval_batches)
 
 def _eval_standard_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    """
+    Evaluation for standard PyTorch models using DataLoader.
+    Assumes batches are in (features, labels) format.
+    """
     epoch_loss = 0
     epoch_accuracy = 0
+
     if full_batch:
-        for batch_idx, batch in enumerate(data_loader):
-            x_batch, y_batch = batch
+        for x_batch, y_batch in data_loader:
             x_batch = x_batch.to(device)
             y_batch = y_batch.to(device)
+
+            # Forward pass and convert to float if needed for metric compatibility
             outputs = net(x_batch).float()
             epoch_loss += criterion(outputs, y_batch)
             epoch_accuracy += metric(y_batch, outputs)
+
+            # Manual cleanup to release GPU memory
             del x_batch, y_batch
+
+        # Return average metrics (detached from GPU for safe logging)
         return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
     else:
+        # Partial evaluation for faster debugging or low-resource setups
         data_iter = iter(data_loader)
-        for i in range(nb_eval_batches):
-            x_batch, y_batch = next(data_iter)
+        for x_batch, y_batch in islice(data_iter, nb_eval_batches):
             x_batch = x_batch.to(device)
             y_batch = y_batch.to(device)
             outputs = net(x_batch).float()
@@ -178,8 +209,13 @@ def _eval_standard_model(net, device, data_loader, criterion, metric, full_batch
         return epoch_loss / nb_eval_batches, epoch_accuracy / nb_eval_batches
 
 def _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    """
+    Evaluation function for datasets provided as raw Sequences (not torch.utils.data.DataLoader).
+    Assumes the data_loader has a `.dataset[:]` interface returning full features and labels.
+    """
     epoch_loss = 0
     epoch_accuracy = 0
+
     if full_batch:
         for x_batch, y_batch in data_loader:
             x_batch = x_batch.to(device)
@@ -188,8 +224,10 @@ def _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch
             epoch_loss += criterion(outputs, y_batch)
             epoch_accuracy += metric(y_batch, outputs)
             del x_batch, y_batch
+
         return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
     else:
+        # NOTE: This assumes that `dataset[:]` returns the entire dataset as tensors
         features, labels = data_loader.dataset[:]
         x_batch = features.to(device)
         y_batch = labels.to(device)
@@ -199,22 +237,51 @@ def _eval_sequence_model(net, device, data_loader, criterion, metric, full_batch
         return epoch_loss, epoch_accuracy
 
 def _eval_hf_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    """
+    Evaluation for HuggingFace models that return an object with `.loss` and `.logits`.
+    Each batch must be a dictionary with keys like 'input_ids', 'attention_mask', 'labels', etc.
+    """
     epoch_loss = 0
     epoch_accuracy = 0
+
     if full_batch:
         for batch in data_loader:
-            outputs = net(**move_batch_to_device(batch, device))
+            # Move each tensor in the batch dict to the target device
+            inputs = move_batch_to_device(batch, device)
+            outputs = net(**inputs)  # outputs: a ModelOutput object
             epoch_loss += outputs.loss
             epoch_accuracy += metric(batch['labels'], outputs.logits)
             del batch
         return (epoch_loss / len(data_loader)).to("cpu"), (epoch_accuracy / len(data_loader)).to("cpu")
     else:
         data_iter = iter(data_loader)
-        for i in range(nb_eval_batches):
-            batch = next(data_iter)
-            outputs = net(**move_batch_to_device(batch, device))
+        for batch in islice(data_iter, nb_eval_batches):
+            inputs = move_batch_to_device(batch, device)
+            outputs = net(**inputs)
             epoch_loss += outputs.loss
             epoch_accuracy += metric(batch['labels'], outputs.logits)
             del batch
         return epoch_loss / nb_eval_batches, epoch_accuracy / nb_eval_batches
 
+def _eval_iterable_model(net, device, data_loader, criterion, metric, full_batch=False, nb_eval_batches=5):
+    """
+    Evaluation function for infinite iterable datasets (e.g., synthetic data generated on-the-fly).
+    """
+    epoch_loss = 0
+    epoch_accuracy = 0
+
+    if full_batch:
+        nb_eval_batches = 25
+    data_iter = iter(data_loader)
+    for _ in range(nb_eval_batches):
+        x_batch, y_batch = next(data_iter)
+        x_batch = x_batch.to(device)
+        y_batch = y_batch.to(device)
+
+        outputs = net(x_batch).float()
+        epoch_loss += criterion(outputs, y_batch)
+        epoch_accuracy += metric(y_batch, outputs)
+
+        del x_batch, y_batch
+
+    return epoch_loss / nb_eval_batches, epoch_accuracy / nb_eval_batches
