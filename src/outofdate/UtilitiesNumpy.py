@@ -60,9 +60,3 @@ def create_matrix_with_zeros_diagonal_from_array(distribution: np.array) -> np.a
     for i in range(size):
         d.insert(i * size + i, 0)
     return np.array(d).reshape((size, size))
-
-
-def compute_entropy(clients_size: np.ndarray):
-    nb_samples = np.sum(clients_size)
-    clients_entropy = np.array([n / nb_samples * np.log2(n / nb_samples) for n in clients_size])
-    return -np.sum(clients_entropy)

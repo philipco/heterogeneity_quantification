@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.outofdate.Metrics import Metrics
 from src.utils.Utilities import create_folder_if_not_existing, get_project_root
-from src.utils.UtilitiesNumpy import remove_diagonal, create_matrix_with_zeros_diagonal_from_array
+from src.outofdate.UtilitiesNumpy import remove_diagonal, create_matrix_with_zeros_diagonal_from_array
 
 from matplotlib.colors import ListedColormap, to_rgba
 
