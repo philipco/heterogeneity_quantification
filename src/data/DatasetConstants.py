@@ -7,8 +7,7 @@ from torchvision.transforms import transforms
 
 from src.optim.CustomLoss import DiceLoss, CoxLoss, L1WeightedAccuracyLoss
 from src.optim.Metric import dice, auc, c_index, accuracy, l1_accuracy, mse_accuracy
-from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
-    HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression, \
+from src.optim.nn.Nets import TcgaRegression, CNN_MNIST, HeartDiseaseRegression, LiquidAssetRegression, \
     Synth2ClientsRegression, Synth100ClientsRegression, LeNet
 from src.optim.nn.Unet import UNet
 

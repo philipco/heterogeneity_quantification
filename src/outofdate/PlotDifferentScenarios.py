@@ -186,23 +186,6 @@ def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
 def MSE(y, ypred):
     return (y - ypred)**2 / 2
 
-def sigmoid_loss(y, y_pred):
-    return np.log(1 + np.exp(-y * y_pred))
-
-
-def logistic_regression(X, Y, beta0, split_percent: int = 0.5):
-    train_set_length = int(len(Y) * split_percent)
-
-    log_reg = LogisticRegression(penalty=None)
-
-    log_reg.fit(X[:train_set_length], Y[:train_set_length])
-
-    atomic_errors = compute_atomic_errors(log_reg, X[train_set_length:], Y[train_set_length:],
-                                          loss=sigmoid_loss)
-    q0 = np.quantile(atomic_errors, beta0, method="higher")
-    return None, q0, atomic_errors
-
-
 def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, log: bool = False):
 
     train_set_length = int(len(Y) * split_percent)
