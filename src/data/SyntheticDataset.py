@@ -7,7 +7,7 @@ from torch.utils.data import IterableDataset
 
 class SyntheticLSRDataset(IterableDataset):
 
-    def __init__(self, true_theta, batch_size, noise_std=0.1):
+    def __init__(self, true_theta, variation, batch_size, noise_std=0.1):
         """
         Parameters:
         - true_theta: (d,) torch.Tensor, the true parameter vector
@@ -17,6 +17,7 @@ class SyntheticLSRDataset(IterableDataset):
 
         self.dim = true_theta.shape[0]
         self.true_theta = true_theta
+        self.variation = variation
 
         self.eigenvalues = torch.FloatTensor([1 for i in range(1, self.dim + 1)[::-1]])
         self.covariance = torch.diag(self.eigenvalues)
@@ -26,10 +27,11 @@ class SyntheticLSRDataset(IterableDataset):
         self.batch_size = batch_size
         self.noise_std = noise_std
 
+        self.L, self.mu = self.compute_lips_mu()
+
     def __iter__(self):
         while True:
             X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
-            X = self.eigenvalues * X
 
             noise = torch.normal(mean=0, std=self.noise_std, size=(self.batch_size, ))
             y = X @ self.true_theta #+ noise  # Generate targets
@@ -38,28 +40,18 @@ class SyntheticLSRDataset(IterableDataset):
     def __len__(self):
         return None #float('inf')  # Arbitrary value, as it's an infinite generator
 
-    def compute_lips(self):
+    def compute_lips_mu(self):
         cov = torch.zeros((self.dim, self.dim))
-        nb_samples = 10
+        nb_samples = 10**4
         for k in range(nb_samples):
             X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
-            X = self.eigenvalues * X
             cov += X.T.mm(X) / self.batch_size
-        lips = 2 * torch.norm(cov / nb_samples, p=2).item()
-        print(lips)
-        return lips
-
-    def compute_mu(self):
-        cov = torch.zeros((self.dim, self.dim))
-        nb_samples = 10
-        for k in range(nb_samples):
-            X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
-            X = self.eigenvalues * X
-            cov += X.T.mm(X) / self.batch_size
+        lips = 2 * torch.linalg.svd(cov / nb_samples).S[0].item()
+        # lips = 2 * torch.norm(cov / nb_samples, p=2).item()
+        print("Lipshitz constant: ", lips)
         mu = 2 * torch.linalg.svd(cov / nb_samples).S[-1].item()
-        print(mu)
-        return mu
-
+        print("Mu constant:", mu)
+        return lips, mu
 
 class StreamingGaussianDataset(IterableDataset):
     def __init__(self, means, dim=2, batch_size=32, num_classes=2):

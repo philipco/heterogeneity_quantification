@@ -9,7 +9,7 @@ from src.optim.CustomLoss import DiceLoss, CoxLoss, L1WeightedAccuracyLoss
 from src.optim.Metric import dice, auc, c_index, accuracy, l1_accuracy, mse_accuracy
 from src.optim.nn.Nets import LinearRegression, LogisticRegression, TcgaRegression, CNN_CIFAR10, CNN_MNIST, \
     HeartDiseaseRegression, GoogleNetTransferLearning, LiquidAssetRegression, SynthDataRegression, \
-    Synth2ClientsRegression, Synth100ClientsRegression
+    Synth2ClientsRegression, Synth100ClientsRegression, LeNet
 from src.optim.nn.Unet import UNet
 
 PCA_NB_COMPONENTS = 16
@@ -23,34 +23,30 @@ TRANSFORM_MNIST = torchvision.transforms.Compose([
     ])
 
 TRANSFORM_TRAIN_CIFAR10 = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
+    transforms.RandomCrop(32, padding=4),         
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    transforms.Normalize(mean=(0.4914, 0.4822, 0.4465),
+                         std=(0.2023, 0.1994, 0.2010))
 ])
 
 TRANSFORM_TEST_CIFAR10 = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    transforms.Normalize(mean=(0.4914, 0.4822, 0.4465),
+                         std=(0.2023, 0.1994, 0.2010))
 ])
 
-INPUT_TYPE = {"mnist": "image", "fashion_mnist": "image",
-               "camelyon16": "image", "heart_disease": "tabular", "isic2019": "image",
-               "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "tabular"}
-
-OUTPUT_TYPE = {"mnist": "discrete", "fashion_mnist": "discrete",
-               "camelyon16": "discrete", "heart_disease": "discrete", "isic2019": "discrete",
-               "ixi": "image", "kits19": "image", "lidc_idri": "image", "tcga_brca": "continuous"}
-
-MODELS = {"mnist": CNN_MNIST, "cifar10": GoogleNetTransferLearning, "heart_disease": HeartDiseaseRegression,
+MODELS = {"mnist": CNN_MNIST, "mnist_iid": CNN_MNIST, "cifar10": LeNet, "cifar10_iid": LeNet,
+          "heart_disease": HeartDiseaseRegression,
           "tcga_brca": TcgaRegression, "ixi": UNet, "liquid_asset": LiquidAssetRegression, "synth": Synth2ClientsRegression,
           "synth_complex":  Synth100ClientsRegression,
           "exam_llm": None}
-CRITERION = {"mnist": nn.CrossEntropyLoss, "cifar10": nn.CrossEntropyLoss, "heart_disease": nn.BCELoss,
+CRITERION = {"mnist": nn.CrossEntropyLoss, "mnist_iid": nn.CrossEntropyLoss, "cifar10": nn.CrossEntropyLoss, "cifar10_iid": nn.CrossEntropyLoss,
+             "heart_disease": nn.BCELoss,
              "tcga_brca": CoxLoss, "ixi": DiceLoss, "liquid_asset": L1WeightedAccuracyLoss, "synth": MSELoss,
              "synth_complex": MSELoss,
              "exam_llm": nn.CrossEntropyLoss}
-METRIC =  {"mnist": accuracy, "cifar10": accuracy, "heart_disease": auc, "tcga_brca": c_index, "ixi": dice,
+METRIC =  {"mnist": accuracy, "mnist_iid": accuracy, "cifar10": accuracy, "cifar10_iid": accuracy, "heart_disease": auc, "tcga_brca": c_index, "ixi": dice,
            "liquid_asset": l1_accuracy, "synth": mse_accuracy, "synth_complex": mse_accuracy,
            "exam_llm": accuracy}
 
@@ -58,27 +54,30 @@ CHECKPOINT = "distilbert-base-uncased" #"bert-base-uncased"
 
 ### TODO : Il y a un problème avec la CoxLoss.
 
-TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10,
+TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "mnist_iid": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10, "cifar10_iid": TRANSFORM_TRAIN_CIFAR10,
                    "liquid_asset": None}
-TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10,
+TRANSFORM_TEST= {"mnist": TRANSFORM_MNIST, "mnist_iid": TRANSFORM_MNIST, "cifar10": TRANSFORM_TEST_CIFAR10, "cifar10_iid": TRANSFORM_TEST_CIFAR10,
                  "liquid_asset": None}
 
-NB_CLIENTS = {"mnist": 40, "fashion_mnist": 8, "cifar10": 20, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
-              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 10,
-              "synth_complex": 10,
+NB_CLIENTS = {"mnist": 20, "mnist_iid": 20, "fashion_mnist": 8, "cifar10": 20, "cifar10_iid": 20, "camelyon16": 2, "heart_disease": 4, "isic2019": 6,
+              "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
+              "synth_complex": 20,
               "exam_llm": 3}
-STEP_SIZE = {"mnist": 0.1, "cifar10": 0.001, "tcga_brca": .015, "heart_disease": 0.1,
-             "ixi": 0.01, "liquid_asset": 0.001, "synth": None, "synth_complex": None,
-             "exam_llm": 0.0008518845025208505}
-WEIGHT_DECAY = {"mnist": 0, "cifar10": 0.001, "tcga_brca": 0, "heart_disease": 0,
-                "ixi": 0, "liquid_asset": 0.1, "synth": 0, "synth_complex": 0, "exam_llm": 0.1}
-BATCH_SIZE = {"mnist": 16, "cifar10": 2, "tcga_brca": 8, "heart_disease": 4, "ixi": 32, "liquid_asset": 32,
-              "synth": 1, "synth_complex": 1, "exam_llm": 32}
-MOMENTUM = {"mnist": 0., "cifar10": 0.95, "tcga_brca": 0, "heart_disease": 0, "ixi": 0.95,
-            "liquid_asset": 0.95, "synth": 0, "synth_complex":0, "exam_llm": 0.95}
-SCHEDULER_PARAMS = {"mnist": (4, 0.92), "cifar10": (4, 1), "tcga_brca": (50, 0.609), "heart_disease": (4, 0.554),
-                    "ixi": (4, 0.75), "liquid_asset": (4, 0.75), "synth": (200, 2/3), "synth_complex": (100, 0.5839331768799928),
-                    "exam_llm": (15, 2/3)}
+STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.1,
+             "ixi": 0.01, "liquid_asset": 0.01, "synth": None, "synth_complex": None,
+             "exam_llm": 0.01}
+WEIGHT_DECAY = {"mnist": 5*10**-4, "mnist_iid": 5*10**-4, "cifar10": 5*10**-4, "cifar10_iid": 5*10**-4, "tcga_brca": 0, "heart_disease": 0,
+                "ixi": 5*10**-4, "liquid_asset": 5*10**-4, "synth": 0, "synth_complex": 0, "exam_llm": 5*10**-4}
+BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 64, "cifar10_iid": 64, "tcga_brca": 8, "heart_disease": 1,
+              "ixi": 8, "liquid_asset": 8, "synth": 1, "synth_complex": 1, "exam_llm": 8}
+MOMENTUM = {"mnist": 0., "mnist_iid": 0., "cifar10": 0.9, "cifar10_iid": 0.9, "tcga_brca": 0, "heart_disease": 0,
+            "ixi": 0.9, "liquid_asset": 0.9, "synth": 0, "synth_complex":0, "exam_llm": 0.9}
+SCHEDULER_PARAMS = {"mnist": (10, 0.1), "mnist_iid": (10, 0.1), "cifar10": (10, 0.1), "cifar10_iid": (10, 0.1), "tcga_brca": (50, 0.609),
+                    "heart_disease": (5, 0.1),
+                    "ixi": (10, 0.1), "liquid_asset": (1, 0.9), "synth": (1, 1), "synth_complex": (1, 1),
+                    "exam_llm": (10, 0.1)}
+NB_EPOCHS = {"mnist": 50, "mnist_iid": 50, "cifar10": 50, "cifar10_iid": 50, "tcga_brca": 50, "heart_disease": 25,
+            "ixi": 10, "liquid_asset": 50, "synth": 100, "synth_complex": 200, "exam_llm": 50}
 
 # SYNTH COMPLEX
 # Best trial config:  {'step_size': 0.012138813439941028, 'weight_decay': 0.001}

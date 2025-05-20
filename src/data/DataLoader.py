@@ -1,4 +1,5 @@
 """Created by Constantin Philippenko, 29th September 2022."""
+import gc
 from typing import List
 
 import torch
@@ -9,11 +10,10 @@ from transformers import AutoTokenizer
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
 from src.data.Dataset import prepare_liquid_asset
-from src.data.DatasetConstants import CHECKPOINT, BATCH_SIZE
+from src.data.DatasetConstants import CHECKPOINT
 from src.data.Split import create_non_iid_split
-from src.data.SyntheticDataset import SyntheticLSRDataset, StreamingGaussianDataset
-from src.plot.PlotDifferentScenarios import f
-from src.utils.Utilities import get_path_to_datasets
+from src.data.SyntheticDataset import SyntheticLSRDataset
+from src.utils.Utilities import get_path_to_datasets, print_mem_usage
 
 
 def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
@@ -83,19 +83,15 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
     """
     # Generate K cluster centers
     # Create an uninitialized tensor and fill it with values from the uniform distribution
-    cluster_centers = [torch.empty(d).uniform_(-2.5, 2.5) for _ in range(K)]
+    cluster_centers = [torch.empty(d).uniform_(-5, 5) for _ in range(K)]
     # Assign each client to a cluster and generate their model
-    true_models = [cluster_centers[i % K]  + cluster_variance * torch.randn(d) for i in range(N)]
-    return true_models
+    variations = [cluster_variance * torch.randn(d) for i in range(N)]
+    return [cluster_centers[i % K] + variations[i] for i in range(N)], variations
 
-def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
-    # if classification:
-    #     # all_means = generate_client_means(nb_clients, nb_clusters, dim, cluster_variance=0.1)
-    #     datasets = [StreamingGaussianDataset(m, dim=2, batch_size=32, num_classes=2) for m in all_means]
-    # else:
-    true_models = generate_client_models(nb_clients, 1, dim, cluster_variance=0.1)
-    datasets = [SyntheticLSRDataset(m, batch_size) for m in true_models]
+    true_models, variations = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
+    datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_models, variations)]
 
     train_loaders = [DataLoader(d, batch_size=None) for d in datasets]
     val_loaders = [DataLoader(d, batch_size=None) for d in datasets]
@@ -105,7 +101,7 @@ def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 2, dim: int = 
     return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
+def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
                           kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
 
     # Get dataloader for train/test.
@@ -125,7 +121,7 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kw
     print("Test data shape:", Y[0].shape)
 
     ### We generate a non-iid datasplit if it's not already done.
-    X, Y = create_non_iid_split(X, Y, nb_of_clients, split_type=split_type)
+    X, Y = create_non_iid_split(X, Y, nb_of_clients, split_type=split_type, dataset_name=dataset_name)
 
     # Then for each (heterogeneous) client, we split the dataset into train/test
     X_train, X_val, X_test, Y_train, Y_val, Y_test = [], [], [], [], [], []
@@ -139,9 +135,19 @@ def get_data_from_pytorch(fed_dataset, nb_of_clients, split_type, batch_size, kw
         Y_val.append(y_val)
         Y_test.append(y_test)
 
-    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), batch_size=batch_size) for i in range(nb_of_clients)]
-    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), batch_size=batch_size) for i in range(nb_of_clients)]
-    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), batch_size=batch_size) for i in range(nb_of_clients)]
+    print_mem_usage()
+
+    print("Removing the concatenated datasets.")
+    del X, Y
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    print_mem_usage()
+
+
+    train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
+    val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
+    test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
 
     natural_split = False
     return train_loaders, val_loaders, test_loaders, natural_split
@@ -165,17 +171,9 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_si
         data_train, labels_train = get_element_from_dataloader(loader_train)
         data_test, labels_test = get_element_from_dataloader(loader_test)
 
-        # For TCGA_BRCA, there must be enough point to compute the metric, using the train set to create a very small
-        # val set do not work.
-        # Therefore, the val and test set are IDENTICAL for TCGA_BRCA.
-        if dataset_name not in ["tcga_brca"]:
-            data_train, data_val, labels_train, labels_val = train_test_split(data_train, labels_train,
-                                                                              test_size=0.1, random_state=2023)
-            X_val.append(torch.concat([data_val]))
-            Y_val.append(torch.concat([labels_val]))
-        else:
-            X_val.append(torch.concat([data_test]))
-            Y_val.append(torch.concat([labels_test]))
+        # I don't use ValSet, should be removed.
+        X_val.append(torch.concat([data_test]))
+        Y_val.append(torch.concat([labels_test]))
 
         X_train.append(torch.concat([data_train]))
         Y_train.append(torch.concat([labels_train]))

@@ -12,6 +12,34 @@ class LinearRegression(nn.Module):
         return self.linear(x)#.flatten()
 
 
+class LeNet(nn.Module):
+    """From https://github.com/kuangliu/pytorch-cifar/blob/master/models/lenet.py.
+
+    More example on: https://github.com/sushantkumar-estech/LeNet-CNN-for-CIFAR-10-Classification-Dataset/blob/master/LeNet_Convolutional_Neural_Network_for_CIFAR_10_Classification_Dataset.ipynb"""
+    def __init__(self):
+        super(LeNet, self).__init__()
+        self.output_size = 10
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(16*5*5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, self.output_size)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        out = self.relu(self.conv1(x))
+        out = F.avg_pool2d(out, 2)
+        out = self.relu(self.conv2(out))
+        out = F.avg_pool2d(out, 2)
+        # out = out.view(out.size(0), -1)
+        out = self.flatten(out)
+        out = self.relu(self.fc1(out))
+        out = self.relu(self.fc2(out))
+        out = self.fc3(out)
+        return out
+
+
 class GoogleNetTransferLearning(nn.Module):
     def __init__(self):
         super(GoogleNetTransferLearning, self).__init__()
@@ -19,7 +47,7 @@ class GoogleNetTransferLearning(nn.Module):
         freeze = True
 
         # Load pretrained ResNet50
-        self.model = models.googlenet(pretrained=True)
+        self.model = models.googlenet(pretrained=True, aux_logits=False)
 
         if hasattr(self.model, 'fc'):  # for models like ResNet, GoogLeNet
             num_ftrs = self.model.fc.in_features

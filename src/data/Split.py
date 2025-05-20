@@ -26,13 +26,16 @@ def iid_split(data: np.ndarray, labels: np.ndarray, nb_clients: int) -> [List[np
 
 
 def create_non_iid_split(features: List[np.array], labels: List[np.array], nb_clients: int,
-                         split_type: str) -> [List[np.ndarray], List[np.ndarray]]:
+                         split_type: str, dataset_name: str) -> [List[np.ndarray], List[np.ndarray]]:
     np.random.seed(2024)
     if split_type == "iid":
+        print("IID split.")
         return iid_split(features, labels, nb_clients)
     if split_type == "dirichlet":
-        return dirichlet_split(features, labels, nb_clients)
+        print("Diriclet split")
+        return dirichlet_split(features, labels, nb_clients, 0.1 if dataset_name == "mnist" else 1)
     if split_type == "partition":
+        print("Partition split.")
         return sort_and_partition_split(features, labels, nb_clients)
 
 

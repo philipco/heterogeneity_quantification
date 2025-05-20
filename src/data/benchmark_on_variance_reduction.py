@@ -5,9 +5,9 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from huggingface_hub.utils import tqdm
 from torch.utils.data import DataLoader
-from numpy.random import multivariate_normal
 
 from src.data.DataLoader import generate_client_models
+from src.data.DatasetConstants import NB_CLIENTS
 from src.data.SyntheticDataset import SyntheticLSRDataset
 from src.optim.PytorchUtilities import aggregate_gradients, aggregate_models, load_new_model
 from src.optim.nn.Nets import Synth100ClientsRegression
@@ -110,14 +110,14 @@ def train_fedavg(models, dataloaders, L, global_steps=100, local_steps=1):
 # Initialize experiment
 d = 10  # Input dimension  # Ground truth parameter
 batch_size = 1
-num_clients = 10
+num_clients = NB_CLIENTS["synth_complex"]
 
-true_theta = generate_client_models(num_clients, 1, d, cluster_variance=0.1)
+true_theta, variations = generate_client_models(num_clients, 1, d, cluster_variance=0.01)
 steps = 250
 
 # Create datasets and compute Lipschitz constant
-datasets = [SyntheticLSRDataset(x, batch_size) for x in true_theta]
-L = sum([d.compute_lips() for d in datasets])/num_clients
+datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_theta, variations)]
+L = sum([d.L for d in datasets])/num_clients
 print(f"Lipschitz constant L: {L}")
 
 # One-client case
