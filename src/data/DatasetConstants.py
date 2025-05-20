@@ -17,9 +17,6 @@ PCA_NB_COMPONENTS = 16
 TRANSFORM_MNIST = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize((0.1307,), (0.3081,))
-        # We reshape mnist to match with our neural network
-        # ReshapeTransform((-1,))
-
     ])
 
 TRANSFORM_TRAIN_CIFAR10 = transforms.Compose([
@@ -50,9 +47,7 @@ METRIC =  {"mnist": accuracy, "mnist_iid": accuracy, "cifar10": accuracy, "cifar
            "liquid_asset": l1_accuracy, "synth": mse_accuracy, "synth_complex": mse_accuracy,
            "exam_llm": accuracy}
 
-CHECKPOINT = "distilbert-base-uncased" #"bert-base-uncased"
-
-### TODO : Il y a un problème avec la CoxLoss.
+CHECKPOINT = "distilbert-base-uncased"
 
 TRANSFORM_TRAIN = {"mnist": TRANSFORM_MNIST, "mnist_iid": TRANSFORM_MNIST, "cifar10": TRANSFORM_TRAIN_CIFAR10, "cifar10_iid": TRANSFORM_TRAIN_CIFAR10,
                    "liquid_asset": None}
@@ -63,9 +58,9 @@ NB_CLIENTS = {"mnist": 20, "mnist_iid": 20, "fashion_mnist": 8, "cifar10": 20, "
               "ixi": 3, "kits19": 6, "lidc_idri": 5, "tcga_brca": 6, "liquid_asset": 100, "synth": 20,
               "synth_complex": 20,
               "exam_llm": 3}
-STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.1,
+STEP_SIZE = {"mnist": 0.1, "mnist_iid": 0.1, "cifar10": 0.1, "cifar10_iid": 0.1, "tcga_brca": .015, "heart_disease": 0.05,
              "ixi": 0.01, "liquid_asset": 0.01, "synth": None, "synth_complex": None,
-             "exam_llm": 0.01}
+             "exam_llm": 0.001}
 WEIGHT_DECAY = {"mnist": 5*10**-4, "mnist_iid": 5*10**-4, "cifar10": 5*10**-4, "cifar10_iid": 5*10**-4, "tcga_brca": 0, "heart_disease": 0,
                 "ixi": 5*10**-4, "liquid_asset": 5*10**-4, "synth": 0, "synth_complex": 0, "exam_llm": 5*10**-4}
 BATCH_SIZE = {"mnist": 64, "mnist_iid": 64, "cifar10": 64, "cifar10_iid": 64, "tcga_brca": 8, "heart_disease": 1,
@@ -77,26 +72,7 @@ SCHEDULER_PARAMS = {"mnist": (10, 0.1), "mnist_iid": (10, 0.1), "cifar10": (10, 
                     "ixi": (10, 0.1), "liquid_asset": (1, 0.9), "synth": (1, 1), "synth_complex": (1, 1),
                     "exam_llm": (10, 0.1)}
 NB_EPOCHS = {"mnist": 50, "mnist_iid": 50, "cifar10": 50, "cifar10_iid": 50, "tcga_brca": 50, "heart_disease": 25,
-            "ixi": 10, "liquid_asset": 50, "synth": 100, "synth_complex": 200, "exam_llm": 50}
-
-# SYNTH COMPLEX
-# Best trial config:  {'step_size': 0.012138813439941028, 'weight_decay': 0.001}
-# Best trial final validation accuracy:  -5.350926399230957
-
-# HEART_DISEASE
-# [I 2025-03-31 16:57:40,443] Trial 1 finished with value: 0.5986238121986389 and parameters: {'step_size': 0.018873042065018778, 'weight_decay': 0.1}. Best is trial 1 with value: 0.5986238121986389.
-# [I 2025-03-31 18:42:47,362] Trial 2 finished with value: 0.6494265794754028 and parameters: {'step_size': 0.008349135315129853, 'weight_decay': 0}. Best is trial 2 with value: 0.6494265794754028.
-# [I 2025-03-31 18:39:47,888] Trial 1 finished with value: 0.5959862470626831 and parameters: {'step_size': 0.00022183630278209968, 'weight_decay': 0.1}. Best is trial 1 with value: 0.5959862470626831.
-
-# MNIST
-# Best trial config:  {'step_size': 0.04500608326765825, 'weight_decay': 0, 'scheduler_gamma': 0.9254090508955067}
-# Best trial final validation accuracy:  0.9909150004386902
-# IXI
-# Best trial config:  {'step_size': 0.019674439294335523, 'weight_decay': 0.001, 'scheduler_gamma': 0.6762453175771046}
-# Best trial final validation accuracy:  0.9775788187980652
-# EXAM LLM
-# Trial 0 finished with value: 0.3566683828830719 and parameters:
-# {'step_size': 0.0006362911206636467, 'weight_decay': 0.01, 'scheduler_gamma': 0.9861288300077158}.
+            "ixi": 10, "liquid_asset": 50, "synth": 100, "synth_complex": 200, "exam_llm": 4}
 
 
 
