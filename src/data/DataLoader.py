@@ -1,6 +1,12 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
+"""Data loading and preprocessing utilities for federated learning experiments.
+
+This module provides functions to load and preprocess datasets from various sources,
+including CSV files, PyTorch datasets, FLamby datasets, and NLP datasets. It also
+includes utilities for generating synthetic datasets and client models.
+"""
+
 import gc
-from typing import List
+from typing import List, Any
 
 import torch
 from datasets import load_dataset
@@ -9,7 +15,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from transformers import AutoTokenizer
 
 from src.data.DataCollatorForMultipleChoice import DataCollatorForMultipleChoice
-from src.data.Dataset import prepare_liquid_asset
+from src.data.LiquidAssetDataset import prepare_liquid_asset
 from src.data.DatasetConstants import CHECKPOINT
 from src.data.Split import create_non_iid_split
 from src.data.SyntheticDataset import SyntheticLSRDataset
@@ -17,25 +23,53 @@ from src.utils.Utilities import get_path_to_datasets, print_mem_usage
 
 
 def get_dataloader(fed_dataset, train, kwargs_dataset, kwargs_dataloader):
+    """Create a DataLoader for the specified federated dataset.
+
+    Args:
+        fed_dataset: The federated dataset class.
+        train: Boolean indicating whether to load the training split.
+        kwargs_dataset: Dictionary of keyword arguments for the dataset.
+        kwargs_dataloader: Dictionary of keyword arguments for the DataLoader.
+
+    Returns:
+        DataLoader: A PyTorch DataLoader instance.
+        """
     dataset = fed_dataset(train=train, **kwargs_dataset)
     return DataLoader(dataset, **kwargs_dataloader)
 
 
 def get_element_from_dataloader(loader):
+    """Extract all elements from a DataLoader into tensors.
+
+    Args:
+        loader: A PyTorch DataLoader instance.
+
+    Returns:
+        Tuple[Tensor, Tensor]: Concatenated input and label tensors.
+    """
     if len(loader) == 0:
         return None, None
     X, Y = [], []
     for x, y in loader:
         X.append(x)
         Y.append(y)
-    # For IXI, we should not flatten the dataset!
-    # Same for tcga_brca.
-    # TODO !
-    return torch.concat(X), torch.concat(Y)#.flatten()
+    return torch.concat(X), torch.concat(Y)
 
 
 def get_data_from_csv(dataset_name: str, batch_size) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+    """Load and preprocess data from CSV files for federated learning.
 
+    Args:
+        dataset_name (str): Name of the dataset to load.
+        batch_size: Batch size for the DataLoaders.
+
+    Returns:
+        Tuple[List[DataLoader], List[DataLoader], List[DataLoader], bool]:
+            - train_loaders: List of DataLoaders for training data.
+            - val_loaders: List of DataLoaders for validation data.
+            - test_loaders: List of DataLoaders for test data.
+            - natural_split: Boolean indicating if the data split is natural.
+    """
     root = get_path_to_datasets()
     if dataset_name == "liquid_asset":
         data_train, labels_train = prepare_liquid_asset(root, train=True)
@@ -67,19 +101,16 @@ def get_data_from_csv(dataset_name: str, batch_size) -> [List[torch.FloatTensor]
     return train_loaders, val_loaders, test_loaders, natural_split
 
 def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
-    """
-    Generates N client models grouped into K clusters in d-dimensional space.
+    """Generate synthetic client models grouped into clusters.
 
-    Parameters:
-    - N: int, number of clients
-    - K: int, number of clusters
-    - d: int, dimensionality of the models
-    - cluster_variance: float, controls spread of clients within each cluster
-    - seed: int, random seed for reproducibility
+    Args:
+        N (int): Number of clients.
+        K (int): Number of clusters.
+        d (int): Dimensionality of the models.
+        cluster_variance (float, optional): Variance within each cluster. Defaults to 2.
 
     Returns:
-    - true_models: list of torch.FloatTensor, each representing a client's model
-    - cluster_centers: list of torch.FloatTensor, the center of each cluster
+        Tuple[List[Tensor], List[Tensor]]: List of client models and their variations.
     """
     # Generate K cluster centers
     # Create an uninitialized tensor and fill it with values from the uniform distribution
@@ -88,8 +119,23 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
     variations = [cluster_variance * torch.randn(d) for i in range(N)]
     return [cluster_centers[i % K] + variations[i] for i in range(N)], variations
 
-def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 2, classification: bool = False) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 2) -> tuple[
+    list[DataLoader[Any]], list[DataLoader[Any]], list[DataLoader[Any]], bool]:
+    """Generate synthetic data (LSR) for federated learning experiments.
 
+    Args:
+        batch_size (int): Batch size for the DataLoaders.
+        nb_clients (int, optional): Number of clients. Defaults to 4.
+        nb_clusters (int, optional): Number of clusters. Defaults to 1.
+        dim (int, optional): Dimensionality of the data. Defaults to 2.
+
+    Returns:
+        Tuple[List[DataLoader], List[DataLoader], List[DataLoader], bool]:
+            - train_loaders: List of DataLoaders for training data.
+            - val_loaders: List of DataLoaders for validation data.
+            - test_loaders: List of DataLoaders for test data.
+            - natural_split: Boolean indicating if the data split is natural.
+        """
     true_models, variations = generate_client_models(nb_clients, nb_clusters, dim, cluster_variance=0.1)
     datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_models, variations)]
 
@@ -101,9 +147,26 @@ def get_synth_data(batch_size: int, nb_clients = 4, nb_clusters = 1, dim: int = 
     return train_loaders, val_loaders, test_loaders, natural_split
 
 
-def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_type, batch_size, kwargs_train_dataset, kwargs_test_dataset,
-                          kwargs_dataloader) -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_type, kwargs_train_dataset, kwargs_test_dataset,
+                          kwargs_dataloader) -> tuple[list[DataLoader[Any]], list[DataLoader[Any]], list[DataLoader[Any]], bool]:
+    """Load and preprocess data from PyTorch datasets for federated learning.
 
+    Args:
+        dataset_name (str): Name of the dataset.
+        fed_dataset: Federated dataset class.
+        nb_of_clients: Number of clients.
+        split_type: Type of data split (e.g., 'non-iid').
+        kwargs_train_dataset: Keyword arguments for the training dataset.
+        kwargs_test_dataset: Keyword arguments for the test dataset.
+        kwargs_dataloader: Keyword arguments for the DataLoader.
+
+    Returns:
+        Tuple[List[DataLoader], List[DataLoader], List[DataLoader], bool]:
+            - train_loaders: List of DataLoaders for training data.
+            - val_loaders: List of DataLoaders for validation data.
+            - test_loaders: List of DataLoaders for test data.
+            - natural_split: Boolean indicating if the data split is natural.
+    """
     # Get dataloader for train/test.
     loader_train = get_dataloader(fed_dataset, train=True, kwargs_dataset=kwargs_train_dataset,
                             kwargs_dataloader=kwargs_dataloader)
@@ -144,7 +207,6 @@ def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_t
 
     print_mem_usage()
 
-
     train_loaders = [DataLoader(TensorDataset(X_train[i], Y_train[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
     val_loaders = [DataLoader(TensorDataset(X_val[i], Y_val[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
     test_loaders = [DataLoader(TensorDataset(X_test[i], Y_test[i]), **kwargs_dataloader) for i in range(nb_of_clients)]
@@ -154,7 +216,24 @@ def get_data_from_pytorch(dataset_name: str, fed_dataset, nb_of_clients, split_t
 
 
 def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_size, kwargs_dataloader, debug: bool = False) \
-        -> [List[torch.FloatTensor], List[torch.FloatTensor], bool]:
+        -> tuple[list[DataLoader[Any]], list[DataLoader[Any]], list[DataLoader[Any]], bool]:
+    """Load and preprocess data from FLamby datasets for federated learning.
+
+    Args:
+        fed_dataset: Federated dataset class.
+        nb_of_clients: Number of clients.
+        dataset_name (str): Name of the dataset.
+        batch_size: Batch size for the DataLoaders.
+        kwargs_dataloader: Keyword arguments for the DataLoader.
+        debug (bool, optional): Whether to run in debug mode. Defaults to False.
+
+    Returns:
+        Tuple[List[DataLoader], List[DataLoader], List[DataLoader], bool]:
+            - train_loaders: List of DataLoaders for training data.
+            - val_loaders: List of DataLoaders for validation data.
+            - test_loaders: List of DataLoaders for test data.
+            - natural_split: Boolean indicating if the data split is natural.
+        """
 
     X_train, X_test, X_val, Y_train, Y_val, Y_test = [], [], [], [], [], []
     for i in range(nb_of_clients):
@@ -191,6 +270,15 @@ def get_data_from_flamby(fed_dataset, nb_of_clients, dataset_name: str, batch_si
 
 
 def preprocess(example, tokenizer):
+    """Preprocess a single example for multiple-choice NLP tasks.
+
+    Args:
+        example: A dictionary containing the question and answer choices.
+        tokenizer: A tokenizer instance from HuggingFace Transformers.
+
+    Returns:
+        dict: Tokenized inputs with labels for the multiple-choice task.
+    """
 
     options = 'ABCD'
     indices = list(range(5))  # Indexing 0, 1, 2, 3, 4 for each option
@@ -221,9 +309,25 @@ def preprocess(example, tokenizer):
     return tokenized_example
 
 def process_secqa(ds):
+    """Process the SECQA dataset by removing unnecessary columns.
+
+    Args:
+        ds: The dataset to process.
+
+    Returns:
+        Dataset: The processed dataset.
+    """
     return ds.remove_columns(['Explanation'])
 
 def process_allenai(ds):
+    """Process the AllenAI OpenBookQA dataset to match the expected format.
+
+    Args:
+        ds: The dataset to process.
+
+    Returns:
+        Dataset: The processed dataset.
+    """
     def modify_allenai(example):
         choices_text = example["choices"]["text"]
         example["A"] = choices_text[0]
@@ -238,7 +342,14 @@ def process_allenai(ds):
     return new_ds
 
 def process_cais(ds):
+    """Process the CAIS MMLU dataset to match the expected format.
 
+    Args:
+        ds: The dataset to process.
+
+    Returns:
+        Dataset: The processed dataset.
+    """
     options = 'ABCD'
     indices = list(range(5))  # Indexing 0, 1, 2, 3, 4 for each option
 
@@ -260,12 +371,22 @@ def process_cais(ds):
     new_ds = new_ds.rename_column("question", "Question")
     return new_ds
 
-def get_data_from_NLP(batch_size: int):
+def get_data_from_NLP(batch_size: int) -> tuple[list[DataLoader[Any]], list[DataLoader[Any]], list[DataLoader[Any]], bool]:
+    """Load and preprocess NLP datasets for multiple-choice tasks.
 
-    #paths = ["zefang-liu/secqa", "allenai/openbookqa", "cais/mmlu"]
+    Args:
+        batch_size (int): Batch size for the DataLoaders.
+
+    Returns:
+        Tuple[List[DataLoader], List[DataLoader], List[DataLoader], bool]:
+            - train_loaders: List of DataLoaders for training data.
+            - val_loaders: List of DataLoaders for validation data.
+            - test_loaders: List of DataLoaders for test data.
+            - natural_split: Boolean indicating if the data split is natural.
+    """
+
     paths = ["cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu", "cais/mmlu"]
     names = ["abstract_algebra", "machine_learning", "computer_security", "anatomy", "philosophy", "sociology", "marketing"]
-    #names = ["secqa_v1", "main", "machine_learning"]
     dict_download = {"zefang-liu/secqa": ["test", "val", "dev"], "allenai/openbookqa": ["train", "validation", "test"],
             "cais/mmlu": ["test", "validation", "dev"]}
 

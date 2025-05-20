@@ -7,7 +7,7 @@ import optuna
 import torch
 
 from src.data.Network import Network
-from src.optim.PytorchUtilities import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
+from src.utils.UtilitiesPytorch import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
 from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation
 from src.utils.Utilities import print_mem_usage
 
@@ -351,25 +351,23 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 network.clients[client_idx].writer.add_histogram('weights', np.array(weight),
                                                                  network.clients[client_idx].last_epoch * inner_iterations)
 
-        elif collab_based_on == "ratio":
-            gradients_eval = {_: None for _ in range(network.nb_clients)}
-            for client_idx in range(network.nb_clients):
-                client = network.clients[client_idx]
+        gradients_eval = {_: None for _ in range(network.nb_clients)}
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
 
-                gradient_eval, iter_loaders[client_idx] = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
-                                                      client.trained_model, client.criterion, client.optimizer,
-                                                      client.scheduler)
-                gradients_eval[client_idx] = gradient_eval
+            gradient_eval, iter_loaders[client_idx] = safe_gradient_computation(client.train_loader, iter_loaders[client_idx], client.device,
+                                                  client.trained_model, client.criterion, client.optimizer,
+                                                  client.scheduler)
+            gradients_eval[client_idx] = gradient_eval
 
-            for client_idx in range(network.nb_clients):
-                weight, numerators, denominators = compute_weight_based_on_ratio(gradients_eval,
-                                                                                 network.nb_testpoints_by_clients,
-                                                                                 client_idx, numerators,
-                                                                                 denominators, False)
-                weights[client_idx] = weight
-                network.clients[client_idx].writer.add_histogram('weights', np.array(weight), network.clients[client_idx].last_epoch * inner_iterations)
-        else:
-            raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
+        for client_idx in range(network.nb_clients):
+            weight, numerators, denominators = compute_weight_based_on_ratio(gradients_eval,
+                                                                             network.nb_testpoints_by_clients,
+                                                                             client_idx, numerators,
+                                                                             denominators, False)
+            weights[client_idx] = weight
+            network.clients[client_idx].writer.add_histogram('weights', np.array(weight), network.clients[client_idx].last_epoch * inner_iterations)
+
 
         for k in range(inner_iterations):
 

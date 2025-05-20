@@ -6,8 +6,8 @@ import argparse
 
 from transformers import AutoModelForMultipleChoice
 
-from src.data.NetworkLoader import get_network
-from src.optim.Algo import all_for_all_algo, all_for_one_algo
+from src.data.Network import get_network
+from src.optim.Algo import all_for_one_algo
 from src.data.DatasetConstants import MODELS, CHECKPOINT
 
 

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from src.data.DatasetConstants import BATCH_SIZE
-from src.data.NetworkLoader import get_network
+from src.data.Network import get_network
 from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training, fednova_training
 
 from src.utils.PlotUtilities import plot_values, plot_weights

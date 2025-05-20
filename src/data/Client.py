@@ -1,7 +1,7 @@
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
-from torch.optim.lr_scheduler import ConstantLR, StepLR, LambdaLR
+from torch.optim.lr_scheduler import StepLR, LambdaLR
 
 from src.optim.LinearWarmupScheduler import LinearWarmupScheduler, ConstantLRScheduler
 from src.optim.Train import log_performance, batch_training
@@ -82,7 +82,6 @@ class Client:
         loss and accuracy throughout the training process.
 
         """
-        # Training
         for local_epoch in range(nb_local_epochs):
             try:
                 batch_training(train_iter, self.device, self.trained_model, self.criterion,
@@ -97,8 +96,6 @@ class Client:
     def continue_training(self, nb_of_local_epoch: int, train_iter):
         train_iter = self.train_local_neural_network(nb_of_local_epoch, train_iter)
 
-        # In the case of single batch training, we start iterating on the dataset from 0 and then use a modulo to iterate
-        # thought the complete set.
         self.last_epoch += nb_of_local_epoch
         torch.cuda.empty_cache()
         return train_iter
@@ -110,8 +107,6 @@ class Client:
         train_loss, train_acc = log_performance("train", self.trained_model, self.device, self.train_loader,
                                                 self.criterion, self.metric, self.ID, self.writer, self.last_epoch,
                                                 self.optimal_loss, self.last_epoch == 0)
-        # log_performance("val", self.trained_model, self.device, self.val_loader, self.criterion, self.metric,
-        #                 self.ID, self.writer, self.last_epoch, self.optimal_loss)
         test_loss, test_acc = log_performance("test", self.trained_model, self.device, self.test_loader,
                                               self.criterion, self.metric, self.ID, self.writer,
                                               self.last_epoch, self.optimal_loss, True)

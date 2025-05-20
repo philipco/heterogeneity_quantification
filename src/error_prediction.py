@@ -4,9 +4,9 @@ import argparse
 
 import torch
 
-from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
+from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
-from src.data.NetworkLoader import get_network
+from src.data.Network import get_network
 from src.optim.Algo import federated_training, all_for_all_algo, \
     fednova_training, all_for_one_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
