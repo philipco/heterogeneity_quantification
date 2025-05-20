@@ -43,12 +43,12 @@ def plot_level_set_with_gradients_pytorch(data_loader, x_range=(-10, 10), y_rang
 dataset_name = "synth"
 
 NB_RUN = 1
-NB_EPOCHS = 100
+NB_EPOCHS = 10
 
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["all_for_one_ratio", "fed", "local"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -74,32 +74,24 @@ if __name__ == '__main__':
 
             c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.float32).to(c.device)
 
-        if algo_name == "fed":
-            track_models = federated_training(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
-        if algo_name == "fednova":
-            track_models = fednova_training(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
-        if algo_name == "all_for_all":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
-        if algo_name == "all_for_all_ratio":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio",
+        if algo_name == "FedAvg":
+            federated_training(network, nb_of_synchronization=NB_EPOCHS)
+        if algo_name == "All-for-all":
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS,
+                                                             collab_based_on="ratio", keep_track=True)
+        if algo_name == "Local":
+            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS,
+                                                             collab_based_on="local", keep_track=True)
+        if algo_name == "Fednova":
+            fednova_training(network, nb_of_synchronization=NB_EPOCHS)
+        if algo_name == "All-for-one-bin":
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=False,
                                                              keep_track=True)
-        if algo_name == "local":
-            track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "local",
-                                                             keep_track=True)
-        if algo_name == "all_for_one":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "grad",
-                                                             keep_track=True)
-        if algo_name == "all_for_one_loss":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "loss",
-                                                             keep_track=True)
-        if algo_name == "all_for_one_pdtscl":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "pdtscl",
-                                                             keep_track=True)
-        if algo_name == "all_for_one_ratio":
-            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, collab_based_on = "ratio",
+        if algo_name == "All-for-one-cont":
+            track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=True,
                                                              keep_track=True)
 
-        if not algo_name in ["fed", "fednova"]:
+        if not algo_name in ["FedAvg", "Fednova"]:
             for i in range(len(track_models)):
                 model_X = [t[0][0] for t in track_models[i][:-2]]
                 model_Y = [t[0][1] for t in track_models[i][:-2]]
@@ -131,7 +123,7 @@ if __name__ == '__main__':
         root = get_project_root()
         # Saving the level set figure.
         create_folder_if_not_existing('{0}/pictures/convergence'.format(root))
-        folder = f'{root}/pictures/convergence/{dataset_name}_{algo_name}_b{BATCH_SIZE[dataset_name]}.pdf'
+        folder = f'{root}/pictures/{dataset_name}_{algo_name}_b{BATCH_SIZE[dataset_name]}.pdf'
         plt.savefig(folder, dpi=600, bbox_inches='tight')
         plt.close()
 
