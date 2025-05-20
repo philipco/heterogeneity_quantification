@@ -190,7 +190,7 @@ def test_aggregation_equal_weights():
     # Expected result: sum of each gradient multiplied by its weight
     expected = [torch.tensor([3.0, 6.0]), torch.tensor([9.0, 12.0])]
     for res, exp in zip(result, expected):
-        assert torch.all(res == exp), f"Expected {exp}, but got {res}"
+        assert torch.all(res.to("cpu") == exp), f"Expected {exp}, but got {res}"
 
 
 # Test 2: Aggregation with different weights
@@ -208,7 +208,7 @@ def test_aggregation_different_weights():
     # Expected result: weighted sum of gradients
     expected = [torch.tensor([2.6, 2.6]), torch.tensor([2.6, 2.6, 3.6])]
     for res, exp in zip(result, expected):
-        assert torch.all(res == exp), f"Expected {exp}, but got {res}"
+        assert torch.all(res.to("cpu") == exp), f"Expected {exp}, but got {res}"
 
 
 # Test 3: Check if aggregation does not modify input gradients
