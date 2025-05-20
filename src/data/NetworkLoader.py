@@ -16,7 +16,6 @@ sys.path.insert(0, FLAMBY_PATH)
 from flamby.datasets.fed_heart_disease.dataset import FedHeartDisease
 from flamby.datasets.fed_tcga_brca.dataset import FedTcgaBrca
 from flamby.datasets.fed_ixi import FedIXITiny
-# from flamby.datasets.fed_isic2019.dataset import FedIsic2019
 
 
 DATASET = {"mnist": torchvision.datasets.MNIST, "mnist_iid": torchvision.datasets.MNIST,

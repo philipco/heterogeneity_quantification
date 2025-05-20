@@ -6,11 +6,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
-from src.quantif.Metrics import Metrics
+from src.outofdate.Metrics import Metrics
 from src.utils.Utilities import create_folder_if_not_existing, get_project_root
 from src.utils.UtilitiesNumpy import remove_diagonal, create_matrix_with_zeros_diagonal_from_array
 
-from matplotlib.colors import LinearSegmentedColormap, Normalize, ListedColormap, to_rgba
+from matplotlib.colors import ListedColormap, to_rgba
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",

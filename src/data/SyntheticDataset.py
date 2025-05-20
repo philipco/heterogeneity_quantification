@@ -53,19 +53,3 @@ class SyntheticLSRDataset(IterableDataset):
         print("Mu constant:", mu)
         return lips, mu
 
-class StreamingGaussianDataset(IterableDataset):
-    def __init__(self, means, dim=2, batch_size=32, num_classes=2):
-        self.dim = dim
-        self.num_classes = num_classes
-        self.batch_size = batch_size
-        mean_shift = 2
-        self.means = torch.stack([means[i] * mean_shift * torch.ones(dim) for i in range(num_classes)])
-        self.cov = torch.eye(dim)  # Identity covariance for simplicity
-
-    def __iter__(self):
-        while True:
-            while True:
-                labels = torch.randint(0, self.num_classes, (self.batch_size,))
-                means = self.means[labels]
-                samples = torch.normal(means, torch.ones(self.batch_size, self.num_features))
-                yield samples, labels

@@ -1,9 +1,8 @@
 import pytest
 import torch
 import torch.nn as nn
-from typing import List
 
-from src.optim.PytorchUtilities import aggregate_models, load_new_model
+from src.utils.UtilitiesPytorch import aggregate_models, load_new_model, aggregate_gradients
 
 
 # Dummy model class for testing
@@ -168,11 +167,6 @@ def test_error_different_architectures():
 
     with pytest.raises(KeyError):
         load_new_model(model_to_update, different_model)
-
-
-import pytest
-import torch
-from src.optim.PytorchUtilities import aggregate_gradients
 
 
 # Test 1: Aggregation with equal weights
