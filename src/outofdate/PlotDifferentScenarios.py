@@ -1,17 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
 from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
-from monai.data import DataLoader
 
-from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.preprocessing import PolynomialFeatures
 import matplotlib
-from torch.utils.data import TensorDataset
 
-from src.plot.PlotArrowWithAtomicErrors import plot_arrow_with_atomic_errors
-from src.quantif.AbstractTest import ProportionTest, compute_atomic_errors, RanksumsTest  # , MSE, sigmoid_loss
+from src.outofdate.AbstractTest import ProportionTest, compute_atomic_errors, RanksumsTest  # , MSE, sigmoid_loss
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -131,8 +127,6 @@ def plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, p1, p2, beta1, beta2):
     plt.savefig(f"../../pictures/{scenario}.pdf", dpi=600, bbox_inches='tight')
     plt.close()
 
-
-
 def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, beta1, beta2):
 
     fig, axs = plt.subplots(1, 1, figsize=(4, 4))
@@ -169,8 +163,6 @@ def plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, p1, p2, 
     plt.savefig(f"../../pictures/{scenario}.pdf", dpi=600, bbox_inches='tight')
     plt.close()
 
-
-
 def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
 
     train_set_length = int(len(Y) * split_percent)
@@ -193,23 +185,6 @@ def polynomial_regression(X, Y, beta0, split_percent: int = 0.5):
 
 def MSE(y, ypred):
     return (y - ypred)**2 / 2
-
-def sigmoid_loss(y, y_pred):
-    return np.log(1 + np.exp(-y * y_pred))
-
-
-def logistic_regression(X, Y, beta0, split_percent: int = 0.5):
-    train_set_length = int(len(Y) * split_percent)
-
-    log_reg = LogisticRegression(penalty=None)
-
-    log_reg.fit(X[:train_set_length], Y[:train_set_length])
-
-    atomic_errors = compute_atomic_errors(log_reg, X[train_set_length:], Y[train_set_length:],
-                                          loss=sigmoid_loss)
-    q0 = np.quantile(atomic_errors, beta0, method="higher")
-    return None, q0, atomic_errors
-
 
 def compute_pvalue(remote_poly_reg, q0, X, Y, beta0, split_percent: int = 0.5, log: bool = False):
 
@@ -273,39 +248,8 @@ def quantile_test_on_two_models(scenario, X1, Y1, X2, Y2, beta0: int, split_perc
     beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue_ranksum(poly_reg1, poly_reg2, X1, Y1, X2, Y2, split_percent,
                                                               plot)
 
-    # beta_estimator1, pvalue1, atomic_errors1 = compute_pvalue(poly_reg2, q0_1, X1, Y1, beta0, split_percent,
-    #                                                           plot)
-    #
-    # # We share model 1 with client 2.
-    # beta_estimator2, pvalue2, atomic_errors2 = compute_pvalue(poly_reg1, q0_2, X2, Y2, beta0, split_percent,
-    #                                                           plot)
-
-    # if plot:
-        # q0_1 = quantile de local_atomic_errors1
-        # plot_arrow_with_atomic_errors(local_atomic_errors1, atomic_errors1, beta0,
-        #                               pvalue=pvalue1, main_client=1, name=f"{scenario}_quantiles1")
-        # plot_arrow_with_atomic_errors(local_atomic_errors2, atomic_errors2, beta0,
-        #                               pvalue=pvalue2, main_client=2, name=f"{scenario}_quantiles2")
-
-        # if scenario == "classification":
-        #     plot_classif_and_pvalue(scenario, X1, Y1, X2, Y2, pvalue1, pvalue2, beta_estimator1, beta_estimator2)
-        # else:
-        #     plot_reg_and_pvalue(scenario, poly_reg1, poly_reg2, X1, Y1, X2, Y2, pvalue1, pvalue2,
-        #                         beta_estimator1, beta_estimator2)
     return pvalue1, pvalue1
 
-
-# def plot_atomic_errors(atomic_errors1, atomic_errors2, q0):
-#     # Showing the atomic errors on a line.
-#     ones = np.ones(np.shape(atomic_errors1))  # Make all y values the same
-#     plt.plot(np.log10(atomic_errors1), ones, marker="x", lw=2, ms=10,
-#              label="Client 1")  # Plot a line at each location specified in a
-#     plt.plot(np.log10(atomic_errors2), 2 * ones, marker="x", lw=2, ms=10,
-#              label="Client 2")  # Plot a line at each location specified in a
-#     plt.plot([np.log10(q0)], [1], marker="o", ms=10, color="black", label="q0")
-#     plt.plot([np.log10(q0)], [2], marker="o", ms=10, color="black")
-#     plt.legend()
-#     plt.show()
 
 def algo(scenario: str, beta0: int, split_percent: int, nb_run: int = 100, plot: bool = False):
 

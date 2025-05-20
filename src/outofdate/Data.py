@@ -48,8 +48,6 @@ class DataCentralized(Data):
 
 
 
-
-
 def compute_Y_distribution(labels: List[np.array]) -> np.array:
     nb_labels = len(np.unique(np.concatenate(labels)))
     return [np.array([(l == y).sum() / len(l) for y in range(nb_labels)]) for l in labels]

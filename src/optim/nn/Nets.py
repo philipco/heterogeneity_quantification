@@ -40,38 +40,6 @@ class LeNet(nn.Module):
         return out
 
 
-class GoogleNetTransferLearning(nn.Module):
-    def __init__(self):
-        super(GoogleNetTransferLearning, self).__init__()
-
-        freeze = True
-
-        # Load pretrained ResNet50
-        self.model = models.googlenet(pretrained=True, aux_logits=False)
-
-        if hasattr(self.model, 'fc'):  # for models like ResNet, GoogLeNet
-            num_ftrs = self.model.fc.in_features
-            self.model.fc = nn.Linear(num_ftrs, 10)
-        elif hasattr(self.model, 'classifier'):  # for models like VGG, AlexNet
-            num_ftrs = self.model.classifier[-1].in_features
-            self.model.classifier[-1] = nn.Linear(num_ftrs, 10)
-        else:
-            raise AttributeError(f"Pretrained model does not have a recognizable final layer (fc or classifier).")
-
-
-        # Optionally freeze all layers except the final one
-        if freeze:
-            for param in self.model.parameters():
-                param.requires_grad = False
-
-            # Unfreeze only the final layer for training
-            for param in self.model.fc.parameters():
-                param.requires_grad = True
-
-    def forward(self, x):
-        return self.model(x)
-
-
 class LogisticRegression(nn.Module):
     def __init__(self, input_size: int):
         super(LogisticRegression, self).__init__()
@@ -80,17 +48,6 @@ class LogisticRegression(nn.Module):
     def forward(self, x):
         return torch.sigmoid(self.linear(x))
 
-
-class TwoLayerRegression(nn.Module):
-    def __init__(self, input_size: int):
-        super(TwoLayerRegression, self).__init__()
-        self.linear = nn.Linear(input_size, 16)
-        self.activation = nn.ReLU()
-        self.hidden = nn.Linear(16, 1)
-
-    def forward(self, x):
-        y = self.linear(x)#.flatten()
-        return self.hidden(self.activation(y))
 
 class HeartDiseaseRegression(LogisticRegression):
     def __init__(self):
@@ -109,14 +66,6 @@ class LiquidAssetRegression(nn.Module):
         out = F.elu(self.l2(out))
         return self.last(out)
 
-
-class SynthDataRegression(nn.Module):
-    def __init__(self):
-        super(SynthDataRegression, self).__init__()
-        self.linear = nn.Linear(1, 1)
-
-    def forward(self, x):
-        return self.linear(x**2)#.flatten()
 
 class Synth2ClientsRegression(nn.Module):
     def __init__(self):
@@ -139,14 +88,6 @@ class TcgaRegression(LinearRegression):
     def __init__(self):
         super(TcgaRegression, self).__init__(39)
 
-
-class LR_CIFAR10(nn.Module):
-    def __init__(self):
-        super(LR_CIFAR10, self).__init__()
-        self.linear = nn.Linear(3072, 1)
-
-    def forward(self, x):
-        return self.linear(x.flatten(start_dim=1))
 
 class CNN_CIFAR10(nn.Module):
     def __init__(self):
