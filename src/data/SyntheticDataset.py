@@ -19,9 +19,9 @@ class SyntheticLSRDataset(IterableDataset):
         self.true_theta = true_theta
         self.variation = variation
 
-        self.eigenvalues = torch.FloatTensor([1 for i in range(1, self.dim + 1)[::-1]])
+        self.eigenvalues = torch.DoubleTensor([1 for i in range(1, self.dim + 1)[::-1]])
         self.covariance = torch.diag(self.eigenvalues)
-        self.ortho_matrix = torch.FloatTensor(ortho_group.rvs(dim=self.dim))
+        self.ortho_matrix = torch.DoubleTensor(ortho_group.rvs(dim=self.dim))
         self.covariance = self.ortho_matrix @ self.covariance @ self.ortho_matrix.T
 
         self.batch_size = batch_size
@@ -31,7 +31,7 @@ class SyntheticLSRDataset(IterableDataset):
 
     def __iter__(self):
         while True:
-            X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
+            X = torch.DoubleTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
 
             noise = torch.normal(mean=0, std=self.noise_std, size=(self.batch_size, ))
             y = X @ self.true_theta #+ noise  # Generate targets
@@ -44,7 +44,7 @@ class SyntheticLSRDataset(IterableDataset):
         cov = torch.zeros((self.dim, self.dim))
         nb_samples = 10**4
         for k in range(nb_samples):
-            X = torch.FloatTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
+            X = torch.DoubleTensor(multivariate_normal(torch.zeros(self.dim), self.covariance, size=self.batch_size))
             cov += X.T.mm(X) / self.batch_size
         lips = 2 * torch.linalg.svd(cov / nb_samples).S[0].item()
         # lips = 2 * torch.norm(cov / nb_samples, p=2).item()

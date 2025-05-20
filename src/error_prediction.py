@@ -2,6 +2,8 @@
 
 import argparse
 
+import torch
+
 from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.NetworkLoader import get_network
@@ -32,6 +34,10 @@ if __name__ == '__main__':
     print(f"### ================== DATASET: {dataset_name} ================== ###")
 
     nb_epochs = NB_EPOCHS[dataset_name]
+
+    # We double the torch precision because for synthetic data, the loss is sometimes set to 0 while it should be 10^-12.
+    if "synth" in dataset_name:
+        torch.set_default_dtype(torch.float64)
 
     all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
 
