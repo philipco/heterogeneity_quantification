@@ -18,8 +18,6 @@ We put forward two collaboration methods instantiating the proposed general sche
 preserves the optimality of $\texttt{All-for-one}$.  We validate our results with experiments on synthetic and real 
 datasets.
 
-
-
 ## Running experiments
 
 Run the following commands to generate the illustrative figures in the article.
@@ -28,19 +26,21 @@ Run the following commands to generate the illustrative figures in the article.
 
 ```python3 -m src.PlotSufficientClusters```
 
+<p float="left">
+  <img src="pictures_for_README/synth_complex/sufficient_clusters.png" alt="sufficient_clusters" width="400"/>
+</p>
+
 ### Figure 2
 
 Epoch index on the X-axis,  logarithm of the test loss on the Y-axis.
 
-Goal: illustrate the impact of the sampled Gaussian matrices Phi on the convergence rate.
-
 **Left**: $d=2$. **Right**: $d=10$.
 
 <p float="left">
-  <img src="pictures_for_README/synth/log(Test loss)_b1_LRNone_m0.png" alt="Condition number on X-axis, loss 
-on Y-axis, without noise" width="400"/>
-  <img src="pictures_for_README/synth_complex/log(Test loss)_b1_LRNone_m0.png" alt="Condition number on X-axis, 
-loss on Y-axis, with noise" width="400"/>
+  <img src="pictures_for_README/synth/log(Test loss)_b1_LRNone_m0.png" alt="Epoch index on X-axis, loss 
+on Y-axis, d=2" width="400"/>
+  <img src="pictures_for_README/synth_complex/log(Test loss)_b1_LRNone_m0.png" alt="Epoch index on X-axis, loss 
+on Y-axis, d=10" width="400"/>
 </p>
 
 
@@ -52,16 +52,13 @@ loss on Y-axis, with noise" width="400"/>
 
 Epoch index on the X-axis,  logarithm of the test loss on the Y-axis.
 
-Goal: illustrate on real-life datasets how the algorithm behaves in practice.
-
-
 **Left to right**: (a) mnist, (b) cifar10, (c) heart disease and (d) ixi.
 
 <p float="left">
-  <img src="pictures_for_README/mnist/log(Test loss)_b64_LR0.1_m0.0.png" alt="synthethic" width="200"/>
-  <img src="pictures_for_README/cifar10/log(Test loss)_b64_LR0.1_m0.9.png" alt="w8a" width="200"/>
-  <img src="pictures_for_README/heart_disease/log(Test loss)_b1_LR0.05_m0.png" alt="mnist" width="200"/>
-  <img src="pictures_for_README/ixi/log(Test loss)_b8_LR0.01_m0.9.png" alt="celeba" width="200"/>
+  <img src="pictures_for_README/mnist/log(Test loss)_b64_LR0.1_m0.0.png" alt="mnist" width="200"/>
+  <img src="pictures_for_README/cifar10/log(Test loss)_b64_LR0.1_m0.9.png" alt="cifar10" width="200"/>
+  <img src="pictures_for_README/heart_disease/log(Test loss)_b1_LR0.05_m0.png" alt="heart_disease" width="200"/>
+  <img src="pictures_for_README/ixi/log(Test loss)_b8_LR0.01_m0.9.png" alt="ixi" width="200"/>
 </p>
 
 
@@ -96,9 +93,9 @@ If the GPU is not find:
 ## Requirements
 
 Using pip:
-```pip install -c conda-forge -r requirements.txt python=3.7```. 
+```pip install -c conda-forge -r requirements.txt python=3.11.7```. 
 
-Or to create a conda environment: ```conda create -c conda-forge --name matrix_factorisation --file requirements.txt python=3.7```.
+Or to create a conda environment: ```conda create -c conda-forge --name adaptative_collaboration --file requirements.txt python=3.11.7```.
 
 ## Maintainers
 
