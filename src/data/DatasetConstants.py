@@ -1,5 +1,3 @@
-"""Created by Constantin Philippenko, 12th May 2022."""
-
 import torchvision
 import torch.nn as nn
 from torch.nn import MSELoss

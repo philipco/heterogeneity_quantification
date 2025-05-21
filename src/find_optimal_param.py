@@ -1,4 +1,7 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
+"""
+Script to tune training's settings.
+"""
+
 import numpy as np
 import optuna
 from functools import partial
@@ -6,8 +9,8 @@ import argparse
 
 from transformers import AutoModelForMultipleChoice
 
-from src.data.NetworkLoader import get_network
-from src.optim.Algo import all_for_all_algo, all_for_one_algo
+from src.data.Network import get_network
+from src.optim.Algo import all_for_one_algo
 from src.data.DatasetConstants import MODELS, CHECKPOINT
 
 

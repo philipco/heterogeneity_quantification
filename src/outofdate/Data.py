@@ -1,4 +1,3 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
 from typing import List
 
 import numpy as np

@@ -1,4 +1,3 @@
-"""Created by Constantin Philippenko, 30th September 2022."""
 import math
 
 import numpy as np

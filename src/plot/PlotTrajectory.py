@@ -1,18 +1,17 @@
-"""Created by Constantin Philippenko, 18th February 2025."""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
 from src.data.DatasetConstants import BATCH_SIZE
-from src.data.NetworkLoader import get_network
-from src.optim.Algo import all_for_one_algo, all_for_all_algo, federated_training, fednova_training
+from src.data.Network import get_network
+from src.optim.Algo import all_for_one_algo, all_for_all_algo, fedavg_training, fednova_training
 
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 
+torch.set_default_dtype(torch.float64)
 
 def plot_level_set_with_gradients_pytorch(data_loader, x_range=(-10, 10), y_range=(-10, 10), num_points=200):
     """
@@ -60,7 +59,7 @@ if __name__ == '__main__':
     for algo_name in all_algos:
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
-        network = get_network(dataset_name, algo_name, nb_initial_epochs)
+        network = get_network(dataset_name, algo_name)
         if client_X is None:
             client_X, client_Y, client_Z = ([None for _ in network.clients] for _ in range(3))
 
@@ -72,10 +71,10 @@ if __name__ == '__main__':
             plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.01, 0.1, 1, 3, 7, 9, 15, 30], alpha=0.75)
                         #colors=COLORS[i], alpha=0.75)
 
-            c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.float32).to(c.device)
+            c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.double).to(c.device)
 
         if algo_name == "FedAvg":
-            federated_training(network, nb_of_synchronization=NB_EPOCHS)
+            fedavg_training(network, nb_of_synchronization=NB_EPOCHS)
         if algo_name == "All-for-all":
             track_models, track_gradients = all_for_all_algo(network, nb_of_synchronization=NB_EPOCHS,
                                                              collab_based_on="ratio", keep_track=True)

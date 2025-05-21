@@ -1,14 +1,15 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
+"""
+Main script to run all experiments provided in the paper.
+"""
 
 import argparse
 
 import torch
 
-from src.data.Dataset import do_prediction_liquid_asset, load_liquid_dataset_test
+from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
-from src.data.NetworkLoader import get_network
-from src.optim.Algo import federated_training, all_for_all_algo, \
-    fednova_training, all_for_one_algo
+from src.data.Network import get_network
+from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
@@ -54,16 +55,16 @@ if __name__ == '__main__':
         network = get_network(dataset_name, algo_name)
 
         if algo_name == "FedAvg":
-            federated_training(network, nb_of_synchronization=nb_epochs)
-        if algo_name == "All-for-all":
-            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on = "ratio")
-        if algo_name == "Local":
+            fedavg_training(network, nb_of_synchronization=nb_epochs)
+        elif algo_name == "All-for-all":
+            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="ratio")
+        elif algo_name == "Local":
             all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
-        if algo_name == "Fednova":
+        elif algo_name == "Fednova":
             fednova_training(network, nb_of_synchronization=nb_epochs)
-        if algo_name == "All-for-one-bin":
+        elif algo_name == "All-for-one-bin":
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
-        if algo_name == "All-for-one-cont":
+        elif algo_name == "All-for-one-cont":
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
 
         for client in network.clients:
@@ -80,11 +81,10 @@ if __name__ == '__main__':
             weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
             ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
 
-
-    plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
-    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_accuracies, all_algos, 'Train accuracy', dataset_name)
+    plot_values(train_epochs, train_losses, all_algos, 'log(Train loss)', dataset_name, log=True)
+    plot_values(test_epochs, test_accuracies, all_algos, 'Test accuracy', dataset_name)
+    plot_values(test_epochs, test_losses, all_algos, 'log(Test loss)', dataset_name, log=True)
 
     for algo_name in all_algos:
         if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all"]:

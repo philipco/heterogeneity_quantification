@@ -1,5 +1,3 @@
-"""Created by Constantin Philippenko, 20th April 2022."""
-
 import numpy as np
 import scipy
 from numpy import linalg as LA

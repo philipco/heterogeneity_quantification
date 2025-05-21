@@ -1,10 +1,9 @@
 import glob
 import os
 
-from src.data.NetworkLoader import get_network
 from src.utils.LoggingWriter import LoggingWriter
 from src.utils.PlotUtilities import plot_values, plot_weights
-from src.utils.Utilities import get_project_root, create_folder_if_not_existing
+from src.utils.Utilities import get_project_root
 
 
 if __name__ == '__main__':
