@@ -16,17 +16,13 @@ def write_grad(trained_model, writer, last_epoch):
             writer.add_histogram(f'{name}.grad', param.grad, last_epoch)
 
 
-def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch, optimal_loss, full_batch=False):
+def log_performance(name: str, net, device, loader, criterion, metric, client_ID, writer, epoch, full_batch=False):
     # WARNING : For tcga_brca, we need to evaluate the metric on the full dataset.
     epoch_loss, epoch_accuracy = compute_loss_and_accuracy(net, device, loader, criterion, metric,
                                                            full_batch)
     # Writing logs.
-    if optimal_loss:
-        writer.add_scalar(f'{name}_loss', epoch_loss-optimal_loss, epoch)
-        writer.add_scalar(f'{name}_accuracy', epoch_accuracy-optimal_loss, epoch)
-    else:
-        writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
-        writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
+    writer.add_scalar(f'{name}_loss', epoch_loss, epoch)
+    writer.add_scalar(f'{name}_accuracy', epoch_accuracy, epoch)
     writer.close()
     return epoch_loss, epoch_accuracy
 
