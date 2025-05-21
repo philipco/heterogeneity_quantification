@@ -120,6 +120,6 @@ class SyntheticLSRDataset(IterableDataset):
 
         # Strong convexity = 2 * smallest eigenvalue
         mu = 2 * torch.linalg.svd(cov).S[-1].item()
-        print("Strong convexity constant (μ):", mu)
+        print("Strong convexity constant:", mu)
 
         return lips, mu

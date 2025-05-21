@@ -8,6 +8,10 @@ from src.data.DatasetConstants import NB_CLIENTS
 from src.data.SyntheticDataset import SyntheticLSRDataset
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
+"""
+Generate Figure 1 in the paper. 
+Plot the size of the sufficient cluster using synthetic data.
+"""
 
 matplotlib.rcParams.update({
     "pgf.texsystem": "pdflatex",
@@ -19,10 +23,10 @@ matplotlib.rcParams.update({
 
 torch.set_default_dtype(torch.float64)
 
-def compute_effective_variance(datasets, lbda, epsilon):
+def compute_sufficient_variance(datasets, lbda, epsilon):
     nb_clients = len(datasets)
     b, c = [[] for _ in range(nb_clients)], [[] for _ in range(nb_clients)]
-    effective_cluster = [0 for _ in range(nb_clients)]
+    sufficient_cluster = [0 for _ in range(nb_clients)]
     for i in range(nb_clients):
         A, xi, mu  = datasets[i].covariance, datasets[i].variation, datasets[i].mu
         prod = A @ xi
@@ -34,8 +38,8 @@ def compute_effective_variance(datasets, lbda, epsilon):
             b[i].append(bik)
             c[i].append(cik)
             if lbda <= 1 - bik / (2 * mu * epsilon) - cik:
-                effective_cluster[i] += 1
-    return effective_cluster, b, c
+                sufficient_cluster[i] += 1
+    return sufficient_cluster, b, c
 
 COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:green', 'tab:brown', 'tab:purple']
 MARKERS = ['o', 's', 'D', '^', 'v', '<']
@@ -64,12 +68,12 @@ for v in intra_var:
     # Create datasets and compute Lipschitz constant
     datasets = [SyntheticLSRDataset(m, v, batch_size) for (m, v) in zip(true_theta, variations)]
 
-    # Compute the effective variance.
+    # Compute the sufficient variance.
     for l in lambdas:
         len_clusters = []
         for power in powers:
-            effective_cluster, b, c = compute_effective_variance(datasets, lbda=l, epsilon=10**power)
-            len_clusters.append([effective_cluster[0], effective_cluster[1]])
+            sufficient_cluster, b, c = compute_sufficient_variance(datasets, lbda=l, epsilon=10**power)
+            len_clusters.append([sufficient_cluster[0], sufficient_cluster[1]])
         axes.plot(powers, [int(l[0]) for l in len_clusters], label=rf"$v={v}$", linewidth=2, color=COLORS[idx], marker=MARKERS[idx])
 
 axes.legend(loc="upper right",fontsize=FONTSIZE)
@@ -88,4 +92,4 @@ axes.yaxis.set_major_formatter(formatter)
 root = get_project_root()
 folder = f'{root}/pictures/{dataset_name}'
 create_folder_if_not_existing(folder)
-plt.savefig(f"{folder}/effective_clusters.pdf", bbox_inches='tight', dpi=600)
+plt.savefig(f"{folder}/sufficient_clusters.pdf", bbox_inches='tight', dpi=600)

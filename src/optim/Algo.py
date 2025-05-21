@@ -317,7 +317,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuou
         return track_models, track_gradients
 
 def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False,
-                     keep_track=False, collab_based_on="loss"):
+                     keep_track=False, collab_based_on=None):
     try:
         inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
     except TypeError:
