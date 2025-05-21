@@ -1,5 +1,3 @@
-"""Created by Constantin Philippenko, 16th July 2024."""
-
 from abc import ABC, abstractmethod
 
 import numpy as np

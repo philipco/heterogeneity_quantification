@@ -1,4 +1,6 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
+"""
+Main script to run all experiments provided in the paper.
+"""
 
 import argparse
 

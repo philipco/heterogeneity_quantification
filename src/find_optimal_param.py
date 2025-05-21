@@ -1,4 +1,7 @@
-"""Created by Constantin Philippenko, 29th September 2022."""
+"""
+Script to tune training's settings.
+"""
+
 import numpy as np
 import optuna
 from functools import partial

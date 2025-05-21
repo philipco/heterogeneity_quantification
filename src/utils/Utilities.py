@@ -1,6 +1,5 @@
-"""Utility functions for path management, file operations, memory usage monitoring, and reproducibility setup.
-
-Created by Constantin Philippenko, 5th April 2022.
+"""
+Utility functions for path management, file operations, memory usage monitoring, and reproducibility setup.
 """
 
 import os

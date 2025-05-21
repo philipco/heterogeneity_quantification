@@ -1,6 +1,4 @@
 """
-Created by Philippenko.
-
 This class contains the data processing for datasets used in a deeplearning environment that are not classical
 (e.g. QRT Data Challenge).
 """

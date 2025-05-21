@@ -1,5 +1,3 @@
-"""Created by Constantin Philippenko, 5th April 2022."""
-
 import os
 import pickle
 
