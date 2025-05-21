@@ -7,8 +7,7 @@ import torch
 from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
-from src.optim.Algo import federated_training, all_for_all_algo, \
-    fednova_training, all_for_one_algo
+from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
@@ -54,16 +53,16 @@ if __name__ == '__main__':
         network = get_network(dataset_name, algo_name)
 
         if algo_name == "FedAvg":
-            federated_training(network, nb_of_synchronization=nb_epochs)
-        if algo_name == "All-for-all":
-            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on = "ratio")
-        if algo_name == "Local":
+            fedavg_training(network, nb_of_synchronization=nb_epochs)
+        elif algo_name == "All-for-all":
+            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="ratio")
+        elif algo_name == "Local":
             all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
-        if algo_name == "Fednova":
+        elif algo_name == "Fednova":
             fednova_training(network, nb_of_synchronization=nb_epochs)
-        if algo_name == "All-for-one-bin":
+        elif algo_name == "All-for-one-bin":
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
-        if algo_name == "All-for-one-cont":
+        elif algo_name == "All-for-one-cont":
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
 
         for client in network.clients:
