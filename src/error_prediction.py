@@ -80,11 +80,10 @@ if __name__ == '__main__':
             weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
             ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
 
-
-    plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
-    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_accuracies, all_algos, 'Train accuracy', dataset_name)
+    plot_values(train_epochs, train_losses, all_algos, 'log(Train loss)', dataset_name, log=True)
+    plot_values(test_epochs, test_accuracies, all_algos, 'Test accuracy', dataset_name)
+    plot_values(test_epochs, test_losses, all_algos, 'log(Test loss)', dataset_name, log=True)
 
     for algo_name in all_algos:
         if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all"]:
