@@ -18,6 +18,20 @@ We put forward two collaboration methods instantiating the proposed general sche
 preserves the optimality of $\texttt{All-for-one}$.  We validate our results with experiments on synthetic and real 
 datasets.
 
+## Project structure.
+
+- ```pickle```: Serialized .pkl files containing training and test accuracy/loss logs.
+- ```pictures```: Automatically generated figures used in the paper.
+- ```pictures_for_README```: Selected figures included in this README.
+- ```runs```: TensorBoard logs for experiment monitoring.
+- ```src```: Source code directory.
+  - ```data```: Data preprocessing and client network generation.
+  - ```optim```: Training procedures and optimization algorithms.
+  - ```plot```: Scripts for generating all plots and figures.
+  - ```utils```: Utility functions shared across modules.
+  - ```run_experiments.py```: Entry point script to run experiments on a specified dataset.
+- ```test```: Unit tests for key PyTorch functions.
+
 ## Running experiments
 
 Run the following commands to generate the illustrative figures in the article.
