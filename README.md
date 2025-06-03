@@ -1,8 +1,8 @@
 # Adaptive collaboration for online personalized distributed learning with heterogeneous clients
 We present here the code of the experimental parts of the following paper:
 ```
-Constantin Philippenko, Batiste Le Bars, Kevin Scaman and Laurent Massoulié, Adaptive collaboration for online personalized
-distributed learning with heterogeneous clients, 2025.
+Constantin Philippenko, Batiste Le Bars, Kevin Scaman and Laurent Massoulié, 
+Adaptive collaboration for online personalized distributed learning with heterogeneous clients, 2025.
 ```
 
 We study the problem of online personalized decentralized learning with $N$ statistically heterogeneous clients 
@@ -103,7 +103,7 @@ If the GPU is not find:
 2. Kill them.
 3. ```sudo rmmod nvidia_uvm```
 4. ```sudo modprobe nvidia_uvm```
-5. 
+
 ## Requirements
 
 Using pip:

@@ -9,7 +9,7 @@ import torch
 from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
-from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training
+from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
@@ -49,7 +49,8 @@ if __name__ == '__main__':
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
-        assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova"], "Algorithm not recognized."
+        assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
+                             "Cobo", "Ditto"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         network = get_network(dataset_name, algo_name)
@@ -66,6 +67,10 @@ if __name__ == '__main__':
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
         elif algo_name == "All-for-one-cont":
             all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
+        elif algo_name == "Cobo":
+            cobo_algo(network, nb_of_synchronization=nb_epochs)
+        elif algo_name == "Ditto":
+            ditto_algo(network, nb_of_synchronization=nb_epochs)
 
         for client in network.clients:
             writer = client.writer
@@ -87,7 +92,7 @@ if __name__ == '__main__':
     plot_values(test_epochs, test_losses, all_algos, 'log(Test loss)', dataset_name, log=True)
 
     for algo_name in all_algos:
-        if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all"]:
+        if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Cobo"]:
             plot_weights(weights[algo_name], dataset_name, algo_name)#, x_axis=test_accuracies[algo_name])
 
     if dataset_name in ["liquid_asset"]:

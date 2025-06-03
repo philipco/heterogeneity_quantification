@@ -20,6 +20,10 @@ def scalar_multiplication(model, scalar):
     return new_model
 
 
+def scalar_product(g1_list: list[torch.Tensor], g2_list: list[torch.Tensor]) -> torch.Tensor:
+    return sum(torch.sum(g1 * g2) for g1, g2 in zip(g1_list, g2_list))
+
+
 def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module) -> None:
     """Updates the parameters of `model_to_update` with the parameters of `new_model`.
     This function replaces each parameter in `model_to_update` with the corresponding parameter from `new_model`.
@@ -52,7 +56,7 @@ def load_new_model(model_to_update: torch.nn.Module, new_model: torch.nn.Module)
             model_to_update.state_dict()[name].copy_(new_model.state_dict()[name].data.clone())
 
 
-def aggregate_models(models: List[torch.nn.Module], weights: List[int], device: str) \
+def aggregate_models(models: List[torch.nn.Module], weights: List[float], device: str) \
         -> torch.nn.Module:
     """Aggregates the parameters of multiple PyTorch models by weighted summation and return it.
 
@@ -133,8 +137,6 @@ def aggregate_gradients(gradients_list, weights, device):
                     print(f"j: {j}")
                     print(f"weights: {weights}")
                     print(f"len: {len(aggregated_gradients)}")
-
-
 
     return aggregated_gradients
 

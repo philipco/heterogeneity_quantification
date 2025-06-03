@@ -21,9 +21,11 @@ import time
 import numpy as np
 import optuna
 import torch
+from torch import optim
 
 from src.data.Network import Network
-from src.utils.UtilitiesPytorch import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
+from src.utils.UtilitiesPytorch import aggregate_models, equal, load_new_model, aggregate_gradients, \
+    fednova_aggregation, scalar_multiplication
 from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation
 from src.utils.Utilities import print_mem_usage
 
@@ -578,3 +580,137 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         return track_models, track_gradients
 
 
+def cobo_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
+    """https://proceedings.neurips.cc/paper_files/paper/2024/file/1c32452f112719f7c1db6d983d060f78-Paper-Conference.pdf"""
+
+    # Compute average number of local iterations per synchronization round
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
+
+    # Compute normalized weights for weighted global evaluation
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    # Evaluate initial global performance (before training)
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
+    for client in network.clients:
+        client.write_train_val_test_performance()
+
+    # Optionally track model states and gradients
+    if keep_track:
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
+        track_gradients = [[] for _ in network.clients]
+
+    # Create an iterator over each client's training data for each model being evaluated.
+    iter_loaders = [[iter(client.train_loader) for client in network.clients] for client in network.clients]
+
+    for synchronization_idx in range(1, nb_of_synchronization + 1):
+        print(f"===============\tEpoch {synchronization_idx}\t===============")
+        start_time = time.time()
+
+        weights = {_: [1 for e in range(network.nb_clients)] for _ in range(network.nb_clients)}
+
+        # Compute personalized weights for each client based on gradient similarity.
+        for client_idx in range(network.nb_clients):
+            # gradients_eval = {_: None for _ in range(network.nb_clients)}
+            client = network.clients[client_idx]
+
+            # Evaluate gradients of client's model on each other client's data.
+            for c_idx in range(network.nb_clients):
+                if c_idx == client_idx:
+                    continue
+                c = network.clients[c_idx]
+
+                average_model = aggregate_models([client.trained_model, c.trained_model],
+                                                 [0.5, 0.5], client.device)
+                optimizer = optim.SGD(average_model.parameters(), lr=0,
+                                      momentum=0, weight_decay=0)
+                gradient_i, iter_loaders[client_idx][client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx][client_idx], client.device,
+                    average_model, client.criterion, optimizer, client.scheduler
+                )
+                gradient_k, iter_loaders[client_idx][c_idx] = safe_gradient_computation(
+                    c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                    average_model, c.criterion, optimizer, c.scheduler
+                )
+
+                # Choice of gamma as in the original repository.
+                # See https://github.com/epfml/CoBo/blob/main/personalized-vision-models/grouping.py#L187
+                gamma = 0.01
+                g_i = torch.concat([p.flatten() for p in gradient_i if p is not None])
+                g_k = torch.concat([p.flatten() for p in gradient_i if p is not None])
+                weights[client_idx][c_idx] = torch.clamp(weights[client_idx][c_idx] + gamma * g_i.T @ g_k, 0, 1)
+
+        for k in range(inner_iterations):
+            # Compute the new model client by client.
+            grad_time = time.time()
+            # Save models at previous iteration
+            models = [_.trained_model for _ in network.clients]
+
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+                # We need now only N iterators.
+                gradient, iter_loaders[client_idx][client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx][client_idx], client.device,
+                    client.trained_model, client.criterion, client.optimizer, client.scheduler
+                )
+
+                client = network.clients[client_idx]
+
+                aggregated_models = aggregate_models(
+                    [aggregate_models([models[client_idx], m], [1, -1], client.device) for m in models],
+                    weights, client.device)
+
+                # Aggregate the gradients using the computed weights.
+                rho = 1 / client.step_size
+                momentum = [p.data for p in scalar_multiplication(aggregated_models, rho).parameters()]
+                aggregated_gradients = gradient + momentum
+
+                # Apply gradient update to the client's model.
+                update_model(client.trained_model, aggregated_gradients, client.optimizer)
+
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
+
+            print(f"Gradients computation time: {time.time() - grad_time} seconds")
+
+        perf_time = time.time()
+
+        # Evaluate clients' performance and update learning rates.
+        for i in range(network.nb_clients):
+            client = network.clients[i]
+            client.last_epoch += 1
+            client.write_train_val_test_performance()
+
+        for client in network.clients:
+            client.scheduler.step()
+
+        # Evaluate performance on the central server.
+        loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+
+        network.save()
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
+
+        # Early stopping for hyperparameter search via Optuna.
+        if pruning:
+            if network.trial.should_prune():
+                raise optuna.TrialPruned()
+
+        # Cleanup GPU memory.
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
+    if keep_track:
+        return track_models, track_gradients
