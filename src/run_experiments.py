@@ -9,7 +9,8 @@ import torch
 from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_dataset_test
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
-from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo
+from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo, \
+    waffle_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets, set_seed
 
@@ -41,53 +42,56 @@ if __name__ == '__main__':
         torch.set_default_dtype(torch.float64)
 
     all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo"]
+    all_seeds = [127, 496, 1729] # Mersenne number, Perfect number, Ramanujan number
 
-    train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
-        algo: [] for algo in all_algos}
-    test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
-        algo: [] for algo in all_algos}
-    weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
+    def dict(all_algos, all_seeds):
+        return {algo: {s: [] for s in all_seeds} for algo in all_algos}
+
+    train_epochs, train_losses, train_accuracies = dict(all_algos, all_seeds), dict(all_algos, all_seeds), dict(all_algos, all_seeds)
+    test_epochs, test_losses, test_accuracies = dict(all_algos, all_seeds), dict(all_algos, all_seeds), dict(all_algos, all_seeds)
+    weights, ratio = dict(all_algos, all_seeds), dict(all_algos, all_seeds)
     
     for algo_name in all_algos:
 
-        set_seed(0)
-
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
-                             "Cobo", "Ditto"], "Algorithm not recognized."
+                             "Cobo", "Ditto", "Waffle"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
-        network = get_network(dataset_name, algo_name)
+        for initial_seed in all_seeds:
+            network = get_network(dataset_name, algo_name, initial_seed)
 
-        if algo_name == "FedAvg":
-            fedavg_training(network, nb_of_synchronization=nb_epochs)
-        elif algo_name == "All-for-all":
-            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="ratio")
-        elif algo_name == "Local":
-            all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
-        elif algo_name == "Fednova":
-            fednova_training(network, nb_of_synchronization=nb_epochs)
-        elif algo_name == "All-for-one-bin":
-            all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
-        elif algo_name == "All-for-one-cont":
-            all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
-        elif algo_name == "Cobo":
-            cobo_algo(network, nb_of_synchronization=nb_epochs)
-        elif algo_name == "Ditto":
-            ditto_algo(network, nb_of_synchronization=nb_epochs)
+            if algo_name == "FedAvg":
+                fedavg_training(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "All-for-all":
+                all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="ratio")
+            elif algo_name == "Local":
+                all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
+            elif algo_name == "Fednova":
+                fednova_training(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "All-for-one-bin":
+                all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
+            elif algo_name == "All-for-one-cont":
+                all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=True)
+            elif algo_name == "Cobo":
+                cobo_algo(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "Ditto":
+                ditto_algo(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "Waffle":
+                waffle_algo(network, nb_of_synchronization=nb_epochs)
 
-        for client in network.clients:
-            writer = client.writer
+            for client in network.clients:
+                writer = client.writer
 
-            train_epochs[algo_name].append(writer.retrieve_information("train_accuracy")[0])
-            train_accuracies[algo_name].append(writer.retrieve_information("train_accuracy")[1])
-            train_losses[algo_name].append(writer.retrieve_information("train_loss")[1])
+                train_epochs[algo_name][initial_seed].append(writer.retrieve_information("train_accuracy")[0])
+                train_accuracies[algo_name][initial_seed].append(writer.retrieve_information("train_accuracy")[1])
+                train_losses[algo_name][initial_seed].append(writer.retrieve_information("train_loss")[1])
 
-            test_epochs[algo_name].append(writer.retrieve_information("test_accuracy")[0])
-            test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
-            test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
+                test_epochs[algo_name][initial_seed].append(writer.retrieve_information("test_accuracy")[0])
+                test_accuracies[algo_name][initial_seed].append(writer.retrieve_information("test_accuracy")[1])
+                test_losses[algo_name][initial_seed].append(writer.retrieve_information("test_loss")[1])
 
-            weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
-            ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
+                weights[algo_name][initial_seed].append(writer.retrieve_histogram_information("weights")[1])
+                ratio[algo_name][initial_seed].append(writer.retrieve_histogram_information("ratio")[1])
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train accuracy', dataset_name)
     plot_values(train_epochs, train_losses, all_algos, 'log(Train loss)', dataset_name, log=True)
@@ -96,7 +100,7 @@ if __name__ == '__main__':
 
     for algo_name in all_algos:
         if algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Cobo"]:
-            plot_weights(weights[algo_name], dataset_name, algo_name)#, x_axis=test_accuracies[algo_name])
+            plot_weights(weights[algo_name][all_seeds[0]], dataset_name, algo_name)#, x_axis=test_accuracies[algo_name])
 
     if dataset_name in ["liquid_asset"]:
         X_raw_train, X_raw_test, numerical_transformer = load_liquid_dataset_test(get_path_to_datasets())

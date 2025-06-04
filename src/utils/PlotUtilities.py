@@ -1,6 +1,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import linspace
 
 # Configure matplotlib to use LaTeX for all text rendering
 matplotlib.rcParams.update({
@@ -36,15 +37,20 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
 
     # Plot each algorithm's mean and std across runs
     for algo_name in legends:
+        value_to_plot = []
+        for s in values[algo_name].keys():
+            for l in values[algo_name][s]:
+                value_to_plot.append(l)
         if log:
-            avg_values = np.mean([np.log10(v) for v in values[algo_name]], axis=0)
-            avg_values_var = np.std([np.log10(v) for v in values[algo_name]], axis=0)
+            avg_values = np.mean([np.log10(v) for v in value_to_plot], axis=0)
+            avg_values_var = np.std([np.log10(v) for v in value_to_plot], axis=0)
         else:
-            avg_values = np.mean(values[algo_name], axis=0)
-            avg_values_var = np.std(values[algo_name], axis=0)
+            avg_values = np.mean(value_to_plot, axis=0)
+            avg_values_var = np.std(value_to_plot, axis=0)
 
-        plt.plot(epochs["Local"][0], avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=5)
-        plt.fill_between(epochs["Local"][0], avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
+        epochs_axis = np.linspace(0, len(avg_values)-1, len(avg_values))
+        plt.plot(epochs_axis, avg_values, linestyle='-', color=COLORS[i], label=algo_name, linewidth=5)
+        plt.fill_between(epochs_axis, avg_values - avg_values_var, avg_values + avg_values_var, alpha=0.2,
                          color=COLORS[i])
         i += 1
 
@@ -62,8 +68,8 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     else:
         loc = "lower left"
 
-    if dataset_name in ["mnist", "synth"]:
-        plt.legend(fontsize=FONTSIZE, loc=loc)
+    # if dataset_name in ["mnist", "synth"]:
+    plt.legend(fontsize=FONTSIZE, loc=loc)
 
     # Save figure to disk
     root = get_project_root()
@@ -78,10 +84,14 @@ def plot_values(epochs, values, legends, metric_name, dataset_name, log=False):
     print(f"Algorithm & {metric_name} \\\\")
     print("\\hline")
     for algo_name in legends:
+        value_to_plot = []
+        for s in values[algo_name].keys():
+            for l in values[algo_name][s]:
+                value_to_plot.append(l)
         if log:
-            final_value = np.mean([np.log10(v) for v in values[algo_name]], axis=0)[-1]
+            final_value = np.mean([np.log10(v) for v in value_to_plot], axis=0)[-1]
         else:
-            final_value = np.mean(values[algo_name], axis=0)[-1]
+            final_value = np.mean(value_to_plot, axis=0)[-1]
         print(f"{algo_name} & {final_value:.4f} \\\\")
     print("\\hline")
     print("\\end{tabular}")

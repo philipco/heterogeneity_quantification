@@ -39,7 +39,7 @@ class Network:
     """
 
     def __init__(self, train_loaders, val_loaders, test_loaders, dataset_name,
-                 algo_name, split_type, seed=0):
+                 algo_name, split_type, initial_seed=0):
         """
         Initialize the Network with data loaders and configuration parameters.
 
@@ -54,10 +54,11 @@ class Network:
         """
         super().__init__()
         self.trial = None
-        set_seed(seed)
         self.dataset_name = dataset_name
         self.split_type = split_type
         self.algo_name = algo_name
+        self.initial_seed = initial_seed
+
         self.nb_clients = len(train_loaders)
         # The iterable dataset has no length (online setting, length is infinite).
         try:
@@ -156,7 +157,7 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "mnist_iid": torchvision.dataset
            }
 
 
-def get_network(dataset_name: str, algo_name: str):
+def get_network(dataset_name: str, algo_name: str, initial_seed: int):
     """
     Prepare data loaders according to the dataset and instantiate a Network.
 
@@ -173,6 +174,9 @@ def get_network(dataset_name: str, algo_name: str):
     Returns:
         Network: Initialized Network object with data loaders and settings.
     """
+
+    set_seed(initial_seed)
+
     split_type = None
 
     ### We the dataset naturally splitted or not.
@@ -213,4 +217,4 @@ def get_network(dataset_name: str, algo_name: str):
         train_loaders, val_loaders, test_loaders, natural_split \
             = get_data_from_flamby(DATASET[dataset_name], NB_CLIENTS[dataset_name], dataset_name, BATCH_SIZE[dataset_name],
                                    kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=True))
-    return Network(train_loaders, val_loaders, test_loaders, dataset_name, algo_name, split_type)
+    return Network(train_loaders, val_loaders, test_loaders, dataset_name, algo_name, split_type, initial_seed)
