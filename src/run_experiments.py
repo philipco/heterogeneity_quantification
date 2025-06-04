@@ -11,7 +11,7 @@ from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
 from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
-from src.utils.Utilities import get_path_to_datasets
+from src.utils.Utilities import get_path_to_datasets, set_seed
 
 NB_RUN = 1
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     if "synth" in dataset_name:
         torch.set_default_dtype(torch.float64)
 
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo"]
 
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
         algo: [] for algo in all_algos}
@@ -49,6 +49,9 @@ if __name__ == '__main__':
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     
     for algo_name in all_algos:
+
+        set_seed(0)
+
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
                              "Cobo", "Ditto"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")

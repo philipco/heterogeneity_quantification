@@ -16,13 +16,13 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Cobo", "Ditto"]
     train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
     weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
 
     for algo_name in all_algos:
-        assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova"], \
+        assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova", "Ditto", "Cobo"], \
             "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 

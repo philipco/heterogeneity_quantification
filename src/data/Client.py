@@ -1,3 +1,5 @@
+import copy
+
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
@@ -27,7 +29,7 @@ class Client:
         last_epoch (int): Tracks the current epoch for logging and scheduling.
     """
 
-    def __init__(self, ID, tensorboard_dir: str, train_loader, val_loader, test_loader, net: nn.Module,
+    def __init__(self, ID, tensorboard_dir: str, algo_name: str, train_loader, val_loader, test_loader, net: nn.Module,
                  criterion, metric, step_size: int, momentum: int, weight_decay: int, batch_size: int,
                  scheduler_params: (int, int)):
         super().__init__()
@@ -42,6 +44,8 @@ class Client:
         self.writer = LoggingWriter(
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{tensorboard_dir}/{self.ID}')
 
+        self.algo_name = algo_name
+
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
@@ -53,11 +57,15 @@ class Client:
             self.nb_train_points = 1
 
         # Load model on the appropriate device
-        self.trained_model = net.to(self.device)
+        # net = net.to(self.device)
+        self.trained_model = copy.deepcopy(net).to(self.device)
+        self.global_model = copy.deepcopy(net).to(self.device)
 
-        # Optimizer and learning rate scheduler
+        self.optimizer = optim.SGD(self.trained_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+        self.global_optimizer = optim.SGD(self.global_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+
+        # Learning rate scheduler
         self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
-        self.optimizer = optim.SGD(net.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
         self.set_step_scheduler(tensorboard_dir, scheduler_params[0], scheduler_params[1])
 
         # Loss function (instantiated if not None)
@@ -77,12 +85,15 @@ class Client:
         """
         if dataset_name in ["LLM"]:
             self.scheduler = LinearWarmupScheduler(self.optimizer, 5, 20, plateau=5)
+            self.global_scheduler = LinearWarmupScheduler(self.global_optimizer, 5, 20, plateau=5)
         elif dataset_name in ["heart_disease", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "ixi", "exam_llm"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
+            self.global_scheduler = StepLR(self.global_optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
         elif dataset_name in ["X"]:
             self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
         else:
             self.scheduler = ConstantLRScheduler(self.optimizer)
+            self.global_scheduler = ConstantLRScheduler(self.global_optimizer)
 
     def reset_hyperparameters(self, net, step_size, momentum, weight_decay, scheduler_steps, scheduler_gamma,
                               dataset_name=None):
@@ -103,28 +114,6 @@ class Client:
             = train_test_split(torch.concat([self.X_train, self.X_test]),
                                torch.concat([self.Y_train, self.Y_test]), test_size=self.test_size)
 
-    def continue_training(self, nb_of_local_epoch: int, train_iter):
-        """
-        Continues training for additional local epochs.
-
-        Args:
-            nb_of_local_epoch (int): Number of extra epochs to train.
-            train_iter (Iterator): Training iterator to continue from.
-
-        Returns:
-            Iterator: Updated training iterator.
-        """
-        for local_epoch in range(nb_of_local_epoch):
-            try:
-                batch_training(train_iter, self.device, self.trained_model, self.criterion, self.optimizer)
-            except StopIteration:
-                # Reset iterator if we exhaust the training loader
-                train_iter = iter(self.train_loader)
-                batch_training(train_iter, self.device, self.trained_model, self.criterion, self.optimizer)
-        self.scheduler.step()
-        self.last_epoch += nb_of_local_epoch
-        torch.cuda.empty_cache()
-        return train_iter
 
     def write_train_val_test_performance(self, logs="light"):
         """
