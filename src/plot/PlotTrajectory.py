@@ -4,7 +4,7 @@ import torch
 
 from src.data.DatasetConstants import BATCH_SIZE
 from src.data.Network import get_network
-from src.optim.Algo import all_for_one_algo, all_for_all_algo, fedavg_training, fednova_training
+from src.optim.Algo import all_for_one_algo, all_for_all_algo, fedavg_training, fednova_training, cobo_algo, ditto_algo
 
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
@@ -42,24 +42,30 @@ def plot_level_set_with_gradients_pytorch(data_loader, x_range=(-10, 10), y_rang
 dataset_name = "synth"
 
 NB_RUN = 1
-NB_EPOCHS = 10
+NB_EPOCHS = 30
 
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg"]
+    all_algos = ["All-for-one-cont", "Ditto", "Cobo", "Local"]
+    all_seeds = [127]
 
-    train_epochs, train_losses, train_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
-        algo: [] for algo in all_algos}
-    test_epochs, test_losses, test_accuracies = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}, {
-        algo: [] for algo in all_algos}
-    weights, ratio = {algo: [] for algo in all_algos}, {algo: [] for algo in all_algos}
+
+    def dict(all_algos, all_seeds):
+        return {algo: {s: [] for s in all_seeds} for algo in all_algos}
+
+
+    train_epochs, train_losses, train_accuracies = dict(all_algos, all_seeds), dict(all_algos, all_seeds), dict(
+        all_algos, all_seeds)
+    test_epochs, test_losses, test_accuracies = dict(all_algos, all_seeds), dict(all_algos, all_seeds), dict(all_algos,
+                                                                                                             all_seeds)
+    weights, ratio = dict(all_algos, all_seeds), dict(all_algos, all_seeds)
 
     client_X, client_Y, client_Z = None, None, None
     for algo_name in all_algos:
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
-        network = get_network(dataset_name, algo_name)
+        network = get_network(dataset_name, algo_name, initial_seed=127)
         if client_X is None:
             client_X, client_Y, client_Z = ([None for _ in network.clients] for _ in range(3))
 
@@ -71,7 +77,7 @@ if __name__ == '__main__':
             plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.01, 0.1, 1, 3, 7, 9, 15, 30], alpha=0.75)
                         #colors=COLORS[i], alpha=0.75)
 
-            c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.double).to(c.device)
+            c.trained_model.linear.weight.data = torch.tensor([[0, 0]]).to(torch.double).to(c.device)
 
         if algo_name == "FedAvg":
             fedavg_training(network, nb_of_synchronization=NB_EPOCHS)
@@ -89,13 +95,17 @@ if __name__ == '__main__':
         if algo_name == "All-for-one-cont":
             track_models, track_gradients = all_for_one_algo(network, nb_of_synchronization=NB_EPOCHS, continuous=True,
                                                              keep_track=True)
+        elif algo_name == "Cobo":
+            track_models, track_gradients = cobo_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
+        elif algo_name == "Ditto":
+            track_models, track_gradients = ditto_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
 
         if not algo_name in ["FedAvg", "Fednova"]:
             for i in range(len(track_models)):
-                model_X = [t[0][0] for t in track_models[i][:-2]]
-                model_Y = [t[0][1] for t in track_models[i][:-2]]
+                model_X = [t[0][0] for t in track_models[i][:-1]]
+                model_Y = [t[0][1] for t in track_models[i][:-1]]
                 plt.scatter(model_X, model_Y, marker="*")#, color=COLORS[i]
-
+                print(len(model_X))
                 for j in range(0, len(model_X), 1):
                     plt.quiver(model_X[j], model_Y[j], -track_gradients[i][j][0][0], -track_gradients[i][j][0][1],
                                angles='xy', scale_units='xy', scale=1, alpha=0.5, width=0.005)#, color=COLORS[i])
@@ -107,16 +117,16 @@ if __name__ == '__main__':
         for client in network.clients:
             writer = client.writer
 
-            train_epochs[algo_name].append(writer.retrieve_information("train_accuracy")[0])
-            train_accuracies[algo_name].append(writer.retrieve_information("train_accuracy")[1])
-            train_losses[algo_name].append(writer.retrieve_information("train_loss")[1])
+            train_epochs[algo_name][all_seeds[0]].append(writer.retrieve_information("train_accuracy")[0])
+            train_accuracies[algo_name][all_seeds[0]].append(writer.retrieve_information("train_accuracy")[1])
+            train_losses[algo_name][all_seeds[0]].append(writer.retrieve_information("train_loss")[1])
 
-            test_epochs[algo_name].append(writer.retrieve_information("test_accuracy")[0])
-            test_accuracies[algo_name].append(writer.retrieve_information("test_accuracy")[1])
-            test_losses[algo_name].append(writer.retrieve_information("test_loss")[1])
+            test_epochs[algo_name][all_seeds[0]].append(writer.retrieve_information("test_accuracy")[0])
+            test_accuracies[algo_name][all_seeds[0]].append(writer.retrieve_information("test_accuracy")[1])
+            test_losses[algo_name][all_seeds[0]].append(writer.retrieve_information("test_loss")[1])
 
-            weights[algo_name].append(writer.retrieve_histogram_information("weights")[1])
-            ratio[algo_name].append(writer.retrieve_histogram_information("ratio")[1])
+            weights[algo_name][all_seeds[0]].append(writer.retrieve_histogram_information("weights")[1])
+            ratio[algo_name][all_seeds[0]].append(writer.retrieve_histogram_information("ratio")[1])
 
 
         root = get_project_root()
@@ -133,5 +143,5 @@ if __name__ == '__main__':
 
     for algo_name in all_algos:
         if algo_name not in ["fed", "fednova"]:
-            plot_weights(weights[algo_name], dataset_name, algo_name)
+            plot_weights(weights[algo_name][all_seeds[0]], dataset_name, algo_name)
 

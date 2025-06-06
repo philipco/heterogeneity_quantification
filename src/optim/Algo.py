@@ -249,7 +249,7 @@ def ratio(x,y):
         return max(1 - x/y, 0)
 
 def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, numerators, denominators,
-                                  continuous: bool = False) :
+                                  continuous: bool = False, lbda: int = 0.1) :
     """
     Computes dynamic aggregation weights for a given client.
 
@@ -260,6 +260,7 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
         numerators (list[list[float]]): Stores past gradient differences.
         denominators (list[float]): Stores past gradient norms.
         continuous (bool): If True, uses continuous weights; else, binary selection followed by renormalization.
+        lbda (int): Hyperparameter lambda defined in the paper in the binary case.
 
     Returns:
         tuple:
@@ -284,7 +285,7 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
     if continuous:
         weight = [ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))]
     else:
-        weight = [int(ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) > 0) for _ in range(len(gradients))]
+        weight = [lbda * int(ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) > lbda) for _ in range(len(gradients))]
         nb_points_by_selected_clients = sum([n if w != 0 else 0 for (w, n) in zip(weight, nb_points_by_clients)])
         weight = [w * n / nb_points_by_selected_clients for  (w, n) in zip(weight, nb_points_by_clients)]
 
@@ -372,7 +373,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuou
             # Log histogram of computed weights.
             network.clients[client_idx].writer.add_histogram(
                 'weights', np.array(weight),
-                network.clients[client_idx].last_epoch * inner_iterations
+                network.clients[client_idx].last_epoch
             )
 
         for k in range(inner_iterations):
@@ -498,7 +499,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 weights[client_idx] = weight
                 network.clients[client_idx].writer.add_histogram(
                     'weights', np.array(weight),
-                    network.clients[client_idx].last_epoch * inner_iterations
+                    network.clients[client_idx].last_epoch
                 )
 
         elif collab_based_on == "ratio":
@@ -522,7 +523,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 weights[client_idx] = weight
                 network.clients[client_idx].writer.add_histogram(
                     'weights', np.array(weight),
-                    network.clients[client_idx].last_epoch * inner_iterations
+                    network.clients[client_idx].last_epoch
                 )
         else:
             raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
@@ -615,7 +616,7 @@ def cobo_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = 
         print(f"===============\tEpoch {synchronization_idx}\t===============")
         start_time = time.time()
 
-        weights = {_: [1 for e in range(network.nb_clients)] for _ in range(network.nb_clients)}
+        weights = {_: [torch.tensor(1.) for e in range(network.nb_clients)] for _ in range(network.nb_clients)}
 
         # Compute personalized weights for each client based on gradient similarity.
         for client_idx in range(network.nb_clients):
@@ -630,29 +631,35 @@ def cobo_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = 
 
                 average_model = aggregate_models([client.trained_model, c.trained_model],
                                                  [0.5, 0.5], client.device)
-                optimizer = optim.SGD(average_model.parameters(), lr=0,
+                adhoc_optimizer = optim.SGD(average_model.parameters(), lr=0,
                                       momentum=0, weight_decay=0)
                 gradient_i, iter_loaders[client_idx][client_idx] = safe_gradient_computation(
                     client.train_loader, iter_loaders[client_idx][client_idx], client.device,
-                    average_model, client.criterion, optimizer, client.scheduler
+                    average_model, client.criterion, adhoc_optimizer, client.scheduler
                 )
                 gradient_k, iter_loaders[client_idx][c_idx] = safe_gradient_computation(
                     c.train_loader, iter_loaders[client_idx][c_idx], c.device,
-                    average_model, c.criterion, optimizer, c.scheduler
+                    average_model, c.criterion, adhoc_optimizer, c.scheduler
                 )
 
                 # Choice of gamma as in the original repository.
                 # See https://github.com/epfml/CoBo/blob/main/personalized-vision-models/grouping.py#L187
                 gamma = 0.01
                 g_i = torch.concat([p.flatten() for p in gradient_i if p is not None])
-                g_k = torch.concat([p.flatten() for p in gradient_i if p is not None])
-                weights[client_idx][c_idx] = torch.clamp(weights[client_idx][c_idx] + gamma * g_i.T @ g_k, 0, 1)
+                g_k = torch.concat([p.flatten() for p in gradient_k if p is not None])
+
+                weights[client_idx][c_idx] = torch.clamp(weights[client_idx][c_idx] + gamma * torch.dot(g_i, g_k), 0, 1).to("cpu")
+
+            network.clients[client_idx].writer.add_histogram(
+                'weights', np.array(weights[client_idx]),
+                network.clients[client_idx].last_epoch
+            )
 
         for k in range(inner_iterations):
             # Compute the new model client by client.
             grad_time = time.time()
             # Save models at previous iteration
-            models = [_.trained_model for _ in network.clients]
+            models = [copy.deepcopy(_.trained_model) for _ in network.clients]
 
             for client_idx in range(network.nb_clients):
                 client = network.clients[client_idx]
@@ -666,10 +673,10 @@ def cobo_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = 
 
                 aggregated_models = aggregate_models(
                     [aggregate_models([models[client_idx], m], [1, -1], client.device) for m in models],
-                    weights, client.device)
+                    weights[client_idx], client.device)
 
                 # Aggregate the gradients using the computed weights.
-                rho = 1 / client.step_size
+                rho = 10 / client.step_size
                 momentum = [p.data for p in scalar_multiplication(aggregated_models, rho).parameters()]
                 aggregated_gradients = gradient + momentum
 
@@ -739,7 +746,7 @@ def ditto_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool =
 
     if keep_track:
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
-        # track_gradients = [[] for c in network.clients]
+        track_gradients = [[] for c in network.clients]
 
     # We create a data iterator for each clients, for each trained model by clients.
     iter_loaders = [iter(client.train_loader) for client in network.clients]
@@ -774,28 +781,20 @@ def ditto_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool =
                     client.scheduler
                 )
 
-                # print("GRADIENT")
-                # print(gradient)
-                #
-                # print("TRAINED MODEL")
-                # print([_ for _ in client.trained_model.parameters()])
-                #
-                # print("PERSONALIZED MODEL")
-                # print([_ for _ in client.global_model.parameters()])
-                #
-                # for param_group in client.global_optimizer.param_groups:
-                #     for param in param_group['params']:
-                #         print(param)
-                #         print(param.grad)
-
                 lbda = 1
-                # # Using global_model at previous iteration.
+                # Using global_model at previous iteration.
                 reg = aggregate_models([client.trained_model, client.global_model], [lbda, -lbda],
                                        client.device)
 
                 aggregated_gradients = gradient + [p.data for p in reg.parameters()]
                 # Apply gradient update to the client's model.
                 update_model(client.trained_model, aggregated_gradients, client.optimizer)
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
         ########################################
 
         #################### Update the global model ####################
@@ -832,7 +831,7 @@ def ditto_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool =
 
     # Return tracked model and gradient history if enabled
     if keep_track:
-        return track_models  # , track_gradients
+        return track_models, track_gradients
     return None
 
 def waffle_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
