@@ -29,7 +29,7 @@ class Client:
         last_epoch (int): Tracks the current epoch for logging and scheduling.
     """
 
-    def __init__(self, ID, tensorboard_dir: str, algo_name: str, train_loader, val_loader, test_loader, net: nn.Module,
+    def __init__(self, ID, tensorboard_dir: str, algo_name: str, initial_seed: int, train_loader, val_loader, test_loader, net: nn.Module,
                  criterion, metric, step_size: int, momentum: int, weight_decay: int, batch_size: int,
                  scheduler_params: (int, int)):
         super().__init__()
@@ -45,6 +45,7 @@ class Client:
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{tensorboard_dir}/{self.ID}')
 
         self.algo_name = algo_name
+        self.initial_seed = initial_seed
 
         self.train_loader = train_loader
         self.val_loader = val_loader

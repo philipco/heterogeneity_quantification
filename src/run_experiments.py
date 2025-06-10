@@ -10,11 +10,9 @@ from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
 from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo, \
-    waffle_algo
+    wga_bc_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
-from src.utils.Utilities import get_path_to_datasets, set_seed
-
-NB_RUN = 1
+from src.utils.Utilities import get_path_to_datasets
 
 if __name__ == '__main__':
 
@@ -41,7 +39,7 @@ if __name__ == '__main__':
     if "synth" in dataset_name:
         torch.set_default_dtype(torch.float64)
 
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo"]
+    all_algos = ["All-for-one-bin", "WGA-BC", "Local", "FedAvg"]#, "Ditto", "Cobo", "WGA-BC"]
     all_seeds = [127, 496, 1729] # Mersenne number, Perfect number, Ramanujan number
 
     def dict(all_algos, all_seeds):
@@ -54,11 +52,11 @@ if __name__ == '__main__':
     for algo_name in all_algos:
 
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
-                             "Cobo", "Ditto", "Waffle"], "Algorithm not recognized."
+                             "Cobo", "Ditto", "WGA-BC"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
-        for initial_seed in all_seeds:
-            network = get_network(dataset_name, algo_name, initial_seed)
+        for seed in all_seeds:
+            network = get_network(dataset_name, algo_name, seed)
 
             if algo_name == "FedAvg":
                 fedavg_training(network, nb_of_synchronization=nb_epochs)
@@ -76,22 +74,22 @@ if __name__ == '__main__':
                 cobo_algo(network, nb_of_synchronization=nb_epochs)
             elif algo_name == "Ditto":
                 ditto_algo(network, nb_of_synchronization=nb_epochs)
-            elif algo_name == "Waffle":
-                waffle_algo(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "WGA-BC":
+                wga_bc_algo(network, nb_of_synchronization=nb_epochs)
 
             for client in network.clients:
                 writer = client.writer
 
-                train_epochs[algo_name][initial_seed].append(writer.retrieve_information("train_accuracy")[0])
-                train_accuracies[algo_name][initial_seed].append(writer.retrieve_information("train_accuracy")[1])
-                train_losses[algo_name][initial_seed].append(writer.retrieve_information("train_loss")[1])
+                train_epochs[algo_name][seed].append(writer.retrieve_information("train_accuracy")[0])
+                train_accuracies[algo_name][seed].append(writer.retrieve_information("train_accuracy")[1])
+                train_losses[algo_name][seed].append(writer.retrieve_information("train_loss")[1])
 
-                test_epochs[algo_name][initial_seed].append(writer.retrieve_information("test_accuracy")[0])
-                test_accuracies[algo_name][initial_seed].append(writer.retrieve_information("test_accuracy")[1])
-                test_losses[algo_name][initial_seed].append(writer.retrieve_information("test_loss")[1])
+                test_epochs[algo_name][seed].append(writer.retrieve_information("test_accuracy")[0])
+                test_accuracies[algo_name][seed].append(writer.retrieve_information("test_accuracy")[1])
+                test_losses[algo_name][seed].append(writer.retrieve_information("test_loss")[1])
 
-                weights[algo_name][initial_seed].append(writer.retrieve_histogram_information("weights")[1])
-                ratio[algo_name][initial_seed].append(writer.retrieve_histogram_information("ratio")[1])
+                weights[algo_name][seed].append(writer.retrieve_histogram_information("weights")[1])
+                ratio[algo_name][seed].append(writer.retrieve_histogram_information("ratio")[1])
 
     plot_values(train_epochs, train_accuracies, all_algos, 'Train accuracy', dataset_name)
     plot_values(train_epochs, train_losses, all_algos, 'log(Train loss)', dataset_name, log=True)

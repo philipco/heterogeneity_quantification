@@ -47,7 +47,7 @@ NB_EPOCHS = 30
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["All-for-one-cont", "Ditto", "Cobo", "Local"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo"]
     all_seeds = [127]
 
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
             plt.contour(client_X[i], client_Y[i], client_Z[i], levels=[0.01, 0.1, 1, 3, 7, 9, 15, 30], alpha=0.75)
                         #colors=COLORS[i], alpha=0.75)
 
-            c.trained_model.linear.weight.data = torch.tensor([[0, 0]]).to(torch.double).to(c.device)
+            c.trained_model.linear.weight.data = torch.tensor([[-7.5, -7.5]]).to(torch.double).to(c.device)
 
         if algo_name == "FedAvg":
             fedavg_training(network, nb_of_synchronization=NB_EPOCHS)

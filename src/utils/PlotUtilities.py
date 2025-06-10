@@ -16,7 +16,8 @@ from src.data.DatasetConstants import BATCH_SIZE, STEP_SIZE, MOMENTUM
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
 
 # Default plotting styles
-COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:brown', 'tab:green', 'tab:purple']
+COLORS = ['tab:blue', 'tab:red', 'tab:orange', 'tab:brown', 'tab:green', 'tab:purple', 'tab:cyan', 'tab:pink',
+          'tab:grey']
 MARKERS = ['o', 's', 'D', '^', 'v', '<']
 FONTSIZE = 25
 
