@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     nb_initial_epochs = 0
 
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Cobo", "Ditto", "WGA-BC"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Cobo", "Ditto", "WGA-BC", "APFL"]
     all_seeds = [127, 496, 1729] # Mersenne number, Perfect number, Ramanujan number
 
     def dict(all_algos, all_seeds):
@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     for algo_name in all_algos:
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
-                             "Ditto", "Cobo", "WGA-BC"], \
+                             "Ditto", "Cobo", "WGA-BC", "APFL"], \
             "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 

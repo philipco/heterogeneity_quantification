@@ -57,13 +57,17 @@ class Client:
         except TypeError:
             self.nb_train_points = 1
 
-        # Load model on the appropriate device
-        # net = net.to(self.device)
         self.trained_model = copy.deepcopy(net).to(self.device)
-        self.global_model = copy.deepcopy(net).to(self.device)
+        if self.algo_name  in ["Ditto", "APFL"]:
+            self.global_model = copy.deepcopy(net).to(self.device)
+        if algo_name == "APFL":
+            self.personalized_model = copy.deepcopy(net).to(self.device)
 
         self.optimizer = optim.SGD(self.trained_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
-        self.global_optimizer = optim.SGD(self.global_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+        if self.algo_name  in ["Ditto", "APFL"]:
+            self.global_optimizer = optim.SGD(self.global_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
+        if algo_name in ["APFL"]:
+            self.personalized_optimizer = optim.SGD(self.personalized_model.parameters(), lr=step_size, momentum=momentum, weight_decay=weight_decay)
 
         # Learning rate scheduler
         self.step_size, self.momentum, self.weight_decay = step_size, momentum, weight_decay
@@ -86,15 +90,28 @@ class Client:
         """
         if dataset_name in ["LLM"]:
             self.scheduler = LinearWarmupScheduler(self.optimizer, 5, 20, plateau=5)
-            self.global_scheduler = LinearWarmupScheduler(self.global_optimizer, 5, 20, plateau=5)
+            if self.algo_name in ["Ditto", "APFL"]:
+                self.global_scheduler = LinearWarmupScheduler(self.global_optimizer, 5, 20, plateau=5)
+            if self.algo_name  in ["APFL"]:
+                self.personalized_scheduler = LinearWarmupScheduler(self.personalized_scheduler, 5, 20, plateau=5)
         elif dataset_name in ["heart_disease", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "ixi", "exam_llm"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
-            self.global_scheduler = StepLR(self.global_optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
+            if self.algo_name in ["Ditto", "APFL"]:
+                self.global_scheduler = StepLR(self.global_optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
+            if self.algo_name in ["APFL"]:
+                self.personalized_scheduler = StepLR(self.personalized_scheduler, step_size=scheduler_steps, gamma=scheduler_gamma)
         elif dataset_name in ["X"]:
             self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
+            if self.algo_name in ["Ditto", "APFL"]:
+                self.global_scheduler = LambdaLR(self.global_optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
+            if self.algo_name in ["APFL"]:
+                self.personalized_scheduler = LambdaLR(self.personalized_scheduler, lr_lambda=lambda t: self.step_size / (t + 1))
         else:
             self.scheduler = ConstantLRScheduler(self.optimizer)
-            self.global_scheduler = ConstantLRScheduler(self.global_optimizer)
+            if self.algo_name in ["Ditto", "APFL"]:
+                self.global_scheduler = ConstantLRScheduler(self.global_optimizer)
+            if self.algo_name in ["APFL"]:
+                self.personalized_scheduler = ConstantLRScheduler(self.personalized_optimizer)
 
     def reset_hyperparameters(self, net, step_size, momentum, weight_decay, scheduler_steps, scheduler_gamma,
                               dataset_name=None):

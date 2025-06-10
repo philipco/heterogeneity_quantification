@@ -10,7 +10,7 @@ from src.data.LiquidAssetDataset import do_prediction_liquid_asset, load_liquid_
 from src.data.DatasetConstants import NB_EPOCHS
 from src.data.Network import get_network
 from src.optim.Algo import fedavg_training, all_for_all_algo, all_for_one_algo, fednova_training, cobo_algo, ditto_algo, \
-    wga_bc_algo
+    wga_bc_algo, apfl_algo
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_path_to_datasets
 
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     if "synth" in dataset_name:
         torch.set_default_dtype(torch.float64)
 
-    all_algos = ["All-for-one-bin", "WGA-BC", "Local", "FedAvg"]#, "Ditto", "Cobo", "WGA-BC"]
+    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo", "WGA-BC", "APFL"]
     all_seeds = [127, 496, 1729] # Mersenne number, Perfect number, Ramanujan number
 
     def dict(all_algos, all_seeds):
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     for algo_name in all_algos:
 
         assert algo_name in ["All-for-one-bin", "All-for-one-cont", "All-for-all", "Local", "FedAvg", "FedNova",
-                             "Cobo", "Ditto", "WGA-BC"], "Algorithm not recognized."
+                             "Cobo", "Ditto", "WGA-BC", "APFL"], "Algorithm not recognized."
         print(f"--- ================== ALGO: {algo_name} ================== ---")
 
         for seed in all_seeds:
@@ -64,7 +64,7 @@ if __name__ == '__main__':
                 all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="ratio")
             elif algo_name == "Local":
                 all_for_all_algo(network, nb_of_synchronization=nb_epochs, collab_based_on="local")
-            elif algo_name == "Fednova":
+            elif algo_name == "FedNova":
                 fednova_training(network, nb_of_synchronization=nb_epochs)
             elif algo_name == "All-for-one-bin":
                 all_for_one_algo(network, nb_of_synchronization=nb_epochs, continuous=False)
@@ -76,6 +76,8 @@ if __name__ == '__main__':
                 ditto_algo(network, nb_of_synchronization=nb_epochs)
             elif algo_name == "WGA-BC":
                 wga_bc_algo(network, nb_of_synchronization=nb_epochs)
+            elif algo_name == "APFL":
+                apfl_algo(network, nb_of_synchronization=nb_epochs)
 
             for client in network.clients:
                 writer = client.writer

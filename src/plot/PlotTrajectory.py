@@ -4,7 +4,8 @@ import torch
 
 from src.data.DatasetConstants import BATCH_SIZE
 from src.data.Network import get_network
-from src.optim.Algo import all_for_one_algo, all_for_all_algo, fedavg_training, fednova_training, cobo_algo, ditto_algo
+from src.optim.Algo import all_for_one_algo, all_for_all_algo, fedavg_training, fednova_training, cobo_algo, ditto_algo, \
+    wga_bc_algo, apfl_algo
 
 from src.utils.PlotUtilities import plot_values, plot_weights
 from src.utils.Utilities import get_project_root, create_folder_if_not_existing
@@ -47,7 +48,7 @@ NB_EPOCHS = 30
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["All-for-one-bin", "All-for-one-cont", "Local", "FedAvg", "Ditto", "Cobo"]
+    all_algos = ["APFL"]
     all_seeds = [127]
 
 
@@ -99,6 +100,10 @@ if __name__ == '__main__':
             track_models, track_gradients = cobo_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
         elif algo_name == "Ditto":
             track_models, track_gradients = ditto_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
+        elif algo_name == "WGA-BC":
+            track_models, track_gradients = wga_bc_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
+        elif algo_name == "APFL":
+            track_models, track_gradients = apfl_algo(network, nb_of_synchronization=NB_EPOCHS, keep_track=True)
 
         if not algo_name in ["FedAvg", "Fednova"]:
             for i in range(len(track_models)):
@@ -136,10 +141,10 @@ if __name__ == '__main__':
         plt.savefig(folder, dpi=600, bbox_inches='tight')
         plt.close()
 
-    plot_values(train_epochs, train_accuracies, all_algos, 'Train_accuracy', dataset_name)
-    plot_values(train_epochs, train_losses, all_algos, 'Train_loss', dataset_name, log=True)
-    plot_values(test_epochs, test_accuracies, all_algos, 'Test_accuracy', dataset_name)
-    plot_values(test_epochs, test_losses, all_algos, 'Test_loss', dataset_name, log=True)
+    plot_values(train_epochs, train_accuracies, all_algos, 'Train accuracy', dataset_name)
+    plot_values(train_epochs, train_losses, all_algos, 'log(Train loss)', dataset_name, log=True)
+    plot_values(test_epochs, test_accuracies, all_algos, 'Test accuracy', dataset_name)
+    plot_values(test_epochs, test_losses, all_algos, 'log(Test loss)', dataset_name, log=True)
 
     for algo_name in all_algos:
         if algo_name not in ["fed", "fednova"]:
