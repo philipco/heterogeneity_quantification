@@ -48,7 +48,7 @@ NB_EPOCHS = 30
 if __name__ == '__main__':
 
     nb_initial_epochs = 0
-    all_algos = ["APFL"]
+    all_algos = ["All-for-one-cont", "Local", "Cobo", "APFL"]
     all_seeds = [127]
 
 

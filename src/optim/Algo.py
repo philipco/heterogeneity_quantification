@@ -901,8 +901,6 @@ def wga_bc_algo(network: Network, nb_of_synchronization: int = 5, beta: int = 10
 
             taus[client_idx] = [c.nb_train_points**2 / (client.nb_train_points**2 * network.nb_clients**2) for c in network.clients]
 
-            print(f"tau = {taus}.")
-
         for k in range(inner_iterations):
 
             # Compute the new model client by client.
