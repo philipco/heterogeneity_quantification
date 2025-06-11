@@ -51,6 +51,29 @@ def log_performance(name: str, net, device, loader, criterion, metric, client_ID
     return epoch_loss, epoch_accuracy
 
 
+def continue_training(nb_of_local_epoch: int, train_loader, train_iter, trained_model, criterion, optimizer, device, scheduler):
+    """
+    Continues training for additional local epochs.
+
+    Args:
+        nb_of_local_epoch (int): Number of extra epochs to train.
+        train_iter (Iterator): Training iterator to continue from.
+
+    Returns:
+        Iterator: Updated training iterator.
+    """
+    for local_epoch in range(nb_of_local_epoch):
+        try:
+            batch_training(train_iter, device, trained_model, criterion, optimizer)
+        except StopIteration:
+            # Reset iterator if we exhaust the training loader
+            train_iter = iter(train_loader)
+            batch_training(train_iter, device, trained_model, criterion, optimizer)
+    scheduler.step()
+    torch.cuda.empty_cache()
+    return train_iter
+
+
 def batch_training(train_iter, device, net, criterion, optimizer):
     """
     Performs a single training step on a batch of data.

@@ -21,10 +21,12 @@ import time
 import numpy as np
 import optuna
 import torch
+from torch import optim
 
 from src.data.Network import Network
-from src.utils.UtilitiesPytorch import aggregate_models, equal, load_new_model, aggregate_gradients, fednova_aggregation
-from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation
+from src.utils.UtilitiesPytorch import aggregate_models, equal, load_new_model, aggregate_gradients, \
+    fednova_aggregation, scalar_multiplication
+from src.optim.Train import compute_loss_and_accuracy, update_model, safe_gradient_computation, continue_training
 from src.utils.Utilities import print_mem_usage
 
 
@@ -107,14 +109,9 @@ def fedavg_training(network: Network, nb_of_synchronization: int = 5, keep_track
 
     loss_accuracy_central_server(network, weights, network.writer, 0)
     for client in network.clients:
+        assert equal(client.trained_model, network.clients[0].trained_model), \
+            (f"Models 0 and {client.ID} are not equal.")
         client.write_train_val_test_performance()
-
-    # Averaging models
-    new_model = aggregate_models([client.trained_model for client in network.clients],
-                     weights, network.clients[0].device)
-
-    for i in range(network.nb_clients):
-        load_new_model(network.clients[i].trained_model, new_model)
 
     if keep_track:
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
@@ -128,7 +125,11 @@ def fedavg_training(network: Network, nb_of_synchronization: int = 5, keep_track
         start_time = time.time()
         # One pass of local training
         for i in range(network.nb_clients):
-            iter_loaders[i] = network.clients[i].continue_training(inner_iterations, iter_loaders[i])
+            client = network.clients[i]
+            iter_loaders[i] = continue_training(inner_iterations, client.train_loader, iter_loaders[i],
+                                                client.trained_model, client.criterion, client.optimizer,
+                                                client.device, client.scheduler)
+            client.last_epoch += inner_iterations
 
         # Averaging models
         new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -138,7 +139,7 @@ def fedavg_training(network: Network, nb_of_synchronization: int = 5, keep_track
             client = network.clients[client_idx]
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
-                (f"Models 0 and {network.clients[i].ID} are not equal.")
+                (f"Models 0 and {client.ID} are not equal.")
             client.write_train_val_test_performance()
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
@@ -179,8 +180,8 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
         client.write_train_val_test_performance()
 
     # Number of local epoch * number of samples / batch size
-    tau_i = [np.floor(nb_of_local_epoch * client.nb_train_points
-                        / client.nb_train_points) for client in network.clients]
+    tau_i = [int(np.floor(nb_of_local_epoch * client.nb_train_points
+                        / client.nb_train_points)) for client in network.clients]
 
     # Averaging models
     new_model = aggregate_models([client.trained_model for client in network.clients],
@@ -194,13 +195,19 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
     if keep_track:
         track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
 
+    iter_loaders = [iter(client.train_loader) for client in network.clients]
+
     for synchronization_idx in range(1, nb_of_synchronization + 1):
         print(f"=============== \tEpoch {synchronization_idx} ===============")
         start_time = time.time()
         old_model = copy.deepcopy(network.clients[0].trained_model)
         # One pass of local training
         for  i in range(network.nb_clients):
-            network.clients[i].continue_training(nb_of_local_epoch, synchronization_idx, single_batch=False)
+            client = network.clients[i]
+            iter_loaders[i] = continue_training(tau_i[i], client.train_loader, iter_loaders[i],
+                                                client.global_model, client.criterion, client.global_optimizer,
+                                                client.device, client.global_scheduler)
+            client.last_epoch += tau_i[i]
 
         # Averaging models
         new_model = fednova_aggregation(old_model, [client.trained_model for client in network.clients], tau_i, weights,
@@ -210,7 +217,7 @@ def fednova_training(network: Network, nb_of_synchronization: int = 5, nb_of_loc
             client = network.clients[client_idx]
             load_new_model(client.trained_model, new_model)
             assert equal(client.trained_model, network.clients[0].trained_model), \
-                (f"Models 0 and {network.clients[i].ID} are not equal.")
+                (f"Models 0 and {client.ID} are not equal.")
             client.write_train_val_test_performance()
             if keep_track:
                 track_models[client_idx].append([m.data[0].to("cpu") for m in client.trained_model.parameters()])
@@ -243,7 +250,7 @@ def ratio(x,y):
         return max(1 - x/y, 0)
 
 def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, numerators, denominators,
-                                  continuous: bool = False) :
+                                  continuous: bool = False, lbda: int = 0.1) :
     """
     Computes dynamic aggregation weights for a given client.
 
@@ -254,6 +261,7 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
         numerators (list[list[float]]): Stores past gradient differences.
         denominators (list[float]): Stores past gradient norms.
         continuous (bool): If True, uses continuous weights; else, binary selection followed by renormalization.
+        lbda (int): Hyperparameter lambda defined in the paper in the binary case.
 
     Returns:
         tuple:
@@ -272,13 +280,19 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
     denominators[client_idx].append(new_denom.item())
 
     for _ in range(len(gradients)):
-        new_num = torch.linalg.vector_norm(grads[client_idx] - grads[_])
+        # print(f"Local gradients: {grads[client_idx]} \t remote gradient: {grads[_]}")
+        new_num = torch.linalg.vector_norm(grads[client_idx] - grads[_])**2
         numerators[client_idx][_].append(new_num.item())
+        # print(f"Scalar product: {torch.dot(grads[client_idx], grads[_])}")
+        # print(f"Local norm: {denominators[client_idx][-1]}")
+        # print(f"Distance: {grads[client_idx] - grads[_]}")
+        # print(f"Distance norm: {torch.linalg.vector_norm(grads[client_idx] - grads[_])**2}")
+        # print(f"Ratio: {1 - torch.linalg.vector_norm(grads[client_idx] - grads[_])**2 / denominators[client_idx][-1]}")
 
     if continuous:
         weight = [ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))]
     else:
-        weight = [int(ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) > 0) for _ in range(len(gradients))]
+        weight = [lbda * int(ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) > lbda) for _ in range(len(gradients))]
         nb_points_by_selected_clients = sum([n if w != 0 else 0 for (w, n) in zip(weight, nb_points_by_clients)])
         weight = [w * n / nb_points_by_selected_clients for  (w, n) in zip(weight, nb_points_by_clients)]
 
@@ -366,7 +380,7 @@ def all_for_one_algo(network: Network, nb_of_synchronization: int = 5, continuou
             # Log histogram of computed weights.
             network.clients[client_idx].writer.add_histogram(
                 'weights', np.array(weight),
-                network.clients[client_idx].last_epoch * inner_iterations
+                network.clients[client_idx].last_epoch
             )
 
         for k in range(inner_iterations):
@@ -492,7 +506,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 weights[client_idx] = weight
                 network.clients[client_idx].writer.add_histogram(
                     'weights', np.array(weight),
-                    network.clients[client_idx].last_epoch * inner_iterations
+                    network.clients[client_idx].last_epoch
                 )
 
         elif collab_based_on == "ratio":
@@ -516,7 +530,7 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
                 weights[client_idx] = weight
                 network.clients[client_idx].writer.add_histogram(
                     'weights', np.array(weight),
-                    network.clients[client_idx].last_epoch * inner_iterations
+                    network.clients[client_idx].last_epoch
                 )
         else:
             raise ValueError("Collaboration criterion '{0}' is not recognized.".format(collab_based_on))
@@ -578,3 +592,539 @@ def all_for_all_algo(network: Network, nb_of_synchronization: int = 5, pruning: 
         return track_models, track_gradients
 
 
+def cobo_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
+    """https://proceedings.neurips.cc/paper_files/paper/2024/file/1c32452f112719f7c1db6d983d060f78-Paper-Conference.pdf"""
+
+    # Compute average number of local iterations per synchronization round
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
+
+    # Compute normalized weights for weighted global evaluation
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    # Evaluate initial global performance (before training)
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
+    for client in network.clients:
+        client.write_train_val_test_performance()
+
+    # Optionally track model states and gradients
+    if keep_track:
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
+        track_gradients = [[] for _ in network.clients]
+
+    # Create an iterator over each client's training data for each model being evaluated.
+    iter_loaders = [[iter(client.train_loader) for client in network.clients] for client in network.clients]
+
+    for synchronization_idx in range(1, nb_of_synchronization + 1):
+        print(f"===============\tEpoch {synchronization_idx}\t===============")
+        start_time = time.time()
+
+        weights = {_: [torch.tensor(1.) for e in range(network.nb_clients)] for _ in range(network.nb_clients)}
+
+        # Compute personalized weights for each client based on gradient similarity.
+        for client_idx in range(network.nb_clients):
+            # gradients_eval = {_: None for _ in range(network.nb_clients)}
+            client = network.clients[client_idx]
+
+            # Evaluate gradients of client's model on each other client's data.
+            for c_idx in range(network.nb_clients):
+                if c_idx == client_idx:
+                    continue
+                c = network.clients[c_idx]
+
+                average_model = aggregate_models([client.trained_model, c.trained_model],
+                                                 [0.5, 0.5], client.device)
+                adhoc_optimizer = optim.SGD(average_model.parameters(), lr=0,
+                                      momentum=0, weight_decay=0)
+                gradient_i, iter_loaders[client_idx][client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx][client_idx], client.device,
+                    average_model, client.criterion, adhoc_optimizer, client.scheduler
+                )
+                gradient_k, iter_loaders[client_idx][c_idx] = safe_gradient_computation(
+                    c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                    average_model, c.criterion, adhoc_optimizer, c.scheduler
+                )
+
+                # Choice of gamma as in the original repository.
+                # See https://github.com/epfml/CoBo/blob/main/personalized-vision-models/grouping.py#L187
+                gamma = 0.01
+                g_i = torch.concat([p.flatten() for p in gradient_i if p is not None])
+                g_k = torch.concat([p.flatten() for p in gradient_k if p is not None])
+
+                weights[client_idx][c_idx] = torch.clamp(weights[client_idx][c_idx] + gamma * torch.dot(g_i, g_k), 0, 1).to("cpu")
+
+            network.clients[client_idx].writer.add_histogram(
+                'weights', np.array(weights[client_idx]),
+                network.clients[client_idx].last_epoch
+            )
+
+        for k in range(inner_iterations):
+            # Compute the new model client by client.
+            grad_time = time.time()
+            # Save models at previous iteration
+            models = [copy.deepcopy(_.trained_model) for _ in network.clients]
+
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+                # We need now only N iterators.
+                gradient, iter_loaders[client_idx][client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx][client_idx], client.device,
+                    client.trained_model, client.criterion, client.optimizer, client.scheduler
+                )
+
+                client = network.clients[client_idx]
+
+                aggregated_models = aggregate_models(
+                    [aggregate_models([models[client_idx], m], [1, -1], client.device) for m in models],
+                    weights[client_idx], client.device)
+
+                # Aggregate the gradients using the computed weights.
+                rho = 100 / client.step_size
+                momentum = [p.data for p in scalar_multiplication(aggregated_models, rho).parameters()]
+                aggregated_gradients = gradient + momentum
+
+                # Apply gradient update to the client's model.
+                update_model(client.trained_model, aggregated_gradients, client.optimizer)
+
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
+
+            print(f"Gradients computation time: {time.time() - grad_time} seconds")
+
+        perf_time = time.time()
+
+        # Evaluate clients' performance and update learning rates.
+        for i in range(network.nb_clients):
+            client = network.clients[i]
+            client.last_epoch += 1
+            client.write_train_val_test_performance()
+
+        for client in network.clients:
+            client.scheduler.step()
+
+        # Evaluate performance on the central server.
+        loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+
+        network.save()
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
+
+        # Early stopping for hyperparameter search via Optuna.
+        if pruning:
+            if network.trial.should_prune():
+                raise optuna.TrialPruned()
+
+        # Cleanup GPU memory.
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
+    if keep_track:
+        return track_models, track_gradients
+
+def ditto_algo(network: Network, nb_of_synchronization: int = 5, pruning: bool = False, keep_track=False):
+
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
+
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
+    for client in network.clients:
+        assert equal(client.trained_model, network.clients[0].trained_model), \
+            (f"Models 0 and {client.ID} are not equal.")
+        client.write_train_val_test_performance()
+
+
+    if keep_track:
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
+        track_gradients = [[] for c in network.clients]
+
+    # We create a data iterator for each clients, for each trained model by clients.
+    iter_loaders = [iter(client.train_loader) for client in network.clients]
+
+    for synchronization_idx in range(1, nb_of_synchronization + 1):
+        print(f"=============== \tEpoch {synchronization_idx} ===============")
+        start_time = time.time()
+
+        ################### First training the global model. ####################
+        # One pass of local training
+        for i in range(network.nb_clients):
+            client = network.clients[i]
+            iter_loaders[i] = continue_training(inner_iterations, client.train_loader, iter_loaders[i],
+                                                client.global_model, client.criterion, client.global_optimizer,
+                                                client.device, client.global_scheduler)
+            client.last_epoch += inner_iterations
+
+        # Averaging models
+        new_model = aggregate_models([client.global_model for client in network.clients],
+                                     [1 / network.nb_clients for _ in range(network.nb_clients)],
+                                     network.clients[0].device)
+        ########################################
+
+        #################### Train personalized model ####################
+        # One pass of local training
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
+            for k in range(inner_iterations):
+                gradient, iter_loaders[client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx], client.device,
+                    client.trained_model, client.criterion, client.optimizer,
+                    client.scheduler
+                )
+
+                lbda = 1
+                # Using global_model at previous iteration.
+                reg = aggregate_models([client.trained_model, client.global_model], [lbda, -lbda],
+                                       client.device)
+
+                aggregated_gradients = gradient + [p.data for p in reg.parameters()]
+                # Apply gradient update to the client's model.
+                update_model(client.trained_model, aggregated_gradients, client.optimizer)
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in aggregated_gradients])
+        ########################################
+
+        #################### Update the global model ####################
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
+            load_new_model(client.global_model, new_model)
+            assert equal(client.global_model, network.clients[0].global_model), \
+                (f"Models 0 and {client.ID} are not equal.")
+        ########################################
+
+        perf_time = time.time()
+        for client in network.clients:
+            client.last_epoch += 1
+            client.write_train_val_test_performance()
+            client.scheduler.step()
+
+        # Evaluate global performance
+        loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+        network.save()
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
+
+        # Handle pruning logic if Optuna trial is active
+        if pruning and network.trial.should_prune():
+            raise optuna.TrialPruned()
+
+        # Clean up GPU and memory
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
+    # Return tracked model and gradient history if enabled
+    if keep_track:
+        return track_models, track_gradients
+    return None
+
+def wga_bc_algo(network: Network, nb_of_synchronization: int = 5, beta: int = 10**-4, pruning: bool = False,
+                keep_track=False):
+    """
+    Implementation of WGA-BC algorithm.
+
+    Parameters:
+        network (Network): The federated network object containing all clients, models, and metadata.
+        nb_of_synchronization (int): Number of communication rounds (global synchronizations).
+        pruning (bool): If True, checks whether the Optuna trial should be pruned.
+        keep_track (bool): If True, stores model parameters and gradients after each local update step.
+
+    Returns:
+        Optional[Tuple[list, list]]: If `keep_track` is True, returns a tuple containing:
+            - List of models tracked after each local step for each client.
+            - List of gradients (scaled by learning rate) aggregated for each step and client.
+    """
+    try:
+        # Estimate number of local updates per synchronization based on average dataset size.
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
+
+    # Compute Federated Averaging weights based on dataset sizes.
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    fed_weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    # Evaluate initial performance on central server and log clients' metrics.
+    loss_accuracy_central_server(network, fed_weights, network.writer, 0)
+    for client in network.clients:
+        client.write_train_val_test_performance()
+
+    controls = [[torch.zeros_like(p, dtype=p.dtype, device=p.device) for p in network.clients[0].trained_model.parameters()] for _ in network.clients]
+    biases = [[torch.zeros_like(p, dtype=p.dtype, device=p.device) for p in network.clients[0].trained_model.parameters()] for _ in network.clients]
+
+    if keep_track:
+        # Store deep copies of model parameters and gradients at each step.
+        track_models = [[[copy.deepcopy(m.data[0]).to("cpu") for m in c.trained_model.parameters()]] for c in
+                        network.clients]
+        track_gradients = [[] for _ in network.clients]
+
+    # Create an iterator over each client's training data for each model being evaluated.
+    iter_loaders = [[iter(client.train_loader) for client in network.clients] for client in network.clients]
+
+    for synchronization_idx in range(1, nb_of_synchronization + 1):
+        print(f"===============\tEpoch {synchronization_idx}\t===============")
+        start_time = time.time()
+
+        taus = {_: None for _ in range(network.nb_clients)}
+
+        alpha = (client.nb_train_points - 1)/ client.nb_train_points
+        print(f"Alpha: {alpha}.")
+
+        # Compute personalized weights for each client based on gradient similarity.
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
+
+            taus[client_idx] = [c.nb_train_points**2 / (client.nb_train_points**2 * network.nb_clients**2) for c in network.clients]
+
+        for k in range(inner_iterations):
+
+            # Compute the new model client by client.
+            grad_time = time.time()
+
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+                gradients = []
+
+                for c_idx in range(network.nb_clients):
+                    c = network.clients[c_idx]
+                    gradient, iter_loaders[client_idx][c_idx] = safe_gradient_computation(
+                        c.train_loader, iter_loaders[client_idx][c_idx], c.device,
+                        client.trained_model, client.criterion, client.optimizer, client.scheduler
+                    )
+                    gradients.append(gradient)
+
+                # Aggregate the gradients using the computed weights.
+                aggregated_gradients = aggregate_gradients(gradients[:client_idx] + gradients[client_idx+1:],
+                                                           taus[client_idx],
+                                                           client.device)
+
+                unbiased = aggregate_gradients([aggregated_gradients, controls[client_idx]], [1, -1], client.device)
+
+                grad_for_update = aggregate_gradients([gradients[client_idx], unbiased],
+                                                      [1 - alpha, alpha], client.device)
+                biases[client_idx] = aggregate_gradients([aggregated_gradients, grad_for_update],
+                                                         [1, -1], client.device)
+
+                controls[client_idx] = aggregate_gradients([controls[client_idx], biases[client_idx]],
+                                                           [1 - beta, beta], client.device)
+
+                # Apply gradient update to the client's model.
+                update_model(client.trained_model, grad_for_update, client.optimizer)
+
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.trained_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in grad_for_update])
+
+            print(f"Gradients computation time: {time.time() - grad_time} seconds")
+
+        perf_time = time.time()
+
+        # Evaluate clients' performance and update learning rates.
+        for i in range(network.nb_clients):
+            client = network.clients[i]
+            client.last_epoch += 1
+            client.write_train_val_test_performance()
+
+        for client in network.clients:
+            client.scheduler.step()
+
+        # Evaluate performance on the central server.
+        loss_accuracy_central_server(network, fed_weights, network.writer, client.last_epoch)
+
+        print(f"Performance time: {time.time() - perf_time} seconds")
+
+        network.save()
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
+
+        # Early stopping for hyperparameter search via Optuna.
+        if pruning:
+            if network.trial.should_prune():
+                raise optuna.TrialPruned()
+
+    # Cleanup GPU memory.
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
+    if keep_track:
+        return track_models, track_gradients
+    return None, None
+
+
+def apfl_algo(network: Network, nb_of_synchronization: int = 5, keep_track: bool = False):
+    """
+    Federated Averaging (FedAvg) implementation with periodic model synchronization.
+
+    Parameters:
+        network (Network): The federated system including all clients and their local data/models.
+        nb_of_synchronization (int): Number of communication rounds to run.
+        keep_track (bool): Whether to store model parameters at each round (for later analysis/visualization).
+
+    Returns:
+        Optional[list]: If `keep_track` is True, returns a list containing tracked model parameters.
+    """
+    total_nb_points = np.sum([client.nb_train_points for client in network.clients])
+    weights = [client.nb_train_points / total_nb_points for client in network.clients]
+
+    try:
+        inner_iterations = int(np.mean([len(client.train_loader) for client in network.clients]))
+    except TypeError:
+        inner_iterations = 1
+    print(f"--- nb_of_communication: {nb_of_synchronization} - inner_epochs {inner_iterations} ---")
+
+    loss_accuracy_central_server(network, weights, network.writer, 0)
+    for client in network.clients:
+        assert equal(client.trained_model, network.clients[0].trained_model), \
+            (f"Models 0 and {client.ID} are not equal.")
+        client.write_train_val_test_performance()
+
+    if keep_track:
+        track_models = [[[m.data[0].to("cpu") for m in c.trained_model.parameters()]] for c in network.clients]
+        track_gradients = [[] for c in network.clients]
+
+    # We create a data iterator for each clients, for each trained model by clients.
+    iter_loaders = [iter(client.train_loader) for client in network.clients]
+
+    alpha = [1 - c.step_size for c in network.clients]
+
+    for synchronization_idx in range(1, nb_of_synchronization + 1):
+        print(f"=============== \tEpoch {synchronization_idx} ===============")
+        start_time = time.time()
+        # One pass of local training
+
+        for k in range(inner_iterations):
+
+            previous_models = [copy.deepcopy(client.global_model) for client in network.clients]
+
+            ################### First training the global model. ####################
+            # One pass of local training
+            for i in range(network.nb_clients):
+                client = network.clients[i]
+                iter_loaders[i] = continue_training(1, client.train_loader, iter_loaders[i],
+                                                    client.global_model, client.criterion, client.global_optimizer,
+                                                    client.device, client.global_scheduler)
+            ########################################
+
+            ################### Second training the personalized model. ####################
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+                gradient, iter_loaders[client_idx] = safe_gradient_computation(
+                    client.train_loader, iter_loaders[client_idx], client.device,
+                    aggregate_models([client.personalized_model, previous_models[client_idx]],
+                                     [alpha[client_idx], 1 - alpha[client_idx]], client.device),
+                    client.criterion, client.personalized_optimizer, client.personalized_scheduler
+                )
+
+                update_model(client.personalized_model, gradient, client.personalized_optimizer)
+                # Optionally track model and gradient updates.
+                if keep_track:
+                    lr = client.optimizer.param_groups[0]['lr']
+                    track_models[client_idx].append(
+                        [copy.deepcopy(m.data[0]).to("cpu") for m in client.personalized_model.parameters()])
+                    track_gradients[client_idx].append([lr * g[0].to("cpu") for g in gradient])
+            ########################################
+
+            #################### Update the trained final local model ####################
+            for client_idx in range(network.nb_clients):
+                client = network.clients[client_idx]
+                new_update_in_avg = aggregate_models([client.personalized_model, client.global_model],
+                                                     [alpha[client_idx], 1 - alpha[client_idx]], client.device)
+
+                weight_sum = np.sum([1 / (k + 1)**2 for k in range(nb_of_synchronization * inner_iterations)])
+                new_model = aggregate_models([client.trained_model, new_update_in_avg],
+                                             [0, 1],# / ((synchronization_idx * inner_iterations + k) ** 2 * weight_sum)],
+                                             network.clients[0].device)
+                client = network.clients[client_idx]
+                load_new_model(client.trained_model, new_model)
+                # assert not equal(client.trained_model, network.clients[0].trained_model), \
+                #     (f"Models 0 and {client.ID} are equal.")
+            ########################################
+
+        #################### Update the global model by averaging ####################
+        # Averaging models
+        new_model = aggregate_models([client.global_model for client in network.clients],
+                                     [1 / network.nb_clients for _ in range(network.nb_clients)],
+                                     network.clients[0].device)
+        for client_idx in range(network.nb_clients):
+            client = network.clients[client_idx]
+            load_new_model(client.global_model, new_model)
+            assert equal(client.global_model, network.clients[0].global_model), \
+                (f"Models 0 and {client.ID} are not equal.")
+        ########################################
+
+
+
+        for client in network.clients:
+            client.last_epoch += 1
+            client.write_train_val_test_performance()
+            client.scheduler.step()
+
+        loss_accuracy_central_server(network, weights, network.writer, client.last_epoch)
+        print(network.writer.retrieve_information('train_loss')[1][-1])
+        print(network.writer.retrieve_information('train_accuracy')[1][-1])
+        print("Step-size:", client.optimizer.param_groups[0]['lr'])
+        print(f"Elapsed time: {time.time() - start_time} seconds")
+        print_mem_usage()
+        network.save()
+
+    torch.cuda.empty_cache()
+    gc.collect()
+    print_mem_usage("Memory usage at the end of the algo")
+
+    if keep_track:
+        return track_models, track_gradients
+    return None
+
+# Cobo/Ditto marchent bien avec des clusters éloignés et bien identifié..
+# All-for-one marche bien avec des models peu éloignés sans clusters clairement identifiable.
+
+# A coder : https://arxiv.org/pdf/2111.05968
+# BC WGA, alpha = 1 / N (see Section 5.1 for N large enought, beta = 10^-4, delta = 1
+#
+#
+# Approximation:
+#
+# \sum_{k \neq i} \tau_k^2 \sigma^k = \sigma_0^2 / N => \tau_k = n_k^2 / (n_0^2 / N)
+# \alpha = N / (N + 1 + v^2 n_0^2 / \sigma^2)
+#
+
+# A coder : https://arxiv.org/pdf/2003.13461 (APFL)
+
+# conseil de l'écostysème du FL.
+# pas de recherche, pas de publication.
+#
+#
+# norm grad Ri/ norm grad Rk * grad R_k
+
+
+# APFL :

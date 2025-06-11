@@ -114,6 +114,7 @@ def generate_client_models(N: int, K: int, d: int, cluster_variance: float = 2):
     """
     # Generate K cluster centers
     # Create an uninitialized tensor and fill it with values from the uniform distribution
+    # cluster_centers = [torch.DoubleTensor([5, 5]), -torch.DoubleTensor([5, 5])] #
     cluster_centers = [torch.empty(d).uniform_(-5, 5) for _ in range(K)]
     # Assign each client to a cluster and generate their model
     variations = [cluster_variance * torch.randn(d) for i in range(N)]

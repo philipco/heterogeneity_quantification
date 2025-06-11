@@ -39,7 +39,7 @@ class Network:
     """
 
     def __init__(self, train_loaders, val_loaders, test_loaders, dataset_name,
-                 algo_name, split_type, seed=0):
+                 algo_name, split_type, initial_seed=0):
         """
         Initialize the Network with data loaders and configuration parameters.
 
@@ -54,10 +54,11 @@ class Network:
         """
         super().__init__()
         self.trial = None
-        set_seed(seed)
         self.dataset_name = dataset_name
         self.split_type = split_type
         self.algo_name = algo_name
+        self.initial_seed = initial_seed
+
         self.nb_clients = len(train_loaders)
         # The iterable dataset has no length (online setting, length is infinite).
         try:
@@ -81,8 +82,8 @@ class Network:
         print(f"Number of trainable parameters: {d}.")
         step_size = STEP_SIZE[dataset_name]
         for i in range(self.nb_clients):
-            ID = f"{dataset_name}_{algo_name}_{i}" if split_type is None \
-                else f"{dataset_name}_{split_type}_{algo_name}_{i}"
+            ID = f"{dataset_name}_{algo_name}_{initial_seed}_{i}" if split_type is None \
+                else f"{dataset_name}_{split_type}_{algo_name}_{initial_seed}_{i}"
             if "synth" == dataset_name:
                 L = train_loaders[i].dataset.L
                 step_size = 1 / (2 * L)
@@ -90,15 +91,15 @@ class Network:
                 L = train_loaders[i].dataset.L
                 step_size = 1 / (8 * L)
             self.clients.append(Client(
-                ID, f"{dataset_name}", train_loaders[i], val_loaders[i],
-                test_loaders[i], copy.deepcopy(net),
+                ID, f"{dataset_name}", algo_name, initial_seed, train_loaders[i], val_loaders[i],
+                test_loaders[i], net,
                 CRITERION[dataset_name], METRIC[dataset_name], step_size,
                 MOMENTUM[dataset_name], WEIGHT_DECAY[dataset_name], BATCH_SIZE[dataset_name],
                 SCHEDULER_PARAMS[dataset_name]
             ))
 
-        ID = f"{dataset_name}_{algo_name}_central_server" if split_type is None \
-            else f"{dataset_name}_{split_type}_{algo_name}_central_server"
+        ID = f"{dataset_name}_{algo_name}_{initial_seed}_central_server" if split_type is None \
+            else f"{dataset_name}_{split_type}_{algo_name}_{initial_seed}_central_server"
         self.writer = LoggingWriter(
             log_dir=f'/home/cphilipp/GITHUB/heterogeneity_quantification/runs/{dataset_name}/{ID}'
         )
@@ -142,7 +143,7 @@ class Network:
         pickle files for later retrieval and analysis.
         """
         root = get_project_root()
-        pickle_folder = f'{root}/pickle/{self.dataset_name}/{self.algo_name}'
+        pickle_folder = f'{root}/pickle/{self.dataset_name}/{self.algo_name}/{self.initial_seed}'
         create_folder_if_not_existing(pickle_folder)
         self.writer.save(f"{pickle_folder}", "logging_writer_central.pkl")
         for client in self.clients:
@@ -156,7 +157,7 @@ DATASET = {"mnist": torchvision.datasets.MNIST, "mnist_iid": torchvision.dataset
            }
 
 
-def get_network(dataset_name: str, algo_name: str):
+def get_network(dataset_name: str, algo_name: str, initial_seed: int):
     """
     Prepare data loaders according to the dataset and instantiate a Network.
 
@@ -173,6 +174,9 @@ def get_network(dataset_name: str, algo_name: str):
     Returns:
         Network: Initialized Network object with data loaders and settings.
     """
+
+    set_seed(initial_seed)
+
     split_type = None
 
     ### We the dataset naturally splitted or not.
@@ -213,4 +217,4 @@ def get_network(dataset_name: str, algo_name: str):
         train_loaders, val_loaders, test_loaders, natural_split \
             = get_data_from_flamby(DATASET[dataset_name], NB_CLIENTS[dataset_name], dataset_name, BATCH_SIZE[dataset_name],
                                    kwargs_dataloader=dict(batch_size=BATCH_SIZE[dataset_name], shuffle=True))
-    return Network(train_loaders, val_loaders, test_loaders, dataset_name, algo_name, split_type)
+    return Network(train_loaders, val_loaders, test_loaders, dataset_name, algo_name, split_type, initial_seed)
