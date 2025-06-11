@@ -93,19 +93,19 @@ class Client:
             if self.algo_name in ["Ditto", "APFL"]:
                 self.global_scheduler = LinearWarmupScheduler(self.global_optimizer, 5, 20, plateau=5)
             if self.algo_name  in ["APFL"]:
-                self.personalized_scheduler = LinearWarmupScheduler(self.personalized_scheduler, 5, 20, plateau=5)
+                self.personalized_scheduler = LinearWarmupScheduler(self.personalized_optimizer, 5, 20, plateau=5)
         elif dataset_name in ["heart_disease", "mnist", "mnist_iid", "cifar10", "cifar10_iid", "ixi", "exam_llm"]:
             self.scheduler = StepLR(self.optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
             if self.algo_name in ["Ditto", "APFL"]:
                 self.global_scheduler = StepLR(self.global_optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
             if self.algo_name in ["APFL"]:
-                self.personalized_scheduler = StepLR(self.personalized_scheduler, step_size=scheduler_steps, gamma=scheduler_gamma)
+                self.personalized_scheduler = StepLR(self.personalized_optimizer, step_size=scheduler_steps, gamma=scheduler_gamma)
         elif dataset_name in ["X"]:
             self.scheduler = LambdaLR(self.optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
             if self.algo_name in ["Ditto", "APFL"]:
                 self.global_scheduler = LambdaLR(self.global_optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
             if self.algo_name in ["APFL"]:
-                self.personalized_scheduler = LambdaLR(self.personalized_scheduler, lr_lambda=lambda t: self.step_size / (t + 1))
+                self.personalized_scheduler = LambdaLR(self.personalized_optimizer, lr_lambda=lambda t: self.step_size / (t + 1))
         else:
             self.scheduler = ConstantLRScheduler(self.optimizer)
             if self.algo_name in ["Ditto", "APFL"]:

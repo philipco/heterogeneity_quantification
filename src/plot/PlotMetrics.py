@@ -49,8 +49,6 @@ if __name__ == '__main__':
 
                 writer = LoggingWriter.load(pickle_folder, name)
 
-                seed = 127
-
                 train_epochs[algo_name][seed].append(writer.retrieve_information("train_accuracy")[0])
                 train_accuracies[algo_name][seed].append(writer.retrieve_information("train_accuracy")[1])
                 train_losses[algo_name][seed].append(writer.retrieve_information("train_loss")[1])

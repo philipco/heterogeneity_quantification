@@ -1104,7 +1104,7 @@ def apfl_algo(network: Network, nb_of_synchronization: int = 5, keep_track: bool
     print_mem_usage("Memory usage at the end of the algo")
 
     if keep_track:
-        return track_models
+        return track_models, track_gradients
     return None
 
 # Cobo/Ditto marchent bien avec des clusters éloignés et bien identifié..
