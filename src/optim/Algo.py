@@ -280,8 +280,14 @@ def compute_weight_based_on_ratio(gradients, nb_points_by_clients, client_idx, n
     denominators[client_idx].append(new_denom.item())
 
     for _ in range(len(gradients)):
-        new_num = torch.linalg.vector_norm(grads[client_idx] - grads[_])
+        # print(f"Local gradients: {grads[client_idx]} \t remote gradient: {grads[_]}")
+        new_num = torch.linalg.vector_norm(grads[client_idx] - grads[_])**2
         numerators[client_idx][_].append(new_num.item())
+        # print(f"Scalar product: {torch.dot(grads[client_idx], grads[_])}")
+        # print(f"Local norm: {denominators[client_idx][-1]}")
+        # print(f"Distance: {grads[client_idx] - grads[_]}")
+        # print(f"Distance norm: {torch.linalg.vector_norm(grads[client_idx] - grads[_])**2}")
+        # print(f"Ratio: {1 - torch.linalg.vector_norm(grads[client_idx] - grads[_])**2 / denominators[client_idx][-1]}")
 
     if continuous:
         weight = [ratio(numerators[client_idx][_][-1], denominators[client_idx][-1]) for _ in range(len(gradients))]
@@ -886,10 +892,7 @@ def wga_bc_algo(network: Network, nb_of_synchronization: int = 5, beta: int = 10
 
         taus = {_: None for _ in range(network.nb_clients)}
 
-        # alpha = N / (N + 1), beta = 10 ^ -4, delta = 1, tau = tau_k = (1 - alpha) / alpha * (sum_k n_0 / n_k)
-
-        alpha = 0#1 / network.nb_clients # - 1) / (network.nb_clients +
-
+        alpha = (client.nb_train_points - 1)/ client.nb_train_points
         print(f"Alpha: {alpha}.")
 
         # Compute personalized weights for each client based on gradient similarity.
@@ -898,10 +901,7 @@ def wga_bc_algo(network: Network, nb_of_synchronization: int = 5, beta: int = 10
 
             taus[client_idx] = [c.nb_train_points**2 / (client.nb_train_points**2 * network.nb_clients**2) for c in network.clients]
 
-            # Not possible to evaluate v in practice, which depends on the heterogeneity.
-            alpha = (client.nb_train_points - 1)/ client.nb_train_points
-            # taus[client_idx] = (1 - alpha) / alpha * np.sum([1/c.nb_train_points for c in network.clients]) * client.nb_train_points
-        print(f"tau = {taus}.")
+            print(f"tau = {taus}.")
 
         for k in range(inner_iterations):
 
